@@ -132,6 +132,35 @@ button.primary { background: var(--accent); color: var(--accent-ink); border-col
 .pad .left { grid-column: 1; grid-row: 2; }
 .pad .down { grid-column: 2; grid-row: 2; }
 .pad .right { grid-column: 3; grid-row: 2; }
+/* オープニング・設定・買い物・バッジ帳（画面の まんなかの カード） */
+.modal { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(15, 25, 30, .38); }
+.modal[hidden] { display: none; }
+.modal-card {
+  width: min(560px, 100%); max-height: calc(100% - 32px); overflow: auto; box-sizing: border-box;
+  background: var(--paper); color: var(--ink); border: 1px solid var(--line); border-radius: 18px; padding: 20px 22px; box-shadow: 0 16px 48px rgba(0,0,0,.25);
+}
+.modal-card h2 { font-family: var(--font-display); font-size: 22px; margin: 0 0 6px; text-wrap: balance; }
+.modal-card p { margin: 4px 0 10px; color: var(--ink-soft); }
+.modal-card label.field { display: block; font-weight: 700; margin: 14px 0 6px; }
+.modal-card input[type="text"] { width: 100%; box-sizing: border-box; font: inherit; font-size: 18px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--ink); }
+.choices { display: flex; gap: 8px; flex-wrap: wrap; }
+.choices label { display: flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; background: var(--card); cursor: pointer; }
+.choices label:has(input:checked) { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.choices small { display: block; font-weight: 400; color: var(--ink-soft); }
+.modal-card .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+.pick-list { display: grid; gap: 8px; margin-top: 8px; }
+.pick-list button { text-align: left; padding: 10px 14px; }
+.pick-list button small { display: block; font-weight: 400; color: var(--ink-soft); }
+.pick-list button[aria-current="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.shop-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-top: 8px; }
+.shop-grid .item { border: 1px solid var(--line); border-radius: 12px; padding: 10px; background: var(--card); display: flex; flex-direction: column; gap: 6px; }
+.shop-grid .item b { font-size: 15px; }
+.shop-grid .item span { font-size: 13px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.badge-table { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 8px; }
+.badge-table td, .badge-table th { text-align: left; padding: 6px; border-bottom: 1px solid var(--line); }
+.medal { display: inline-block; min-width: 2.4em; text-align: center; border-radius: 999px; padding: 1px 8px; font-weight: 700; color: #1f2a33; }
+.wallet { font-variant-numeric: tabular-nums; }
+
 /* 右上の 島の 地図（いまの 場所と 向き・お店を タップで 移動） */
 .minimap {
   position: fixed; z-index: 2; right: 12px; top: 64px; width: 210px;
@@ -159,10 +188,13 @@ button.primary { background: var(--accent); color: var(--accent-ink); border-col
 <header class="hud top">
   <div class="brand">HOPE しごとタウン<small>職業体験 VR 下書き</small></div>
   <div class="place" id="place">島ぜんたい</div>
+  <div class="place wallet" id="wallet" hidden></div>
   <div class="spacer"></div>
+  <button id="btn-home" type="button" hidden>いえ</button>
   <button id="btn-walk" type="button">島を歩く</button>
   <button id="btn-season" type="button">季節：夏</button>
   <button id="btn-log" type="button">きろく</button>
+  <button id="btn-settings" type="button">設定</button>
   <button id="btn-vr" type="button" class="primary" hidden>VR で入る</button>
 </header>
 
@@ -194,6 +226,7 @@ button.primary { background: var(--accent); color: var(--accent-ink); border-col
   <button type="button" class="right" data-key="right" aria-label="右を向く">▶</button>
 </div>
 <div class="toast" id="toast" hidden></div>
+<div class="modal" id="modal" role="dialog" aria-modal="true" hidden><div class="modal-card" id="modal-card"></div></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
@@ -1139,6 +1172,17 @@ JOBS.forEach((job, i) => {
 
   booths.push({ job, group: g, yaw, front, door, board, workArea, btns, pin, paintSign });
 });
+
+// 自分の 家を 建てられる 場所（地域ごと）。町の 家や 木が 重ならないよう、先に 場所を とって おく（家が ない 間は 歩いて 通れる）
+const HOME_SITES = {
+  downtown: { name: '繁華街', note: 'コンビニ・カフェ・スーパーが 近い にぎやかな 町', at: [128, 650], face: 'n' },
+  school: { name: '学校エリア', note: '学校と 作業所の そば。湖も 近い', at: [425, 639], face: 'w' },
+  capital: { name: '首都の 北', note: '事務所・清掃・風力発電所が 近い', at: [320, 320], face: 'e' },
+  beach: { name: 'ビーチと 森の あいだ', note: '屋台と 森林組合の あいだ。海が 見える', at: [336, 232], face: 's' },
+  fishing: { name: '漁村', note: '漁協・スキー場・物流センターが 近い 港町', at: [648, 240], face: 's' },
+  farm: { name: '農村', note: '農園と 田んぼの そば。しずかな いなか', at: [834, 598], face: 's' },
+};
+Object.values(HOME_SITES).forEach((h) => { const p = toWorld(...h.at); h.blk = { x: p.x, z: p.z, r: 2.9, w: 0 }; blocked.push(h.blk); });
 
 // 地域の名前（お店のない地域・目じるし）
 [['ビーチ', [250, 205]], ['湖（冬は スケート場）', [265, 592]], ['田んぼ', [826, 424]], ['表：夏山登山　裏：冬スキー', [520, 392]], ['ジップライン', [432, 318]],
@@ -2114,6 +2158,204 @@ booths.forEach((b) => {
   });
   rink.userData.place(0);
 })();
+
+// ===========================================================================
+// 自分の くらし：名前・性別・モード・バッジ・お金・家・家具（このブラウザに 保存）
+//   モード：money＝しごとで お金と バッジ（お金で 家具を 買う）／badge＝バッジだけ（バッジの 数で 家具が もらえる）
+//   バッジ（お店ごと）：銅＝最後まで（配慮ありでも）、銀＝ミス 1 回まで、金＝配慮なしで ミス 0・ヒント 0
+//   トロフィー：全部の お店で 銅・銀・金が そろうと その 色
+// ===========================================================================
+const PROFILE_KEY = 'hope-vr-profile';
+let profile = (() => { try { return JSON.parse(localStorage.getItem(PROFILE_KEY) || 'null'); } catch (e) { return null; } })();
+function saveProfile() { try { localStorage.setItem(PROFILE_KEY, JSON.stringify(profile)); } catch (e) { /* 保存できなくても 続ける */ } }
+const GENDER = { m: '男性', f: '女性', n: 'えらばない' };
+const MODE = { money: 'お金と バッジ', badge: 'バッジのみ' };
+const MEDAL = ['なし', '銅', '銀', '金'];
+const MEDAL_COLOR = ['#d5dadd', '#c7834a', '#b8c2ca', '#e3b23c'];
+const yen = (n) => n.toLocaleString('ja-JP') + '円';
+const badgeOf = (id) => (profile && profile.badges[id]) || 0;
+const badgeCount = () => JOBS.filter((j) => badgeOf(j.id) > 0).length;
+const trophyLevel = () => (profile ? Math.min(...JOBS.map((j) => badgeOf(j.id))) : 0);
+const PAY_PER_ITEM = 100; const PAY_BONUS = 200; // 1 こ 100円、ミス 0 で ボーナス
+function medalFor(s, withSupport) {
+  if (s.completed < ROUNDS_PER_SESSION) return 0;
+  if (!withSupport && s.defects === 0 && s.questionCount === 0 && s.promptCount === 0) return 3;
+  return s.defects <= 1 ? 2 : 1;
+}
+// 体験の おわりに バッジと お金を わたす
+function rewardFor(job, s, withSupport) {
+  if (!profile) return null;
+  const before = badgeOf(job.id); const tBefore = trophyLevel();
+  const medal = medalFor(s, withSupport);
+  if (medal > before) profile.badges[job.id] = medal;
+  let pay = 0;
+  if (profile.mode === 'money') { pay = s.completed * PAY_PER_ITEM + (s.defects === 0 ? PAY_BONUS : 0); profile.money += pay; }
+  const tAfter = trophyLevel();
+  saveProfile(); refreshHome(); renderWallet();
+  return { medal, up: medal > before, pay, trophy: tAfter > tBefore ? tAfter : 0 };
+}
+
+// ---- 家具（買う・もらう）。at は 家の 中の 置き場所（家の 向きの 座標）
+const CATALOG = [
+  { id: 'plant', name: '観葉植物', price: 300, badges: 1, at: [-1.85, 0, -1.6], ry: 0 },
+  { id: 'rug', name: 'ラグ', price: 400, badges: 2, at: [0, 0.105, 0.2], ry: 0 },
+  { id: 'lamp', name: 'スタンドライト', price: 500, badges: 3, at: [1.85, 0, -1.6], ry: 0 },
+  { id: 'picture', name: '海の 絵', price: 600, badges: 4, at: [-2.16, 1.6, -0.6], ry: Math.PI / 2 },
+  { id: 'shelf', name: '本だな', price: 800, badges: 6, at: [1.95, 0, 1.15], ry: -Math.PI / 2 },
+  { id: 'sofa', name: 'ソファ', price: 1200, badges: 8, at: [-1.72, 0, -0.6], ry: Math.PI / 2 },
+  { id: 'tv', name: 'テレビ', price: 1500, badges: 10, at: [1.9, 0, -0.2], ry: -Math.PI / 2 },
+  { id: 'bed', name: 'ベッド', price: 2000, badges: 12, at: [-1.5, 0, 1.15], ry: 0 },
+];
+const FURNITURE = {
+  plant() { const g = new THREE.Group(); part(g, cyl(0.17, 0.13, 0.3, 16), '#c46a3a', 0, 0.15, 0); [[0, 0.55, 0, 0.22], [0.1, 0.8, 0.05, 0.18], [-0.08, 0.95, -0.04, 0.16]].forEach(([x, y, z, r]) => part(g, new THREE.IcosahedronGeometry(r, 0), '#4f9a45', x, y, z, { flatShading: true })); part(g, cyl(0.02, 0.02, 0.6, 6), '#6b4a2a', 0, 0.55, 0); return g; },
+  rug() { const g = new THREE.Group(); part(g, box(1.7, 0.01, 1.2), '#c8463d', 0, 0, 0); part(g, box(1.5, 0.012, 1.0), '#e9d6b8', 0, 0, 0); part(g, box(1.2, 0.014, 0.7), '#c8463d', 0, 0, 0); return g; },
+  lamp() { const g = new THREE.Group(); part(g, cyl(0.16, 0.18, 0.04, 16), '#3d4a54', 0, 0.02, 0); part(g, cyl(0.015, 0.015, 1.3, 8), '#3d4a54', 0, 0.67, 0); part(g, cyl(0.12, 0.22, 0.28, 16), '#fff1c2', 0, 1.4, 0, { emissive: '#ffd27a', emissiveIntensity: 0.7 }); return g; },
+  picture() { const g = new THREE.Group(); part(g, box(0.8, 0.56, 0.04), '#8a6a46', 0, 0, 0); part(g, box(0.7, 0.24, 0.045), '#7fc4e8', 0, 0.1, 0); part(g, box(0.7, 0.22, 0.045), '#3a87b5', 0, -0.13, 0); part(g, ball(0.06, 10, 8), '#f6d24a', 0.2, 0.16, 0.02); return g; },
+  shelf() { const g = new THREE.Group(); part(g, box(0.9, 1.6, 0.04), '#8a6a46', 0, 0.8, -0.14); [-1, 1].forEach((sd) => part(g, box(0.04, 1.6, 0.3), '#8a6a46', sd * 0.43, 0.8, 0)); [0.02, 0.55, 1.08, 1.58].forEach((y) => part(g, box(0.9, 0.04, 0.3), '#8a6a46', 0, y, 0)); [0.06, 0.59, 1.12].forEach((y) => { for (let i = 0; i < 9; i++) part(g, box(0.07, 0.36 + (i % 3) * 0.05, 0.22), ['#c8463d', '#3c7fc4', '#e3b23c', '#4f9a45'][i % 4], -0.32 + i * 0.08, y + 0.2 + (i % 3) * 0.025, 0); }); return g; },
+  sofa() { const g = new THREE.Group(); part(g, box(1.4, 0.42, 0.8), '#5a7fa8', 0, 0.21, 0); part(g, box(1.4, 0.5, 0.2), '#4f7099', 0, 0.62, -0.3); [-1, 1].forEach((sd) => part(g, box(0.18, 0.62, 0.8), '#4f7099', sd * 0.7, 0.31, 0)); [-0.35, 0.35].forEach((x) => part(g, box(0.6, 0.12, 0.6), '#6f94bd', x, 0.48, 0.05)); return g; },
+  tv() { const g = new THREE.Group(); part(g, box(1.1, 0.45, 0.4), '#8a6a46', 0, 0.225, 0); part(g, box(1.0, 0.6, 0.05), '#1f2a33', 0, 0.8, -0.05); part(g, box(0.92, 0.52, 0.01), '#4f8fd1', 0, 0.8, -0.02, { emissive: '#2a5a85', emissiveIntensity: 0.5 }); return g; },
+  bed() { const g = new THREE.Group(); part(g, box(1.05, 0.3, 1.95), '#8a6a46', 0, 0.15, 0); part(g, box(1.0, 0.16, 1.9), '#fbfaf4', 0, 0.38, 0); part(g, box(0.7, 0.1, 0.32), '#ffffff', 0, 0.5, -0.7); part(g, box(1.02, 0.08, 1.2), '#e07fa4', 0, 0.48, 0.32); part(g, box(1.05, 0.7, 0.06), '#8a6a46', 0, 0.35, -0.98); return g; },
+};
+function trophyMesh(color, ghost) {
+  const g = new THREE.Group(); const ex = ghost ? { transparent: true, opacity: 0.2 } : { metalness: 0.6, roughness: 0.3 };
+  const c = ghost ? '#c9ced2' : color;
+  part(g, box(0.18, 0.05, 0.18), ghost ? c : '#5a3a2e', 0, 0.025, 0, ex);
+  part(g, cyl(0.025, 0.04, 0.12, 12), c, 0, 0.11, 0, ex);
+  part(g, cyl(0.1, 0.05, 0.16, 20), c, 0, 0.25, 0, ex);
+  [-1, 1].forEach((sd) => part(g, new THREE.TorusGeometry(0.045, 0.012, 8, 16), c, sd * 0.11, 0.27, 0, ex));
+  return g;
+}
+// 自分の 姿（家の 中）。性別は 髪型と 服だけに 使う
+function avatar(gender) {
+  const g = person(gender === 'f' ? '#e07fa4' : gender === 'm' ? '#3c7fc4' : '#4f9a45', '#3d4a54');
+  if (gender === 'f') { part(g, box(0.1, 0.1, 0.03), '#3b2a20', 0, 0.26, -0.045); part(g, cyl(0.06, 0.085, 0.09, 16), '#e07fa4', 0, 0.1, 0); }
+  if (gender === 'n') { part(g, cyl(0.056, 0.058, 0.03, 16), '#e3b23c', 0, 0.345, 0); part(g, box(0.07, 0.008, 0.05), '#e3b23c', 0, 0.333, 0.05); }
+  return g;
+}
+
+// ---- 家（外観と 中）。引っ越しの ときは 建てなおす
+const home = { group: null, site: null, door: null, front: null, yaw: 0, HD: 4.0, board: null, inner: null, plate: null, pin: null, btns: null, clickables: [] };
+function buildHome() {
+  if (home.group) { scene.remove(home.group); home.clickables.forEach((m) => { const k = plazaClickables.indexOf(m); if (k >= 0) plazaClickables.splice(k, 1); }); }
+  if (home.pin) { scene.remove(home.pin); const k = overviewOnly.indexOf(home.pin); if (k >= 0) overviewOnly.splice(k, 1); }
+  if (home.site) home.site.blk.w = 0;
+  home.group = null; home.site = null; home.door = null; home.clickables = [];
+  if (!profile || !profile.home || !HOME_SITES[profile.home]) return;
+  const site = HOME_SITES[profile.home]; site.blk.w = 2.6; home.site = site;
+  const yaw = FACE[site.face]; const HW = 4.4; const HD = home.HD; const WH = 2.8;
+  const g = new THREE.Group(); g.position.copy(toWorld(...site.at)); g.rotation.y = yaw; scene.add(g); g.updateMatrixWorld(true); // すぐに 中へ 入れるよう 位置を 確定
+  home.group = g; home.yaw = yaw; home.front = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
+  home.door = g.position.clone().addScaledVector(home.front, HD / 2 + 1.2);
+  const add = (geo, m, x, y, z, click) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); g.add(o); if (click) { o.userData.home = true; home.clickables.push(o); plazaClickables.push(o); } return o; };
+  const wall = () => mat('#f6efe2');
+  // 床・壁（入口と 窓）・屋根
+  add(new THREE.PlaneGeometry(HW, HD), mat('#c9a27a'), 0, 0.1, 0).rotation.x = -Math.PI / 2;
+  add(new THREE.BoxGeometry(HW, WH, 0.1), wall(), 0, WH / 2, -HD / 2, true);
+  [-1, 1].forEach((sd) => add(new THREE.BoxGeometry(0.1, WH, HD), wall(), sd * HW / 2, WH / 2, 0, true));
+  const doorW = 1.2; const sideW = (HW - doorW) / 2;
+  [-1, 1].forEach((sd) => {
+    add(new THREE.BoxGeometry(sideW, WH, 0.1), wall(), sd * (doorW / 2 + sideW / 2), WH / 2, HD / 2, true);
+    add(new THREE.PlaneGeometry(0.9, 0.7), mat('#bfe3f2', { emissive: '#3d6f85', emissiveIntensity: 0.15 }), sd * (doorW / 2 + sideW / 2), 1.5, HD / 2 + 0.055);
+  });
+  add(new THREE.BoxGeometry(doorW, WH - 2.2, 0.1), wall(), 0, (WH + 2.2) / 2, HD / 2, true);
+  add(new THREE.BoxGeometry(HW + 0.1, 0.08, HD + 0.1), mat('#fbfaf6'), 0, WH, 0);
+  const roof = add(new THREE.ConeGeometry(3.4, 1.6, 4), mat('#c8463d'), 0, WH + 0.8, 0, true); roof.rotation.y = Math.PI / 4;
+  add(new THREE.CylinderGeometry(0.25, 0.25, 0.04, 20), mat('#fff8e0', { emissive: '#fff1c2', emissiveIntensity: 0.8 }), 0, WH - 0.06, 0);
+  // 表札
+  home.plate = new Board(1.4, 0.32, 300); home.plate.mesh.position.set(0, 2.45, HD / 2 + 0.07); g.add(home.plate.mesh);
+  // 中：バッジの 掲示板・トロフィーの たな・自分の 姿・家具
+  home.board = new Board(2.6, 1.3, 400); home.board.mesh.position.set(0, 1.75, -HD / 2 + 0.06); g.add(home.board.mesh);
+  add(new THREE.BoxGeometry(1.7, 0.06, 0.34), mat('#8a6a46'), 0, 0.88, -HD / 2 + 0.22);
+  [-0.75, 0.75].forEach((x) => add(new THREE.BoxGeometry(0.06, 0.85, 0.3), mat('#8a6a46'), x, 0.45, -HD / 2 + 0.22));
+  home.inner = new THREE.Group(); g.add(home.inner);
+  // VR でも 押せる ボタン（掲示板の 右）
+  home.btns = { out: makeButton('外に出る', '#2f7d4f', 0.56, 0.14), plaza: makeButton('島ぜんたいへ', '#3d4a54', 0.56, 0.14) };
+  home.btns.out.position.set(1.72, 2.4, -HD / 2 + 0.07); home.btns.plaza.position.set(1.72, 2.18, -HD / 2 + 0.07);
+  Object.values(home.btns).forEach((m) => { m.scale.setScalar(0.8); g.add(m); });
+  // 島ぜんたいから 見える 目印
+  home.pin = overviewSign('わたしの 家', profile.name + 'さん・' + site.name, '#c8463d', 6);
+  home.pin.position.set(g.position.x, 8, g.position.z); home.pin.lookAt(OVERVIEW.pos); home.pin.userData.home = true;
+  home.pin.visible = state.where === 'plaza'; scene.add(home.pin); overviewOnly.push(home.pin); home.clickables.push(home.pin);
+  refreshHome();
+}
+function drawBadgeBoard() {
+  home.board.draw((ctx, W, H) => {
+    ctx.fillStyle = '#fffdf8'; roundRect(ctx, 0, 0, W, H, 28); ctx.fill();
+    ctx.fillStyle = '#1f2a33'; ctx.font = '700 46px ' + FONT_DISPLAY; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.fillText(profile.name + 'さんの バッジ', 30, 18);
+    ctx.font = '400 30px ' + FONT_BODY; ctx.fillStyle = '#55626d'; ctx.textAlign = 'right';
+    ctx.fillText(badgeCount() + ' / ' + JOBS.length + '　トロフィー：' + MEDAL[trophyLevel()], W - 30, 30);
+    const cols = 6; const cw = (W - 60) / cols; const rows = Math.ceil(JOBS.length / cols); const ch = (H - 96) / rows;
+    JOBS.forEach((j, i) => {
+      const x = 30 + (i % cols) * cw + cw / 2; const y = 92 + Math.floor(i / cols) * ch + ch * 0.36; const lv = badgeOf(j.id); const rr = Math.min(cw, ch) * 0.28;
+      ctx.beginPath(); ctx.arc(x, y, rr, 0, Math.PI * 2); ctx.fillStyle = lv ? j.color : '#e6e9ea'; ctx.fill();
+      ctx.lineWidth = rr * 0.3; ctx.strokeStyle = MEDAL_COLOR[lv]; ctx.stroke();
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      if (lv) { ctx.fillStyle = '#ffffff'; ctx.font = '700 ' + Math.round(rr * 0.9) + 'px ' + FONT_DISPLAY; ctx.fillText(MEDAL[lv], x, y + 1); }
+      ctx.fillStyle = lv ? '#1f2a33' : '#9aa4ab'; ctx.font = '400 ' + Math.round(ch * 0.15) + 'px ' + FONT_BODY; ctx.textBaseline = 'top';
+      ctx.fillText(j.name, x, y + rr + 8);
+    });
+  });
+}
+function refreshHome() {
+  if (!home.group || !profile) return;
+  home.plate.draw((ctx, W, H) => { ctx.fillStyle = '#6b4a2e'; roundRect(ctx, 0, 0, W, H, 18); ctx.fill(); ctx.fillStyle = '#fffaf0'; ctx.font = '700 ' + Math.round(H * 0.5) + 'px ' + FONT_DISPLAY; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(profile.name + 'さんの 家', W / 2, H / 2 + 2); });
+  drawBadgeBoard();
+  const inner = home.inner; while (inner.children.length) inner.remove(inner.children[0]);
+  const HD = home.HD;
+  const t = trophyLevel();
+  [['#c7834a', 1, -0.5], ['#b8c2ca', 2, 0], ['#e3b23c', 3, 0.5]].forEach(([c, lv, x]) => { const tr = trophyMesh(c, t < lv); tr.position.set(x, 0.91, -HD / 2 + 0.22); inner.add(tr); });
+  const me = avatar(profile.gender); me.scale.setScalar(4.6); me.position.set(1.35, 0.1, -1.3); me.rotation.y = -0.35; inner.add(me);
+  CATALOG.forEach((it) => {
+    if (!profile.owned.includes(it.id)) return;
+    const m = FURNITURE[it.id](); m.position.set(it.at[0], it.at[1] + (it.id === 'picture' || it.id === 'rug' ? 0 : 0.1), it.at[2]); m.rotation.y = it.ry; inner.add(m);
+  });
+}
+function homeStand() { return home.group.localToWorld(new THREE.Vector3(0, 0, home.HD / 2 - 0.7)); }
+
+// ---- フェリーの 入港（オープニング）と 港の「ようこそ」看板
+const opening = { ferry: null, t0: 0, dur: 6000, from: null, to: null };
+(function buildWelcomeSign() {
+  const p = toWorld(140, 461);
+  const b = new Board(3.6, 1.5, 300);
+  b.draw((ctx, W, H) => {
+    ctx.fillStyle = '#2d6fa3'; roundRect(ctx, 0, 0, W, H, 34); ctx.fill();
+    ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = '700 70px ' + FONT_DISPLAY; ctx.fillText('ようこそ', W / 2, H * 0.27);
+    ctx.font = '700 92px ' + FONT_DISPLAY; ctx.fillText('Work Island へ', W / 2, H * 0.55);
+    ctx.font = '400 38px ' + FONT_BODY; ctx.fillText('フェリー乗り場（首都）', W / 2, H * 0.83);
+  });
+  b.mesh.position.set(p.x, 2.4, p.z); b.mesh.rotation.y = -Math.PI / 2; scene.add(b.mesh); // 海（西）から 来る 人に 向ける
+  [-1.4, 1.4].forEach((dz) => addCyl(p.x + 0.05, 0.85, p.z + dz, 0.07, 0.07, 1.7, '#2d6fa3', 8));
+})();
+function playFerry() {
+  closeModal();
+  if (!opening.ferry) {
+    const f = new THREE.Group();
+    const hull = new THREE.Mesh(new THREE.BoxGeometry(9, 1.0, 2.8), mat('#f4f4f0')); hull.position.y = -0.05; f.add(hull);
+    const cabin = new THREE.Mesh(new THREE.BoxGeometry(4, 0.9, 2.3), mat('#2d6fa3')); cabin.position.set(1.2, 0.9, 0); f.add(cabin);
+    const fun = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 1.0, 12), mat('#d0453a')); fun.position.set(2.2, 1.8, 0); f.add(fun);
+    scene.add(f); opening.ferry = f;
+  }
+  opening.from = toWorld(-20, 455); opening.to = toWorld(96, 455);
+  opening.ferry.position.copy(opening.from); opening.ferry.visible = true;
+  state.where = 'opening'; tween = null; look.yaw = 0; look.pitch = 0.05;
+  overviewOnly.forEach((m) => { m.visible = false; });
+  opening.t0 = performance.now(); opening.dur = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 1 : 6500;
+  renderHud();
+}
+function stepOpening(now) {
+  if (!opening.t0) return;
+  const t = Math.min(1, (now - opening.t0) / opening.dur); const e = 1 - Math.pow(1 - t, 3);
+  opening.ferry.position.lerpVectors(opening.from, opening.to, e);
+  rig.position.set(opening.ferry.position.x + 3.4, 0.5, opening.ferry.position.z); rig.rotation.y = -Math.PI / 2; // へさき（前の 甲板）から 東（島）を 見る
+  if (t >= 1) { opening.t0 = 0; arriveAtPort(); }
+}
+function arriveAtPort() {
+  const p = toWorld(100, 466); rig.position.set(p.x, 0.15, p.z); rig.rotation.y = -Math.PI / 2; look.yaw = 0.1; look.pitch = -0.08;
+  toast(profile.name + 'さん、Work Island へ ようこそ！');
+  setTimeout(() => openAreaPicker(true), 1600);
+}
 // 店員の 目線の 先に お客さま（接客の お店だけ）。台の 向こうで 店員の 方を 向く。
 booths.forEach((b) => {
   const guests = { yatai: ['#3c7fc4', '#f2c230'], super: ['#4f9a45', '#c4577a'], store: ['#3b6fb6', '#e3a33c'], cafe: ['#c4577a'], ski: ['#d0453a', '#3c7fc4'], hut: ['#4f9a45'], clean: ['#e3b23c'] }[b.job.id];
@@ -2163,6 +2405,19 @@ function moveRig(pos, yaw, pitch, dur) {
   look.yaw = 0; look.pitch = pitch || 0;
 }
 
+function goHome(instant) {
+  if (!home.group) { openAreaPicker(false); return; }
+  if (state.phase === 'work' || state.phase === 'between') { toast('体験が おわってから 帰れます'); return; }
+  stopSpeech(); clearWork();
+  if (state.booth) Object.values(state.booth.btns).forEach((m) => { m.visible = false; });
+  state.where = 'home'; state.booth = null; state.phase = 'choose'; state.session = null; state.round = null; state.cameFromWalk = false;
+  overviewOnly.forEach((m) => { m.visible = false; });
+  refreshHome();
+  const p = homeStand();
+  if (instant) { tween = null; rig.position.copy(p); rig.rotation.y = home.yaw; look.yaw = 0; look.pitch = 0.05; } else moveRig(p, home.yaw, 0.05);
+  renderHud();
+}
+function exitHome() { startWalk(home.group.position.clone().addScaledVector(home.front, home.HD / 2 + 3.2), home.yaw + Math.PI); }
 function goPlaza() {
   stopSpeech();
   clearWork();
@@ -2234,6 +2489,7 @@ function walkStep(dt) {
   const p = rig.position;
   if (walkable(p.x + dx, p.z + dz)) { p.x += dx; p.z += dz; } else if (walkable(p.x + dx, p.z)) p.x += dx; else if (walkable(p.x, p.z + dz)) p.z += dz; // 壁ぞいに すべる
   // お店の 入口に 来たら 中へ
+  if (home.door && Math.hypot(home.door.x - p.x, home.door.z - p.z) < 1.3) { Object.keys(walkKeys).forEach((k) => { walkKeys[k] = false; }); syncPad(); goHome(); return; } // 自分の 家の 入口
   const near = booths.findIndex((b) => Math.hypot(b.door.x - p.x, b.door.z - p.z) < 1.3);
   if (near >= 0) { Object.keys(walkKeys).forEach((k) => { walkKeys[k] = false; }); syncPad(); goBooth(near); }
 }
@@ -2579,6 +2835,11 @@ function showResult() {
     },
   };
   logEntries.unshift(entry); saveLog(); renderLog();
+  const rw = rewardFor(b.job, s, state.withSupport); state.lastReward = rw;
+  if (rw) {
+    if (rw.up) toast('バッジ（' + MEDAL[rw.medal] + '）を もらいました！');
+    if (rw.trophy) setTimeout(() => toast('トロフィー（' + MEDAL[rw.trophy] + '）！ 全部の お店が ' + MEDAL[rw.trophy] + 'に そろいました'), 2400);
+  }
   setButtons(['again', 'back']);
   b.board.draw((ctx, W, H) => {
     paintBoardBase(ctx, W, H, b.job);
@@ -2590,6 +2851,10 @@ function showResult() {
       ['ヒント（自分から）', s.questionCount + ' 回'], ['ガイド（自動）', s.promptCount + ' 回'],
     ];
     rows.forEach(([k, v], n) => { const col = n % 2; const row = Math.floor(n / 2); ctx.fillText(k + '：' + v, 48 + col * 480, 210 + row * 60); });
+    if (rw) {
+      ctx.font = '700 40px ' + FONT_BODY; ctx.fillStyle = '#7a4a12';
+      ctx.fillText('バッジ：' + MEDAL[rw.medal] + (rw.up ? '（新しく もらいました）' : '') + (rw.pay ? '　おきゅうりょう：' + yen(rw.pay) : ''), 48, H - 140);
+    }
     ctx.fillStyle = '#55626d'; ctx.font = '400 30px ' + FONT_BODY;
     ctx.fillText('「きろく」に 残しました。点数ではなく、つぎに ためす 配慮を 考える 材料です。', 48, H - 70);
   });
@@ -2673,6 +2938,8 @@ renderer.domElement.addEventListener('pointerup', (e) => {
 function currentClickables() {
   if (state.where === 'plaza') return booths.map((b) => b.pin).concat(plazaClickables);
   if (state.where === 'walk') return plazaClickables;
+  if (state.where === 'home') return home.btns ? Object.values(home.btns) : [];
+  if (state.where === 'opening') return [];
   const b = state.booth; const list = Object.values(b.btns).filter((m) => m.visible);
   if (state.phase === 'work' && state.round) state.round.slots.forEach((s) => { if (!s.done) s.mesh.traverse((o) => { if (o.isMesh) list.push(o); }); });
   return list; // お店の中では 壁ごしに ほかの お店を えらばない（もどるのは「島ぜんたいへ」）
@@ -2682,6 +2949,8 @@ function handleRay(ray) {
   const hits = ray.intersectObjects(currentClickables(), false);
   if (!hits.length) return;
   const obj = hits[0].object;
+  if (obj.userData.home) { goHome(); return; }
+  if (state.where === 'home') { if (obj === home.btns.out) exitHome(); else if (obj === home.btns.plaza) goPlaza(); return; }
   if (obj.userData.boothIndex !== undefined) { if (state.where === 'plaza' || state.phase !== 'work') goBooth(obj.userData.boothIndex); return; }
   if (obj.userData.slotIndex !== undefined) { onSelectItem(obj.userData.slotIndex); return; }
   const b = state.booth; if (!b) return;
@@ -2774,7 +3043,12 @@ function drawMinimap() {
     if (state.booth === b) { x.beginPath(); x.arc(u, v, dot * 1.9, 0, Math.PI * 2); x.strokeStyle = '#ffd23f'; x.lineWidth = Math.max(2, dot * 0.4); x.stroke(); }
     x.globalAlpha = 1;
   });
-  if (state.where === 'plaza') return; // 見わたし中は 場所の 矢印を 出さない
+  if (home.site) { // 自分の 家（小さな 家の 形）
+    const [hx, hy] = mmPos(...home.site.at); const S = 6 * px;
+    x.beginPath(); x.moveTo(hx, hy - S * 1.1); x.lineTo(hx + S, hy - S * 0.1); x.lineTo(hx + S * 0.75, hy - S * 0.1); x.lineTo(hx + S * 0.75, hy + S * 0.8); x.lineTo(hx - S * 0.75, hy + S * 0.8); x.lineTo(hx - S * 0.75, hy - S * 0.1); x.lineTo(hx - S, hy - S * 0.1); x.closePath();
+    x.fillStyle = '#c8463d'; x.fill(); x.lineWidth = Math.max(1.5, px * 1.5); x.strokeStyle = '#ffffff'; x.stroke();
+  }
+  if (state.where === 'plaza' || state.where === 'opening') return; // 見わたし中は 場所の 矢印を 出さない
   camera.getWorldPosition(mmHead); camera.getWorldDirection(mmDir);
   const [u, v] = mmPos(...toMap(mmHead.x, mmHead.z));
   const a = Math.atan2(mmDir.z, mmDir.x); const R = 9 * px;
@@ -2790,6 +3064,7 @@ mmCanvas.addEventListener('click', (e) => {
   const px = (e.clientX - rect.left) / rect.width * MM.w + MM.x0; const py = (e.clientY - rect.top) / rect.height * MM.h + MM.y0;
   let best = -1; let bestD = 40;
   booths.forEach((b, i) => { const [sx, sy] = SITES[b.job.id].at; const d = Math.hypot(sx - px, sy - py); if (d < bestD) { bestD = d; best = i; } });
+  if (home.site && Math.hypot(home.site.at[0] - px, home.site.at[1] - py) < Math.min(bestD, 30)) { goHome(); return; } // 自分の 家
   if (best < 0) return;
   if (state.phase === 'work' || state.phase === 'between') { toast('体験が おわってから 移動できます'); return; }
   goBooth(best);
@@ -2846,7 +3121,8 @@ function renderChips() {
 function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 
 function renderHud() {
-  $('place').textContent = state.where === 'plaza' ? '島ぜんたい' : state.where === 'walk' ? '島を 歩いています' : state.booth.job.area + '　' + state.booth.job.name + '・' + state.booth.job.work;
+  $('btn-home').hidden = !home.group;
+  $('place').textContent = state.where === 'plaza' ? '島ぜんたい' : state.where === 'walk' ? '島を 歩いています' : state.where === 'home' ? profile.name + 'さんの 家（' + home.site.name + '）' : state.where === 'opening' ? 'フェリーで 入港中' : state.booth.job.area + '　' + state.booth.job.name + '・' + state.booth.job.work;
   $('pad').hidden = state.where !== 'walk';
   $('btn-walk').textContent = state.where === 'walk' ? '見わたす' : '島を歩く';
   chipsEl.querySelectorAll('.chip').forEach((el, i) => el.setAttribute('aria-current', String(i === 0 ? state.where === 'plaza' : state.booth === booths[i - 1])));
@@ -2867,6 +3143,17 @@ function renderHud() {
       '<div>島の 地域ごとに、その土地の しごとが あります。旗や お店を タップ（VR では ゆびさして トリガー）すると、その お店の前に 移動します。ドラッグで 見回せます。</div>' +
       '<div class="row"><button type="button" class="primary" id="h-walk">島を 歩いてみる</button></div>';
     $('h-walk').onclick = () => startWalk();
+    return;
+  }
+  if (state.where === 'opening') {
+    el.innerHTML = '<span class="tag">オープニング</span><h2>フェリーで Work Island へ</h2><div>首都の フェリー乗り場に 入港します。</div>';
+    return;
+  }
+  if (state.where === 'home') {
+    el.innerHTML = '<span class="tag">' + esc(home.site.name) + '</span><h2>' + esc(profile.name) + 'さんの 家</h2>' +
+      '<div class="meta"><span>バッジ ' + badgeCount() + ' / ' + JOBS.length + '</span>' + (profile.mode === 'money' ? '<span>お金 ' + yen(profile.money) + '</span>' : '') + '<span>トロフィー ' + MEDAL[trophyLevel()] + '</span></div>' +
+      '<div class="row"><button type="button" class="primary" id="h-out">外に出る</button><button type="button" id="h-shop">' + (profile.mode === 'money' ? 'かいもの' : 'もらえる もの') + '</button><button type="button" id="h-badges">バッジ帳</button><button type="button" id="h-plaza">島ぜんたい</button></div>';
+    $('h-out').onclick = exitHome; $('h-shop').onclick = openShop; $('h-badges').onclick = openBadgeBook; $('h-plaza').onclick = goPlaza;
     return;
   }
   if (state.where === 'walk') {
@@ -2902,9 +3189,10 @@ function renderHud() {
     return;
   }
   if (state.phase === 'result') {
-    const last = logEntries[0];
+    const last = logEntries[0]; const rw = state.lastReward;
     el.innerHTML = '<span class="tag">' + esc(job.name) + '</span><h2>おつかれさまでした</h2>' +
       (last ? '<div class="meta"><span>できた ' + last.phase.completed + ' こ</span><span>ミス ' + last.phase.defects + '</span><span>ヒント ' + last.phase.questionCount + '</span><span>ガイド ' + last.phase.promptCount + '</span><span>' + fmtDuration(last.phase.durationSec) + '</span></div>' : '') +
+      (rw ? '<div class="feedback ok">バッジ：' + MEDAL[rw.medal] + (rw.up ? '（新しく もらいました）' : '') + (rw.pay ? '　おきゅうりょう ' + yen(rw.pay) : '') + '</div>' : '') +
       '<div class="row"><button type="button" id="h-again">もう一度</button><button type="button" id="h-log">きろくを見る</button>' + exitBtn + '</div>';
     $('h-again').onclick = showChoose_; $('h-log').onclick = () => toggleLog(true);
     if ($('h-exit')) $('h-exit').onclick = exitToWalk;
@@ -2926,6 +3214,124 @@ function renderHud() {
   $('h-hint').onclick = () => useHint(false); $('h-back').onclick = goPlaza;
 }
 function showChoose_() { showChoose(); renderHud(); }
+
+// ---- 画面の まんなかの カード（オープニング・家の 場所・設定・買い物・バッジ帳）
+const modal = $('modal'); const modalCard = $('modal-card');
+function openModal(html, mount) {
+  modalCard.innerHTML = html; modal.hidden = false;
+  if (mount) mount(modalCard);
+  const f = modalCard.querySelector('input[type="text"], .primary, button'); if (f) f.focus();
+}
+function closeModal() { modal.hidden = true; modalCard.innerHTML = ''; }
+window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !modal.hidden && modal.dataset.closable === '1') closeModal(); });
+const radio = (name, opts, cur) => '<div class="choices" role="radiogroup">' + Object.entries(opts).map(([v, t]) => '<label><input type="radio" name="' + name + '" value="' + v + '"' + (v === cur ? ' checked' : '') + '> ' + t + '</label>').join('') + '</div>';
+const pickVal = (name) => { const el = modalCard.querySelector('input[name="' + name + '"]:checked'); return el ? el.value : null; };
+const MODE_HTML = { money: 'お金と バッジ<small>しごとで お金と バッジ。お金で 家具を 買う</small>', badge: 'バッジのみ<small>お金は なし。バッジの 数で 家具が もらえる</small>' };
+
+function renderWallet() {
+  const w = $('wallet');
+  if (!profile) { w.hidden = true; return; }
+  w.hidden = false;
+  w.textContent = 'バッジ ' + badgeCount() + (profile.mode === 'money' ? '・' + yen(profile.money) : '');
+}
+// オープニング 1：名前・性別・モード
+function openOpening() {
+  modal.dataset.closable = '0';
+  openModal('<h2>HOPE しごとタウンへ ようこそ</h2><p>Work Island で、いろいろな しごとを 体験します。はじめに あなたの ことを 教えてください。</p>' +
+    '<label class="field" for="op-name">名前</label><input type="text" id="op-name" maxlength="12" placeholder="例：みな" autocomplete="off">' +
+    '<div class="field">性別（家の 中の 自分の 姿に 使います）</div>' + radio('op-g', GENDER, 'n') +
+    '<div class="field">あそびかた</div>' + radio('op-m', MODE_HTML, 'money') +
+    '<div class="row"><button type="button" class="primary" id="op-go">フェリーで 出発</button><button type="button" id="op-skip">オープニングを とばす</button></div>',
+  () => {
+    const start = (skip) => {
+      const name = $('op-name').value.trim() || 'あなた';
+      profile = { name, gender: pickVal('op-g') || 'n', mode: pickVal('op-m') || 'money', home: null, money: 0, badges: {}, owned: [], since: new Date().toISOString() };
+      saveProfile(); renderWallet();
+      if (skip) openAreaPicker(true); else playFerry();
+    };
+    $('op-go').onclick = () => start(false); $('op-skip').onclick = () => start(true);
+  });
+}
+// 家の 場所（はじめて・引っ越し）
+function openAreaPicker(first) {
+  modal.dataset.closable = first ? '0' : '1';
+  openModal('<h2>' + (first ? 'どこに 家を つくりますか' : '引っ越し') + '</h2><p>' + (first ? '家は いつでも 引っ越せます。つぎから、この 家から 出発します。' : 'いまの 家の 家具・バッジは そのまま 運びます。') + '</p>' +
+    '<div class="pick-list">' + Object.entries(HOME_SITES).map(([k, h]) => '<button type="button" data-area="' + k + '" aria-current="' + (profile.home === k) + '"><b>' + esc(h.name) + '</b><small>' + esc(h.note) + '</small></button>').join('') + '</div>' +
+    (first ? '' : '<div class="row"><button type="button" id="ap-close">やめる</button></div>'),
+  (card) => {
+    card.querySelectorAll('[data-area]').forEach((btn) => {
+      btn.onclick = () => {
+        const moved = !!profile.home && profile.home !== btn.dataset.area;
+        profile.home = btn.dataset.area; saveProfile(); buildHome(); closeModal();
+        if (opening.ferry) opening.ferry.visible = false;
+        goHome(); toast(first ? '家が できました！' : moved ? HOME_SITES[profile.home].name + 'に 引っ越しました' : 'いまの 家です');
+      };
+    });
+    if ($('ap-close')) $('ap-close').onclick = closeModal;
+  });
+}
+// 設定
+function openSettings() {
+  if (!profile) { openOpening(); return; }
+  modal.dataset.closable = '1';
+  openModal('<h2>設定</h2>' +
+    '<label class="field" for="st-name">名前</label><input type="text" id="st-name" maxlength="12" value="' + esc(profile.name) + '" autocomplete="off">' +
+    '<div class="field">性別（家の 中の 自分の 姿）</div>' + radio('st-g', GENDER, profile.gender) +
+    '<div class="field">あそびかた</div>' + radio('st-m', MODE_HTML, profile.mode) +
+    '<p>あそびかたを かえても、いままでの バッジ・お金・家具は のこります。</p>' +
+    '<div class="row"><button type="button" class="primary" id="st-save">保存</button><button type="button" id="st-move">引っ越し</button><button type="button" id="st-close">とじる</button></div>' +
+    '<div class="row"><button type="button" id="st-reset">最初から やりなおす</button></div>',
+  () => {
+    $('st-save').onclick = () => {
+      profile.name = $('st-name').value.trim() || profile.name; profile.gender = pickVal('st-g') || profile.gender; profile.mode = pickVal('st-m') || profile.mode;
+      saveProfile(); buildHome(); renderWallet(); closeModal(); renderHud(); toast('保存しました');
+    };
+    $('st-move').onclick = () => openAreaPicker(false);
+    $('st-close').onclick = closeModal;
+    $('st-reset').onclick = () => {
+      const b = $('st-reset');
+      if (!b.dataset.armed) { b.dataset.armed = '1'; b.textContent = 'もう一度 押すと 名前・バッジ・お金・家が 消えます'; return; }
+      profile = null; try { localStorage.removeItem(PROFILE_KEY); } catch (e) { /* noop */ }
+      buildHome(); renderWallet(); goPlaza(); openOpening();
+    };
+  });
+}
+// 買い物（お金モード）／もらえる もの（バッジのみモード）
+function openShop() {
+  if (!profile) return;
+  modal.dataset.closable = '1';
+  const money = profile.mode === 'money'; const nb = badgeCount();
+  openModal('<h2>' + (money ? 'かいもの' : 'もらえる もの') + '</h2><p>' + (money ? 'お金：' + yen(profile.money) + '。買った 家具は 家に 置かれます。' : 'バッジ：' + nb + 'こ。バッジが ふえると もらえる 家具が ふえます。') + '</p>' +
+    '<div class="shop-grid">' + CATALOG.map((it) => {
+      const own = profile.owned.includes(it.id);
+      const can = money ? profile.money >= it.price : nb >= it.badges;
+      const cost = money ? yen(it.price) : 'バッジ ' + it.badges + 'こ';
+      const label = own ? 'もっている' : money ? (can ? '買う' : 'お金が たりない') : (can ? 'もらう' : 'あと ' + (it.badges - nb) + 'こ');
+      return '<div class="item"><b>' + esc(it.name) + '</b><span>' + cost + '</span><button type="button" data-buy="' + it.id + '"' + (own || !can ? ' disabled' : ' class="primary"') + '>' + label + '</button></div>';
+    }).join('') + '</div><div class="row"><button type="button" id="sh-close">とじる</button></div>',
+  (card) => {
+    card.querySelectorAll('[data-buy]:not([disabled])').forEach((btn) => {
+      btn.onclick = () => {
+        const it = CATALOG.find((c) => c.id === btn.dataset.buy);
+        if (money) profile.money -= it.price;
+        profile.owned.push(it.id); saveProfile(); refreshHome(); renderWallet(); renderHud();
+        toast(it.name + 'を ' + (money ? '買いました' : 'もらいました') + '。家に 置きました'); openShop();
+      };
+    });
+    $('sh-close').onclick = closeModal;
+  });
+}
+// バッジ帳（お店ごとの バッジと、つぎの めやす）
+function openBadgeBook() {
+  if (!profile) return;
+  modal.dataset.closable = '1';
+  const next = ['最後まで やる（配慮ありでも OK）', 'ミス 1回までで 最後まで', '配慮なしで ミス 0・ヒント 0', 'そろいました'];
+  openModal('<h2>バッジ帳</h2><p>銅：最後まで やる ／ 銀：ミス 1回まで ／ 金：配慮なしで ミス 0・ヒント 0。全部の お店で そろうと トロフィー。</p>' +
+    '<table class="badge-table"><tr><th>お店</th><th>バッジ</th><th>つぎの めやす</th></tr>' +
+    JOBS.map((j) => { const lv = badgeOf(j.id); return '<tr><td>' + esc(j.name) + '</td><td><span class="medal" style="background:' + MEDAL_COLOR[lv] + '">' + MEDAL[lv] + '</span></td><td>' + next[lv] + '</td></tr>'; }).join('') +
+    '</table><p>トロフィー：' + MEDAL[trophyLevel()] + '</p><div class="row"><button type="button" id="bb-close">とじる</button></div>',
+  () => { $('bb-close').onclick = closeModal; });
+}
 
 // 記録
 function loadLog() { try { return JSON.parse(localStorage.getItem('hope-vr-draft-log') || '[]'); } catch (e) { return []; } }
@@ -2979,6 +3385,7 @@ renderer.setAnimationLoop((now) => {
   }
   if (!renderer.xr.isPresenting) { camera.rotation.y = look.yaw; camera.rotation.x = -look.pitch; }
   walkStep(dt);
+  stepOpening(now);
   updateSnow(dt, now);
   // 配慮あり：しばらく手が止まったら、つぎに選ぶものを光らせる（声かけ 1 回として数える）
   const r = state.round;
@@ -3005,9 +3412,20 @@ $('btn-walk').addEventListener('click', () => { if (state.where === 'walk') goPl
 applySeason();
 $('btn-season').addEventListener('click', () => setSeason(season === 'winter' ? 'summer' : 'winter'));
 // 動作確認用（テストから 作業を 進めるため）
-window.hopeTown = { state, goBooth, startSession, select: onSelectItem, nextTargetKey, setSeason, startWalk, exitToWalk, walkKeys, rig, booths };
-// 最初は 島ぜんたいを 見わたす
+$('btn-home').addEventListener('click', () => goHome());
+$('btn-settings').addEventListener('click', openSettings);
+window.hopeTown = {
+  state, goBooth, startSession, select: onSelectItem, nextTargetKey, setSeason, startWalk, exitToWalk, walkKeys, rig, booths, goHome, exitHome, goPlaza,
+  get profile() { return profile; }, home, openShop, openBadgeBook, openSettings, openAreaPicker,
+  // テスト用：オープニングを とばして 家を 用意する
+  quickStart(homeKey, mode) { profile = { name: 'テスト', gender: 'n', mode: mode || 'money', home: homeKey || 'downtown', money: 0, badges: {}, owned: [], since: new Date().toISOString() }; saveProfile(); closeModal(); buildHome(); renderWallet(); goPlaza(); },
+};
+// 最初は 島ぜんたいを 見わたす。名前が まだ なら オープニング、家が あれば 家から 出発
 rig.position.copy(OVERVIEW.pos); rig.rotation.y = OVERVIEW.yaw; look.pitch = OVERVIEW.pitch;
+buildHome(); renderWallet();
+if (!profile) openOpening();
+else if (home.group) goHome(true);
+else openAreaPicker(true);
 if (document.fonts && document.fonts.ready) {
   // フォントが届いてから看板・掲示板を描きなおす
   document.fonts.ready.then(() => { if (state.where === 'booth') { if (state.phase === 'choose' || state.phase === 'pick') showChoose(); else if (state.phase === 'work') drawWorkBoard(); } });
