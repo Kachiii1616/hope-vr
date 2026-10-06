@@ -660,6 +660,35 @@ function overviewSign(text, sub, color, w) {
   return b.mesh;
 }
 
+// お店の 箱（床・横の壁・天井・入口の壁）。外から 見える 入口側の 部品を 返す（広場から えらぶ 当たり判定）。
+const SHOP_W = 4.4;
+const SHOP_DEPTH = 4.4;
+function buildShopShell(g, job) {
+  const wallMat = () => mat(job.id === 'farm' ? '#dff0e4' : '#f4efe6', job.id === 'farm' ? { transparent: true, opacity: 0.35, roughness: 0.1 } : null);
+  const add = (geo, m, x, y, z) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); g.add(o); return o; };
+  const floorColor = { fish: '#cfd8dc', forest: '#9c7a54', ski: '#d9dde3', logi: '#b9bcb8', store: '#e9e6dc', clean: '#d9cdb8', cafe: '#a87b55', care: '#d8c3a0', office: '#c9ccd3', farm: '#8f7a5a', craft: '#c4a27a', hut: '#9c7a54', wind: '#c9ccd3', it: '#c9ccd3' }[job.id] || '#d9cdb8';
+  const floor = add(new THREE.PlaneGeometry(SHOP_W, SHOP_DEPTH), mat(floorColor), 0, 0.1, SHOP_DEPTH / 2); floor.rotation.x = -Math.PI / 2;
+  [-1, 1].forEach((sd) => {
+    add(new THREE.BoxGeometry(0.1, 3.0, SHOP_DEPTH), wallMat(), sd * (SHOP_W / 2 + 0.05), 1.5, SHOP_DEPTH / 2);
+    add(new THREE.BoxGeometry(0.02, 0.12, SHOP_DEPTH), mat(job.color), sd * (SHOP_W / 2 - 0.01), 0.1, SHOP_DEPTH / 2); // 幅木
+  });
+  add(new THREE.BoxGeometry(SHOP_W + 0.2, 0.08, SHOP_DEPTH + 0.1), mat('#fbfaf6'), 0, 3.0, SHOP_DEPTH / 2);
+  // 天井の あかり
+  [1.2, 3.0].forEach((z) => add(new THREE.CylinderGeometry(0.28, 0.28, 0.04, 24), mat('#fff8e0', { emissive: '#fff1c2', emissiveIntensity: 0.8 }), 0, 2.94, z));
+  // 入口の壁（まん中が 入口。歩いて 出入りできる）
+  const z = SHOP_DEPTH; const doorW = 1.3; const doorH = 2.3; const sideW = (SHOP_W - doorW) / 2;
+  const front = [];
+  [-1, 1].forEach((sd) => {
+    front.push(add(new THREE.BoxGeometry(sideW + 0.1, 3.0, 0.1), wallMat(), sd * (doorW / 2 + sideW / 2 + 0.05), 1.5, z));
+    // ショーウィンドウ（外から 見える 側）
+    const win = add(new THREE.PlaneGeometry(sideW - 0.4, 1.1), mat('#bfe3f2', { transparent: true, opacity: 0.75, roughness: 0.1, emissive: '#3d6f85', emissiveIntensity: 0.15 }), sd * (doorW / 2 + sideW / 2), 1.35, z + 0.055);
+    front.push(win);
+    add(new THREE.BoxGeometry(0.08, doorH, 0.14), mat(job.color), sd * (doorW / 2 + 0.04), doorH / 2, z); // 入口の わく
+  });
+  front.push(add(new THREE.BoxGeometry(doorW, 3.0 - doorH, 0.1), wallMat(), 0, (3.0 + doorH) / 2, z));
+  return front;
+}
+
 JOBS.forEach((job, i) => {
   const site = SITES[job.id];
   const yaw = FACE[site.face];
@@ -667,18 +696,18 @@ JOBS.forEach((job, i) => {
   g.position.copy(toWorld(...site.at));
   g.rotation.y = yaw;
   scene.add(g);
-  // 建物と、正面に立つ場所はふさいでおく
+  // 建物（奥の部屋〜入口）と、入口の前はふさいでおく
   const front = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
-  block(g.position.x - front.x * 0.4, g.position.z - front.z * 0.4, 3.6);
-  block(g.position.x + front.x * 3.4, g.position.z + front.z * 3.4, 2.6);
+  block(g.position.x + front.x * 0.9, g.position.z + front.z * 0.9, 4.3);
+  block(g.position.x + front.x * (SHOP_DEPTH + 1.2), g.position.z + front.z * (SHOP_DEPTH + 1.2), 1.4);
 
   // 建物（背中が外、正面がローカル +z）
+  //   z = 0 が お店の奥の壁（掲示板）、z = SHOP_DEPTH が 入口の壁。作業台と 立つ位置は その間（お店の中）。
   const body = new THREE.Mesh(new THREE.BoxGeometry(4.2, 3.0, 2.6), mat('#f4efe6'));
   body.position.set(0, 1.5, -1.3); g.add(body);
-  const roof = new THREE.Mesh(new THREE.BoxGeometry(4.6, 0.35, 3.2), mat(job.color));
-  roof.position.set(0, 3.17, -1.1); g.add(roof);
-  const awning = new THREE.Mesh(new THREE.BoxGeometry(4.4, 0.08, 1.0), mat(job.color));
-  awning.position.set(0, 2.55, 0.35); awning.rotation.x = 0.25; g.add(awning);
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(SHOP_W + 0.4, 0.35, SHOP_DEPTH + 3.0), mat(job.color));
+  roof.position.set(0, 3.17, (SHOP_DEPTH - 2.6) / 2); g.add(roof);
+  const facade = buildShopShell(g, job);
 
   const sign = new Board(3.4, 0.7, 300);
   sign.draw((ctx, W, H) => {
@@ -687,7 +716,7 @@ JOBS.forEach((job, i) => {
     ctx.font = '700 88px ' + FONT_DISPLAY; ctx.fillText(job.name, W / 2, H * 0.42);
     ctx.font = '400 40px ' + FONT_BODY; ctx.fillText(job.area + '・' + job.work, W / 2, H * 0.8);
   });
-  sign.mesh.position.set(0, 3.75, 0.2); g.add(sign.mesh);
+  sign.mesh.position.set(0, 2.66, SHOP_DEPTH + 0.07); g.add(sign.mesh);
 
   // カウンター（作業台）
   const counter = new THREE.Mesh(new THREE.BoxGeometry(3.0, 0.9, 0.9), mat('#d9c4a2'));
@@ -712,8 +741,8 @@ JOBS.forEach((job, i) => {
   scene.add(pin); overviewOnly.push(pin);
 
   // ブースの入口の当たり判定（島ぜんたい・ほかのお店から選ぶ用）
-  body.userData.boothIndex = i; sign.mesh.userData.boothIndex = i; roof.userData.boothIndex = i; pin.userData.boothIndex = i;
-  plazaClickables.push(body, sign.mesh, roof);
+  pin.userData.boothIndex = i;
+  [body, sign.mesh, roof].concat(facade).forEach((m) => { m.userData.boothIndex = i; plazaClickables.push(m); });
 
   // ブースのボタン（場所は固定。表示は状態ごとに切り替える）
   const btns = {
@@ -1305,6 +1334,162 @@ function makeItemMesh(spec) {
   return mesh;
 }
 
+// ===========================================================================
+// お店の中の かざり（しごとの 場所らしく 見せる）
+//   横の壁ぞい（x = ±1.8〜2.2、z = 0.6〜2.3、高さ 1.45 まで）に置く。
+//   作業台・掲示板・ボタンを かくさない 範囲に おさめる。
+// ===========================================================================
+const DECO_X = 1.97;
+// 壁ぞいの たな。names の 品物を 小さく 並べる（品物の モデルが ないものは 箱）
+function wallShelf(g, sd, names, frame) {
+  const x = sd * DECO_X; const len = 1.6; const z0 = 0.65; const color = frame || '#d5d0c6';
+  [0.3, 0.75, 1.2].forEach((y) => part(g, box(0.36, 0.03, len), color, x, y, z0 + len / 2));
+  [z0, z0 + len].forEach((z) => part(g, box(0.36, 1.4, 0.03), color, x, 0.7, z));
+  part(g, box(0.02, 1.4, len), '#e9e6df', x + sd * 0.17, 0.7, z0 + len / 2);
+  [0.315, 0.765, 1.215].forEach((y, row) => {
+    for (let k = 0; k < 5; k++) {
+      const name = names[(k + row) % names.length];
+      const it = ITEM_MODELS[name] ? ITEM_MODELS[name]({ color: '#ffffff' }) : (() => { const b = new THREE.Group(); part(b, box(0.2, 0.16, 0.2), name, 0, 0.08, 0); return b; })();
+      fitInto(it, 0.24, 0.26, 0.24);
+      it.position.set(x, y, z0 + 0.18 + k * 0.31); it.rotation.y = -sd * Math.PI / 2; g.add(it);
+    }
+  });
+}
+// 段ボール（物流センター）
+function cardboard(g, x, y, z, w, h, d) {
+  part(g, box(w, h, d), '#c49a6c', x, y + h / 2, z);
+  part(g, box(w + 0.002, 0.004, 0.05), '#d9c08f', x, y + h + 0.001, z);
+}
+// テーブルと いす
+function tableSet(g, sd, z, top, chair) {
+  const x = sd * 1.85;
+  part(g, cyl(0.32, 0.32, 0.04, 24), top, x, 0.72, z);
+  part(g, cyl(0.04, 0.04, 0.7, 10), '#7d7f82', x, 0.36, z);
+  part(g, cyl(0.2, 0.2, 0.02, 16), '#7d7f82', x, 0.04, z);
+  [-1, 1].forEach((k) => {
+    const cz = z + k * 0.48;
+    part(g, box(0.36, 0.04, 0.36), chair, x, 0.45, cz);
+    part(g, box(0.36, 0.4, 0.04), chair, x, 0.65, cz + k * 0.17);
+    [[-0.15, -0.15], [0.15, -0.15], [-0.15, 0.15], [0.15, 0.15]].forEach(([dx, dz]) => part(g, box(0.03, 0.44, 0.03), '#6b6b6b', x + dx, 0.22, cz + dz));
+  });
+}
+// 机と パソコン（事務所）
+function deskSet(g, sd, z) {
+  const x = sd * 1.9;
+  part(g, box(0.6, 0.04, 0.9), '#e6e1d6', x, 0.72, z);
+  [[-0.26, -0.4], [0.26, -0.4], [-0.26, 0.4], [0.26, 0.4]].forEach(([dx, dz]) => part(g, box(0.04, 0.7, 0.04), '#8a8f96', x + dx, 0.36, z + dz));
+  const scr = part(g, box(0.04, 0.3, 0.5), '#2b2f36', x + sd * 0.15, 0.95, z); scr.rotation.y = 0;
+  part(g, box(0.02, 0.26, 0.45), '#6fa7d8', x + sd * 0.125, 0.95, z, { emissive: '#2a5a85', emissiveIntensity: 0.4 });
+  part(g, box(0.18, 0.015, 0.4), '#d0d3d8', x - sd * 0.08, 0.75, z);
+  part(g, box(0.45, 0.9, 0.45), '#9aa1aa', x, 0.45, z - 0.8); // 書類だな
+  [0.2, 0.45, 0.7].forEach((y) => part(g, box(0.01, 0.2, 0.3), '#c9ced4', x - sd * 0.23, y, z - 0.8));
+}
+// 手すり（介護施設）
+function handrail(g, sd) {
+  const x = sd * (SHOP_W / 2 - 0.06);
+  const rail = part(g, cyl(0.025, 0.025, SHOP_DEPTH - 0.4, 12), '#b98a5a', x, 0.8, SHOP_DEPTH / 2); rail.rotation.x = Math.PI / 2;
+  [0.4, 2.2, 4.0].forEach((z) => part(g, box(0.06, 0.04, 0.04), '#9a9a9a', x + sd * 0.03, 0.8, z));
+}
+// トマトの なえ（農園の ハウス）
+function tomatoRow(g, sd) {
+  const x = sd * 1.9;
+  part(g, box(0.4, 0.25, 1.7), '#7a5634', x, 0.125, 1.45);
+  for (let k = 0; k < 4; k++) {
+    const z = 0.75 + k * 0.45;
+    part(g, cyl(0.012, 0.012, 1.1, 6), '#c8b48a', x, 0.8, z);         // 支柱
+    part(g, cyl(0.015, 0.02, 1.0, 8), '#4f8a34', x + 0.02, 0.75, z);   // くき
+    [0.55, 0.8, 1.05].forEach((y, n) => part(g, new THREE.IcosahedronGeometry(0.1, 0), n % 2 ? '#5f9a40' : '#4f8a34', x, y, z + 0.04, { flatShading: true }).rotation.set(n, n * 2, 0));
+    [[0.65, '#d63c2f'], [0.9, k % 2 ? '#7fae4a' : '#d63c2f']].forEach(([y, c]) => part(g, ball(0.045, 12, 10), c, x - sd * 0.08, y, z - 0.06));
+  }
+}
+
+function decorateInterior(b) {
+  const g = new THREE.Group(); b.group.add(g);
+  const id = b.job.id;
+  if (id === 'logi') {
+    [-1, 1].forEach((sd) => {
+      const x = sd * DECO_X;
+      [0.3, 0.75, 1.2].forEach((y) => part(g, box(0.4, 0.03, 1.6), '#e07b39', x, y, 1.45));
+      [0.65, 2.25].forEach((z) => part(g, box(0.04, 1.4, 0.04), '#3d5a80', x, 0.7, z));
+      [0.315, 0.765].forEach((y, row) => [0.95, 1.45, 1.95].forEach((z, k) => cardboard(g, x, y, z, 0.34, 0.24 + ((k + row) % 2) * 0.1, 0.4)));
+      cardboard(g, x, 1.215, 1.2, 0.34, 0.18, 0.5);
+    });
+    const cart = part(g, box(0.5, 0.04, 0.7), '#3d5a80', -1.4, 0.2, 2.9); cart.rotation.y = 0.3; // 台車
+  } else if (id === 'store') {
+    wallShelf(g, -1, ['お茶', '水', 'ジュース'], '#d0d5db');
+    wallShelf(g, 1, ['ポテトチップス', 'チョコ', 'あめ', 'メロンパン'], '#d0d5db');
+  } else if (id === 'clean') {
+    tableSet(g, -1, 1.5, '#f2f2ee', '#8fb7c4');
+    tableSet(g, 1, 1.5, '#f2f2ee', '#8fb7c4');
+    part(g, cyl(0.14, 0.11, 0.26, 18), '#4f8b9b', 1.4, 0.16, 2.9); // バケツ
+    part(g, cyl(0.015, 0.015, 1.3, 8), '#c9a46a', 1.55, 0.68, 3.0).rotation.z = 0.2; // モップ
+  } else if (id === 'cafe') {
+    wallShelf(g, 1, ['ホット用カップ', 'アイス用カップ', '紅茶'], '#8a5a3c');
+    tableSet(g, -1, 1.5, '#6b4630', '#c9a27a');
+    // 黒板メニュー（壁）
+    part(g, box(0.03, 0.6, 0.9), '#2f3a33', -(SHOP_W / 2 - 0.02), 1.15, 2.6);
+    [1.32, 1.18, 1.04].forEach((y) => part(g, box(0.01, 0.025, 0.6), '#f2efe6', -(SHOP_W / 2 - 0.04), y, 2.6));
+  } else if (id === 'care') {
+    handrail(g, -1); handrail(g, 1);
+    tableSet(g, -1, 1.5, '#f4eadc', '#c4577a');
+    tableSet(g, 1, 1.5, '#f4eadc', '#c4577a');
+  } else if (id === 'office') {
+    deskSet(g, -1, 1.7); deskSet(g, 1, 1.7);
+  } else if (id === 'farm') {
+    tomatoRow(g, -1); tomatoRow(g, 1);
+    part(g, box(0.4, 0.3, 0.3), '#e3b23c', 1.4, 0.15, 2.9); // 収穫かご
+  } else if (id === 'fish') {
+    // 発泡スチロールの 魚箱と、氷の 入った 作業台
+    [0.0, 0.32, 0.64].forEach((y, row) => [0.9, 1.5].forEach((z, k) => {
+      if (row === 2 && k) return;
+      part(g, box(0.5, 0.3, 0.55), '#f4f6f6', -DECO_X + 0.05, y + 0.15, z);
+      part(g, box(0.4, 0.02, 0.45), '#2d7fa3', -DECO_X + 0.05, y + 0.31, z);
+    }));
+    part(g, box(0.5, 0.75, 1.4), '#b8c4cc', DECO_X - 0.05, 0.375, 1.5, { metalness: 0.4, roughness: 0.35 });
+    part(g, box(0.44, 0.04, 1.3), '#e8f7fd', DECO_X - 0.05, 0.77, 1.5, { transparent: true, opacity: 0.85 });
+    [1.1, 1.4, 1.7, 2.0].forEach((z, k) => { const f = part(g, ball(0.09, 14, 8), k % 2 ? '#8fa7b8' : '#b8c8d4', DECO_X - 0.05, 0.81, z, { metalness: 0.5, roughness: 0.3 }); f.scale.set(0.45, 0.3, 1.6); });
+  } else if (id === 'forest') {
+    // 道具の かべと 丸太
+    part(g, box(0.04, 1.2, 1.6), '#8a6a46', -(SHOP_W / 2 - 0.03), 0.9, 1.45);
+    part(g, box(0.3, 0.03, 1.6), '#8a6a46', -(SHOP_W / 2 - 0.17), 1.1, 1.45); // ヘルメットの たな
+    [0.95, 1.45, 1.95].forEach((z) => part(g, new THREE.SphereGeometry(0.13, 16, 8, 0, TAU, 0, Math.PI / 2), '#f2c230', -(SHOP_W / 2 - 0.17), 1.115, z));
+    [1.2, 1.7].forEach((z) => part(g, cyl(0.02, 0.02, 1.0, 8), '#8a8f96', -(SHOP_W / 2 - 0.1), 0.7, z));
+    for (let k = 0; k < 3; k++) for (let n = 0; n < 3 - k; n++) {
+      const log = part(g, cyl(0.12, 0.12, 1.2, 14), '#8a6a46', DECO_X - 0.05 - (n - (2 - k) / 2) * 0.25, 0.12 + k * 0.21, 1.45); log.rotation.x = Math.PI / 2;
+      part(g, cyl(0.11, 0.11, 0.005, 14), '#d9b98a', log.position.x, log.position.y, 2.051).rotation.x = Math.PI / 2;
+    }
+    [0.8, 2.1].forEach((z) => { part(g, cyl(0.12, 0.09, 0.2, 12), '#b9573f', -1.6, 0.2, z + 0.9); part(g, new THREE.ConeGeometry(0.12, 0.4, 8), '#4f9a45', -1.6, 0.5, z + 0.9); }); // 苗木の 鉢
+  } else if (id === 'ski') {
+    // レンタルの ブーツだなと 板たて
+    [0.3, 0.75, 1.2].forEach((y) => {
+      part(g, box(0.36, 0.03, 1.6), '#c9ced6', -DECO_X, y, 1.45);
+      [0.85, 1.25, 1.65, 2.05].forEach((z) => part(g, box(0.16, 0.2, 0.12), '#2f3b4a', -DECO_X, y + 0.115, z));
+    });
+    part(g, box(0.3, 0.06, 1.6), '#8a6a46', DECO_X, 0.05, 1.45);
+    ['#e0662f', '#3c7fc4', '#f2c230', '#d0453a', '#4f9a45', '#3c7fc4'].forEach((c, k) => {
+      const ski = part(g, box(0.07, 1.45, 0.02), c, DECO_X + 0.05, 0.8, 0.85 + k * 0.24); ski.rotation.z = -0.08;
+    });
+  } else if (id === 'hut') {
+    // 登山の 持ち物の たなと、ベンチ
+    wallShelf(g, -1, ['#3c7fc4', '#f2c230', '#c9cdd2', '#d0453a'], '#8a6a46');
+    part(g, box(0.45, 0.06, 1.6), '#8a6a46', DECO_X - 0.05, 0.45, 1.45);
+    [0.8, 2.1].forEach((z) => part(g, box(0.4, 0.42, 0.06), '#7a5a3a', DECO_X - 0.05, 0.21, z));
+  } else if (id === 'wind') {
+    // ヘルメットの たなと、点検の 道具かべ
+    part(g, box(0.3, 0.03, 1.6), '#8a8f96', -(SHOP_W / 2 - 0.17), 1.1, 1.45);
+    [0.95, 1.45, 1.95].forEach((z) => part(g, new THREE.SphereGeometry(0.13, 16, 8, 0, TAU, 0, Math.PI / 2), '#f2c230', -(SHOP_W / 2 - 0.17), 1.115, z));
+    part(g, box(0.04, 1.2, 1.6), '#5a5f66', SHOP_W / 2 - 0.03, 0.9, 1.45);
+    [[1.0, '#8a8f96'], [1.4, '#e0662f'], [1.8, '#f6e27a']].forEach(([z, c]) => part(g, box(0.05, 0.5, 0.06), c, SHOP_W / 2 - 0.08, 0.95, z));
+  } else if (id === 'it') {
+    deskSet(g, -1, 1.7); deskSet(g, 1, 1.7);
+  } else if (id === 'craft') {
+    wallShelf(g, -1, ['のり', 'ハサミ', 'ひも', '#e7d6b8'], '#b0703a');
+    tableSet(g, 1, 1.5, '#e8d9bf', '#b0703a');
+    [0.0, 0.15].forEach((dz) => part(g, box(0.1, 0.012, 0.13), '#c8463d', 1.85, 0.75, 1.45 + dz)); // つくりかけの お守り
+  }
+}
+booths.forEach(decorateInterior);
+
 // ガイドの光の輪（配慮あり・ヒントで出す）
 function makeGlowRing() {
   const r = new THREE.Mesh(new THREE.RingGeometry(0.11, 0.15, 32), new THREE.MeshBasicMaterial({ color: '#ffd23f', transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthTest: false }));
@@ -1699,7 +1884,7 @@ function currentClickables() {
   if (state.where === 'plaza') return booths.map((b) => b.pin).concat(plazaClickables);
   const b = state.booth; const list = Object.values(b.btns).filter((m) => m.visible);
   if (state.phase === 'work' && state.round) state.round.slots.forEach((s) => { if (!s.done) s.mesh.traverse((o) => { if (o.isMesh) list.push(o); }); });
-  return list.concat(plazaClickables.filter((m) => m.userData.boothIndex !== booths.indexOf(b)));
+  return list; // お店の中では 壁ごしに ほかの お店を えらばない（もどるのは「島ぜんたいへ」）
 }
 
 function handleRay(ray) {
