@@ -244,7 +244,7 @@ const JOBS = [
     },
   },
   {
-    id: 'clean', area: '海の家', name: '清掃', work: 'テーブルふき', color: '#4f8b9b', category: '実務',
+    id: 'clean', area: '首都', name: '清掃', work: 'テーブルふき', color: '#4f8b9b', category: '実務',
     intro: 'テーブルの よごれを 見つけて ふきます。うすい もようは よごれでは ありません。',
     defect: 'ふき残し・もようを ふく',
     round() {
@@ -367,7 +367,7 @@ const JOBS = [
     },
   },
   {
-    id: 'hut', area: '山の表（南）', name: '山小屋', work: '登山の受付', signWork: '夏：登山　冬：スキー', color: '#8a6a3c', category: '実務',
+    id: 'hut', area: '山の表（南）', name: '山小屋', work: '登山の受付', color: '#8a6a3c', category: '実務',
     intro: '', defect: '', round() { return null; }, // 下の variants から えらんだ しごとが 入る（selectVariant）
     // 季節ごとの しごと。夏は 登山の 受付、冬は スキーの お客さまの しごとを 3 つから えらぶ。記録は えらんだ しごとの 名前で 残る。
     variants: {
@@ -441,7 +441,7 @@ const JOBS = [
     },
   },
   {
-    id: 'it', area: 'IT企業', name: 'IT企業', work: 'データのチェック', color: '#3f6fa8', category: '事務',
+    id: 'it', area: 'IT街', name: 'IT企業', work: 'データのチェック', color: '#3f6fa8', category: '事務',
     intro: '伝票と、パソコンに 入力された 表を くらべて、入力ミスの 行を ぜんぶ 見つけます。',
     defect: '見落とし・合っている 行を ミスに する',
     round() {
@@ -493,11 +493,213 @@ const ACTIONS = {
     'スパナ': 'スパナで ボルトを しめる', 'オイルゲージ': 'オイルの 量を はかる', '点検表': '点検表に 書く', 'ペンキ': 'ペンキを ぬる',
   },
 };
+// 季節・お店ごとに 足した 動作（ACTIONS より 先に 見る）
+const EXTRA_ACTS = {
+  store: { '包み紙': '包み紙を とる', '肉まん': '肉まんを つつむ', 'あんまん': 'あんまんを つつむ', 'ピザまん': 'ピザまんを つつむ', 'お客さま': 'お客さまに わたす' },
+  cafe: { 'ミルク': 'ミルクを 入れる', 'ココア': 'ココアを 入れる', 'レモン': 'レモンを しぼる', 'はちみつ': 'はちみつを 入れる' },
+  care: { 'ほうじ茶': 'ほうじ茶を とる', '白湯': '白湯を とる', 'とろみ茶': 'とろみ茶を とる' },
+  craft: { 'わら': 'わらを なう', '紙垂': '紙垂を つける', 'だいだい': 'だいだいを かざる' },
+  forest: { '手袋': '手袋を はめる', 'のこぎり': 'のこぎりで 丸太を 切る', 'おの': 'おので 薪を わる', '薪だな': '薪を つむ' },
+  wind: { 'ヒーター': 'ヒーターで 氷を とかす' },
+  office: { '首都': '首都の トレーに 入れる', '繁華街': '繁華街の トレーに 入れる', '漁村': '漁村の トレーに 入れる', '農村': '農村の トレーに 入れる' },
+  yatai: {
+    'かき氷の カップ': 'カップを とる', 'かき氷器': '氷を けずる', 'いちご シロップ': 'いちご シロップを かける', 'メロン シロップ': 'メロン シロップを かける',
+    'レモン シロップ': 'レモン シロップを かける', 'スプーン': 'スプーンを さす', 'お客さま': 'お客さまに わたす',
+    '紙袋': '紙袋を とる', '焼きいも': '焼きいもを 入れる', '紙コップ': '紙コップを とる', '甘酒': '甘酒を そそぐ', 'おわん': 'おわんを とる', 'おしるこ': 'おしるこを よそう',
+  },
+  super: { 'レジ袋': 'レジ袋を ひろげる' },
+  school: {
+    '新聞紙': '新聞紙を しく', '下じき': '下じきを しく', '半紙': '半紙を おく', '文鎮': '文鎮で おさえる', 'すずり': 'すずりに すみを 入れる', '筆': '筆を おく', 'クレヨン': 'クレヨンを 出す',
+  },
+};
+ACTIONS.super = (l) => l + 'を 入れる';
+ACTIONS.school = (l) => l + 'の たなに もどす';
 function actionText(job, spec) {
   const a = ACTIONS[job.id]; const l = spec.label;
+  if (l && EXTRA_ACTS[job.id] && EXTRA_ACTS[job.id][l]) return EXTRA_ACTS[job.id][l];
   if (!l || !a) return l;
   return typeof a === 'function' ? a(l) : a[l] || l;
 }
+
+// ---- 地図に 足した お店（屋台・スーパー・学校）。夏の しごとを ここに、冬の しごとは WINTER に。
+JOBS.push(
+  {
+    id: 'yatai', area: 'ビーチ', name: '屋台', work: 'かき氷づくり', color: '#e0662f', category: '実務',
+    intro: '注文の かき氷を 手順どおりに つくって わたします。', defect: '手順ちがい・ちがう シロップ',
+    round() {
+      const f = pick(['いちご', 'メロン', 'レモン']);
+      const items = ['かき氷の カップ', 'かき氷器', 'いちご シロップ', 'メロン シロップ', 'レモン シロップ', 'スプーン', 'お客さま'].map((label) => ({ label, color: label === 'お客さま' ? '#3c7fc4' : '#ffffff' }));
+      return { title: '注文：' + f + 'の かき氷', shortTitle: 'かき氷を つくる', items: shuffle(items), need: ['かき氷の カップ', 'かき氷器', f + ' シロップ', 'スプーン', 'お客さま'], ordered: true };
+    },
+  },
+  {
+    id: 'super', area: '繁華街', name: 'スーパー', work: 'レジの袋づめ', color: '#2f9e6a', category: '実務',
+    intro: 'レジを 通った 品物を、重い ものから 順に 袋に 入れます。たまごや パンは いちばん 上に。', defect: '入れる 順番の まちがい（たまごの 上に 重い もの など）',
+    round() { return bagRound([['牛乳', 5], ['じゃがいも', 4], ['お茶', 3], ['パン', 2], ['たまご', 1]]); },
+  },
+  {
+    id: 'school', area: '学校エリア', name: '学校', work: '図書の整理', color: '#9a5b3c', category: '事務',
+    intro: '返ってきた 本を、本の 種類の たな（えほん・ずかん・ものがたり・じしょ）に もどします。', defect: 'ちがう たなに 入れる',
+    round() {
+      const books = { 'えほん': ['はらぺこ くま', 'ねこの おさんぽ'], 'ずかん': ['こんちゅう ずかん', 'さかな ずかん'], 'ものがたり': ['ふしぎな 森の 話', 'うみの ぼうけん'], 'じしょ': ['こくご じしょ', 'かんじ じしょ'] };
+      const colors = { 'えほん': '#e3a33c', 'ずかん': '#4f9a45', 'ものがたり': '#3c7fc4', 'じしょ': '#c8463d' };
+      const shelves = Object.keys(books).map((label) => ({ label, shape: 'bookShelf', color: colors[label] }));
+      const k = pick(Object.keys(books)); const title = pick(books[k]);
+      return { title: '「' + title + '」を たなに もどす', shortTitle: '本を たなに もどす', items: shuffle(shelves), need: [k], ordered: false, carryText: '返ってきた 本：「' + title + '」' };
+    },
+  },
+);
+// 袋づめ：重い ものから 順に（3 こ えらんで 重さの 順）
+function bagRound(goods) {
+  const chosen = sample(goods, 3).sort((a, b) => b[1] - a[1]).map((g) => g[0]);
+  const items = [['レジ袋', 0]].concat(goods).map(([label]) => ({ label, color: '#ffffff' }));
+  return { title: '袋づめ：' + chosen.join('・') + '（重い ものを 下に）', shortTitle: '重い ものから 袋に 入れる', items: shuffle(items), need: ['レジ袋'].concat(chosen), ordered: true, carryText: 'かご：' + chosen.join('・') };
+}
+
+// ---- 冬の しごと（お店ごとに 1 つ。夏の しごとと 同じ 道具立てで、冬の 中身に かえる）
+const WINTER = {
+  logi: {
+    work: '冬の注文のピッキング', intro: '冬の 注文票の しなものを たなから ひろって かごに 入れます。', defect: 'ちがう しなものを ひろう',
+    round() {
+      const pool = ['みかん', 'もち', 'カイロ', '手袋', 'マフラー', '鍋つゆ'].map((label) => ({ label, color: '#ffffff' }));
+      const need = sample(pool, 2 + Math.floor(Math.random() * 2)).map((p) => p.label);
+      return { title: '注文票：' + need.join('・'), shortTitle: '注文の しなものを ひろう', items: shuffle(pool), need, ordered: false, carryText: '注文票：' + need.join('・') };
+    },
+  },
+  store: {
+    work: '中華まんの販売', intro: 'お客さまの 注文の 中華まんを、包み紙で つつんで わたします。', defect: 'ちがう 中華まん・手順ちがい',
+    round() {
+      const f = pick(['肉まん', 'あんまん', 'ピザまん']);
+      const items = ['包み紙', '肉まん', 'あんまん', 'ピザまん', 'お客さま'].map((label) => ({ label, color: label === 'お客さま' ? '#3b6fb6' : '#ffffff' }));
+      return { title: '注文：' + f, shortTitle: '中華まんを わたす', items: shuffle(items), need: ['包み紙', f, 'お客さま'], ordered: true };
+    },
+  },
+  clean: {
+    work: '雪どけ水ふき', intro: 'くつに ついた 雪が とけた 水を 見つけて ふきます。うすい もようは 水では ありません。', defect: 'ふき残し・もようを ふく',
+    round() {
+      const n = 3 + Math.floor(Math.random() * 2); const items = [];
+      for (let i = 0; i < n; i++) items.push({ label: '', id: 'dirt' + i, shape: 'blob', color: '#6f93a8', opacity: 0.75 });
+      for (let i = 0; i < 2; i++) items.push({ label: '', id: 'shade' + i, shape: 'blob', color: '#9aa1a3', opacity: 0.4 });
+      return { title: '雪どけ水を ぜんぶ ふく（' + n + 'か所）', shortTitle: '雪どけ水を ふく', items: shuffle(items), need: items.filter((i) => i.id.startsWith('dirt')).map((i) => i.id), ordered: false, scatter: true };
+    },
+  },
+  cafe: {
+    work: '冬のドリンクづくり', intro: '冬の あたたかい ドリンクを 手順どおりに つくって わたします。', defect: '手順ちがい・ちがう 材料',
+    round() {
+      const items = ['ホット用カップ', 'コーヒーマシン', 'ミルク', 'ココア', 'レモン', 'はちみつ', 'ふた', 'お客さま'].map((label) => ({ label, color: label === 'お客さま' ? '#e0a07a' : label === 'ホット用カップ' ? '#f3efe6' : '#3b3330' }));
+      const r = pick([
+        { name: 'ホットココア', need: ['ホット用カップ', 'ココア', 'ミルク', 'ふた', 'お客さま'] },
+        { name: 'はちみつレモン', need: ['ホット用カップ', 'レモン', 'はちみつ', 'ふた', 'お客さま'] },
+        { name: 'カフェオレ', need: ['ホット用カップ', 'コーヒーマシン', 'ミルク', 'ふた', 'お客さま'] },
+      ]);
+      return { title: '注文：' + r.name, shortTitle: r.name + ' を つくる', items: shuffle(items), need: r.need, ordered: true };
+    },
+  },
+  care: {
+    work: '温かい飲み物の配ぜん', intro: '名札と 飲み物の 形（とろみ など）を たしかめて、温かい 飲み物を 運びます。', defect: '飲み物の 形・人の まちがい',
+    round() {
+      const forms = [{ label: 'ほうじ茶', shape: 'drinkTray', color: '#b07a3c' }, { label: '白湯', shape: 'drinkTray', color: '#eef3f4' }, { label: 'とろみ茶', shape: 'drinkTray', color: '#7f9a3c', thick: true }];
+      const people = [
+        { label: '田中さん', shape: 'resident', color: '#f7c6a3' }, { label: '佐藤さん', shape: 'resident', color: '#bcd8f2' }, { label: '鈴木さん', shape: 'resident', color: '#d6c6ef' },
+      ];
+      const f = pick(forms).label; const p = pick(people).label;
+      return { title: p + '（' + f + '）に 運ぶ', shortTitle: '飲み物を 運ぶ', items: shuffle(forms).concat(shuffle(people)), need: [f, p], ordered: true, carryText: '名札：' + p + '（' + f + '）' };
+    },
+  },
+  office: {
+    work: '年賀状の仕分け', intro: '年賀状の あて先の 地域を 見て、正しい トレーに 入れます。', defect: 'ちがう トレーに 入れる',
+    round() {
+      const trays = [['首都', '#6f9be0'], ['繁華街', '#7fc29b'], ['漁村', '#f0b85a'], ['農村', '#d98aa6']].map(([label, color]) => ({ label, shape: 'docTray', color }));
+      const t = pick(trays).label;
+      return { title: '「' + t + '」あての 年賀状を トレーに 入れる', shortTitle: '年賀状を 仕分ける', items: trays, need: [t], ordered: false, carryText: '年賀状：' + t + ' あて' };
+    },
+  },
+  farm: {
+    work: 'いちごの収穫', intro: 'ハウスの 中で、赤く じゅくした いちごだけを とります。白い いちごは のこします。', defect: '白い いちごを とる',
+    round() {
+      const n = 3 + Math.floor(Math.random() * 2); const items = [];
+      for (let i = 0; i < n; i++) items.push({ label: '', id: 'red' + i, shape: 'strawberry', color: '#d6283a' });
+      for (let i = 0; i < 3; i++) items.push({ label: '', id: 'green' + i, shape: 'strawberry', color: '#f1ecc8' });
+      return { title: '赤い いちごを ぜんぶ とる（' + n + 'こ）', shortTitle: '赤い いちごを とる', items: shuffle(items), need: items.filter((i) => i.id.startsWith('red')).map((i) => i.id), ordered: false };
+    },
+  },
+  craft: {
+    work: 'しめ飾りづくり', intro: 'お正月の しめ飾りを 手順どおりに つくって、検品かごに 入れます。', defect: '手順ちがい（わらの 前に 紙垂 など）',
+    round() {
+      const items = [['わら', '#d9b36a'], ['ひも', '#c8463d'], ['紙垂', '#ffffff'], ['だいだい', '#f39a2b'], ['検品かご', '#a8865a'], ['ハサミ', '#8a8f96'], ['のり', '#f1e9a8']].map(([label, color]) => ({ label, color }));
+      return { title: 'しめ飾りを 1こ つくる', shortTitle: 'しめ飾りを つくる', items: shuffle(items), need: ['わら', 'ひも', '紙垂', 'だいだい', '検品かご'], ordered: true };
+    },
+  },
+  fish: {
+    work: 'ブリとタラの仕分け', intro: '冬に とれる 魚を、種類と 大きさで 決まった 箱に 入れます。', defect: 'ちがう 箱に 入れる',
+    round() {
+      const boxes = [];
+      ['ブリ', 'タラ'].forEach((k) => ['大', '小'].forEach((z) => boxes.push({ label: k + '・' + z, shape: 'tray', color: k === 'ブリ' ? '#9cc3d6' : '#c9d6dc' })));
+      const box = pick(boxes).label; const [kind, size] = box.split('・');
+      const fish = kind + '（' + (size === '大' ? '大きい' : '小さい') + '）';
+      return { title: '「' + fish + '」を 箱に 入れる', shortTitle: '魚を 箱に 分ける', items: shuffle(boxes), need: [box], ordered: false, carryText: 'もっている：' + fish };
+    },
+  },
+  forest: {
+    work: '薪づくり', intro: '冬の 山の しごと。安全の 準備を してから、丸太を 切って 薪を わり、つみます。', defect: '手順ちがい（ヘルメット・手袋を 後に する など）',
+    round() {
+      const items = [['ヘルメット', '#f2c230'], ['手袋', '#d0453a'], ['のこぎり', '#c9cdd2'], ['おの', '#8a8f96'], ['薪だな', '#8a6a46'], ['スコップ', '#8a8f96'], ['じょうろ', '#4f8fd1']].map(([label, color]) => ({ label, color, shape: label === 'ヘルメット' ? 'helmet' : undefined }));
+      return { title: '薪を つくる', shortTitle: '薪を つくる', items: shuffle(items), need: ['ヘルメット', '手袋', 'のこぎり', 'おの', '薪だな'], ordered: true };
+    },
+  },
+  wind: {
+    work: '羽の氷とかしと点検', intro: '冬は 羽に 氷が つきます。風車を 止めて 安全を たしかめてから、氷を とかして 点検し、記録します。', defect: '手順ちがい（止める前に 作業する など）',
+    round() {
+      const items = [
+        { label: 'ヘルメット', shape: 'helmet', color: '#f2c230' }, { label: '安全帯', shape: 'stick', color: '#e0662f' },
+        { label: '停止スイッチ', shape: 'box', color: '#d0453a' }, { label: 'ヒーター', color: '#8a8f96' },
+        { label: 'スパナ', shape: 'stick', color: '#8a8f96' }, { label: '点検表', shape: 'card', color: '#ffffff' }, { label: 'ペンキ', shape: 'cyl', color: '#7fb3d9' },
+      ];
+      return { title: '羽の 氷を とかして 点検（安全 → 作業 → 記録）', shortTitle: '風車の 氷を とかす', items: shuffle(items), need: ['ヘルメット', '安全帯', '停止スイッチ', 'ヒーター', '点検表'], ordered: true, carryText: '点検票：羽の 氷' };
+    },
+  },
+  it: {
+    work: '年末の在庫チェック', intro: '伝票と、パソコンに 入力された 年末の 在庫の 表を くらべて、入力ミスの 行を ぜんぶ 見つけます。', defect: '見落とし・合っている 行を ミスに する',
+    round() {
+      const rows = sample(['みかん', 'もち', 'カイロ', '手袋', 'マフラー', '鍋つゆ'], 4).map((f) => ({ f, n: 1 + Math.floor(Math.random() * 8) }));
+      const wrong = sample([0, 1, 2, 3], 1 + Math.floor(Math.random() * 2));
+      const items = rows.map((r, i) => {
+        let shown = r.n;
+        if (wrong.includes(i)) { shown = r.n + pick([-2, -1, 1, 2]); if (shown < 1) shown = r.n + 1; }
+        return { id: 'row' + i, label: r.f + ' ' + shown + 'こ', shape: 'sheet', color: '#ffffff' };
+      });
+      return { title: '入力ミスを ぜんぶ 見つける（' + wrong.length + 'か所）', shortTitle: '入力ミスを 見つける', items, need: wrong.sort().map((i) => 'row' + i), ordered: false, carryText: '伝票：' + rows.map((r) => r.f + ' ' + r.n).join('・') };
+    },
+  },
+  yatai: {
+    work: '焼きいも・甘酒', intro: '冬の 屋台。注文の 品を 手順どおりに 用意して わたします。', defect: '手順ちがい・ちがう 入れもの',
+    round() {
+      const items = ['紙袋', '焼きいも', '紙コップ', '甘酒', 'おわん', 'おしるこ', 'お客さま'].map((label) => ({ label, color: label === 'お客さま' ? '#3c7fc4' : '#ffffff' }));
+      const r = pick([
+        { name: '焼きいも', need: ['紙袋', '焼きいも', 'お客さま'] },
+        { name: '甘酒', need: ['紙コップ', '甘酒', 'お客さま'] },
+        { name: 'おしるこ', need: ['おわん', 'おしるこ', 'お客さま'] },
+      ]);
+      return { title: '注文：' + r.name, shortTitle: r.name + ' を わたす', items: shuffle(items), need: r.need, ordered: true };
+    },
+  },
+  super: {
+    work: '鍋の材料の袋づめ', intro: 'レジを 通った 鍋の 材料を、重い ものから 順に 袋に 入れます。とうふや たまごは 上に。', defect: '入れる 順番の まちがい',
+    round() { return bagRound([['白菜', 5], ['大根', 4], ['みかん', 3], ['とうふ', 2], ['たまご', 1]]); },
+  },
+  school: {
+    work: '書き初めの準備', intro: '書き初めの 道具を、決まった 順番で 机に ならべます。', defect: '順番の まちがい（新聞紙の 前に 半紙 など）',
+    round() {
+      const items = ['新聞紙', '下じき', '半紙', '文鎮', 'すずり', '筆', 'クレヨン'].map((label) => ({ label, color: '#ffffff' }));
+      return { title: '書き初めの 道具を ならべる', shortTitle: '書き初めの 準備', items: shuffle(items), need: ['新聞紙', '下じき', '半紙', '文鎮', 'すずり', '筆'], ordered: true };
+    },
+  },
+};
+// 夏の しごと（もとの 定義）と 冬の しごとを 季節の 切りかえに のせる（山小屋は 自分の variants を 持つ）
+JOBS.forEach((job) => {
+  if (job.variants || !WINTER[job.id]) return;
+  job.variants = { summer: [{ work: job.work, intro: job.intro, defect: job.defect, round: job.round }], winter: [WINTER[job.id]] };
+});
 
 // hope-work の SUPPORT_METHODS と同じ言い方にそろえる（記録をそのまま貼れるように）。
 const SUPPORTS_WITH = ['チェックリスト形式の手順書', '説明を一つずつ小分けにする', '治具・ガイドを使う', '目標数を伝える'];
@@ -621,18 +823,21 @@ const FACE = { s: 0, e: Math.PI / 2, n: Math.PI, w: -Math.PI / 2 };
 const SITES = {
   office: { at: [262, 452], face: 's' },   // 首都：役所・会社の事務
   store: { at: [142, 588], face: 'e' },    // 繁華街
-  cafe: { at: [178, 652], face: 'n' },     // 繁華街
+  cafe: { at: [192, 652], face: 'n' },     // 繁華街
   care: { at: [196, 522], face: 'e' },     // 住宅地
-  clean: { at: [232, 335], face: 'n' },    // 海の家（ビーチを向く）
+  clean: { at: [312, 446], face: 's' },    // 首都：事務所の となり（もとは ビーチの 海の家）
+  yatai: { at: [232, 335], face: 'n' },    // ビーチの 屋台（ビーチを向く）
+  super: { at: [285, 660], face: 'e' },    // 繁華街の 南：スーパー
+  school: { at: [340, 606], face: 's' },   // 学校エリア：校舎（中に 入れる。入口は 南の 海ぞいの 道がわ）
   craft: { at: [352, 540], face: 'n' },    // 学校エリア：職業訓練校の作業室
   forest: { at: [392, 252], face: 's' },   // 林業エリア
-  fish: { at: [592, 268], face: 's' },     // 漁村
+  fish: { at: [592, 250], face: 's' },     // 漁村
   ski: { at: [625, 350], face: 'n' },      // 山の裏（北東）。南向きの斜面は雪がとけやすいので、スキー場は北東側
   logi: { at: [742, 392], face: 'n' },     // 漁港：港の物流センター
   farm: { at: [702, 602], face: 'n' },     // 農村
   hut: { at: [478, 505], face: 's' },      // 山の表（南）の登山口
-  wind: { at: [198, 405], face: 's' },     // 風の丘のふもと
-  it: { at: [285, 660], face: 'e' },       // IT企業
+  wind: { at: [200, 398], face: 's' },     // 風の丘のふもと
+  it: { at: [548, 606], face: 'w' },       // IT街（南の 新しい 通りぞい）
 };
 
 // 道。漁港 → 山の南 → 学校 → 首都 → 繁華街 が島の目抜き通り。
@@ -641,10 +846,15 @@ const ROADS = [
   [[742, 425], [640, 520], [470, 545], [400, 505], [330, 488], [262, 488], [232, 555], [190, 600], [150, 625]],
   [[330, 488], [345, 395], [392, 290], [470, 300], [592, 300], [680, 330]],
   [[262, 488], [230, 430], [222, 368]],
-  [[400, 505], [400, 560], [355, 625], [330, 668]],
+  [[400, 505], [400, 560], [392, 640], [330, 686]],
   [[640, 520], [702, 640], [820, 690]],
   [[742, 425], [800, 470], [860, 560]],
   [[244, 455], [202, 468]], // 首都 → フェリー乗り場
+  [[503, 541], [503, 735]],                                   // IT街の 通り（目抜き通り → 南の 海）
+  [[160, 686], [250, 688], [330, 686]],                       // カフェ → スーパー（南の 海ぞい）
+  [[575, 470], [595, 520], [585, 600], [604, 700], [620, 762]], // 川ぞいの 道（山の ふもと → 南の 海）
+  [[860, 560], [895, 605]], [[895, 605], [772, 676]], [[895, 605], [850, 705]], // 農村の 東の 道
+  [[680, 330], [742, 346]],                                   // 山の 北の 道 → 物流センター
 ];
 
 // 川。山のふもとの湧き水から、放射状に海へ（火山の島に多い形）。w は川はば（m）。
@@ -654,6 +864,7 @@ const RIVERS = [
   { w: 1.4, line: [[584, 456], [610, 520], [600, 600], [620, 700], [640, 782]] },   // 山 → 農村 → 南の海
   { w: 1.4, line: [[612, 402], [675, 408], [690, 360], [694, 326]] },               // 山 → 漁港の入り江
   { w: 1.4, line: [[466, 318], [430, 240], [400, 170], [393, 115]] },               // 山 → ビーチ
+  { w: 1.4, line: [[598, 440], [690, 515], [780, 592], [866, 668]] },               // 山 → 農村の 東 → 南東の 海
 ];
 
 // 島の上の場所が空いているか（建物・木を散らすときに使う）
@@ -750,7 +961,12 @@ function addCyl(x, y, z, rt, rb, h, color, seg) {
   patch(ellipse(600, 240, 55, 38), '#d6cdb5', 0.05);       // 漁村
   // 湖
   patch(ellipse(265, 592, 46, 42), '#e3d9b5', 0.06);
-  patch(ellipse(265, 592, 40, 36), '#5aa7d1', 0.07);
+  patch(ellipse(265, 592, 40, 36), '#5aa7d2', 0.07); // 湖（冬は 氷の スケート場。川と 分けた 色）
+  // 田んぼ（農村の 北）
+  patch([[795, 400], [858, 400], [858, 448], [795, 448]], '#9cc78a', 0.065);
+  [416, 432].forEach((py) => patch([[795, py - 1], [858, py - 1], [858, py + 1], [795, py + 1]], '#b08a5a', 0.068));
+  [816, 837].forEach((px) => patch([[px - 1, 400], [px + 1, 400], [px + 1, 448], [px - 1, 448]], '#b08a5a', 0.068));
+  block(...(() => { const p = toWorld(826, 424); return [p.x, p.z, 4.2, 0]; })());
   block(...(() => { const p = toWorld(265, 592); return [p.x, p.z, 5.8]; })());
   // 川（道より下に描き、交わるところは橋の欄干を立てる）
   riverSegs.forEach(([a, b, w], k) => {
@@ -788,7 +1004,7 @@ const OVERVIEW = { pos: new THREE.Vector3(0, 40, 60), yaw: 0, pitch: 0.62 };
 
 function overviewSign(text, sub, color, w) {
   const b = new Board(w || 6, (w || 6) / 3, 120);
-  b.draw((ctx, W, H) => {
+  const paint = (sub) => b.draw((ctx, W, H) => {
     ctx.fillStyle = color || 'rgba(255,255,255,0.92)'; roundRect(ctx, 0, 0, W, H, H * 0.22); ctx.fill();
     ctx.fillStyle = color ? '#ffffff' : '#1f2a33'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     const fit = (weight, size, family, str, y) => { // はみ出す名前は 字を 小さく
@@ -799,6 +1015,7 @@ function overviewSign(text, sub, color, w) {
     fit('700', sub ? 0.4 : 0.5, FONT_DISPLAY, text, H * (sub ? 0.36 : 0.52));
     if (sub) fit('400', 0.26, FONT_BODY, sub, H * 0.74);
   });
+  paint(sub); b.mesh.userData.repaint = paint; // 季節で しごとが かわる お店は 下の 行を 描きなおす
   b.mesh.material.depthTest = false; b.mesh.renderOrder = 8;
   return b.mesh;
 }
@@ -813,9 +1030,9 @@ const PANEL_Z = 3.3;          // 指示モニターを つるす ところ
 const PANEL_Y = 2.12;          // 指示モニターの 高さ（中心）
 const PANEL_SCALE = 0.7;
 function buildShopShell(g, job) {
-  const wallMat = () => mat(job.id === 'farm' ? '#dff0e4' : '#f4efe6', job.id === 'farm' ? { transparent: true, opacity: 0.35, roughness: 0.1 } : null);
+  const wallMat = () => mat(job.id === 'farm' ? '#dff0e4' : job.id === 'school' ? '#e9d6b8' : '#f4efe6', job.id === 'farm' ? { transparent: true, opacity: 0.35, roughness: 0.1 } : null);
   const add = (geo, m, x, y, z) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); g.add(o); return o; };
-  const floorColor = { fish: '#cfd8dc', forest: '#9c7a54', ski: '#d9dde3', logi: '#b9bcb8', store: '#e9e6dc', clean: '#d9cdb8', cafe: '#a87b55', care: '#d8c3a0', office: '#c9ccd3', farm: '#8f7a5a', craft: '#c4a27a', hut: '#9c7a54', wind: '#c9ccd3', it: '#c9ccd3' }[job.id] || '#d9cdb8';
+  const floorColor = { yatai: '#d9c4a2', super: '#e9e6dc', school: '#b98f5a', fish: '#cfd8dc', forest: '#9c7a54', ski: '#d9dde3', logi: '#b9bcb8', store: '#e9e6dc', clean: '#d9cdb8', cafe: '#a87b55', care: '#d8c3a0', office: '#c9ccd3', farm: '#8f7a5a', craft: '#c4a27a', hut: '#9c7a54', wind: '#c9ccd3', it: '#c9ccd3' }[job.id] || '#d9cdb8';
   const floor = add(new THREE.PlaneGeometry(SHOP_W, SHOP_DEPTH), mat(floorColor), 0, 0.1, SHOP_DEPTH / 2); floor.rotation.x = -Math.PI / 2;
   [-1, 1].forEach((sd) => {
     add(new THREE.BoxGeometry(0.1, 3.0, SHOP_DEPTH), wallMat(), sd * (SHOP_W / 2 + 0.05), 1.5, SHOP_DEPTH / 2);
@@ -860,12 +1077,16 @@ JOBS.forEach((job, i) => {
   const facade = buildShopShell(g, job);
 
   const sign = new Board(3.4, 0.7, 300);
-  sign.draw((ctx, W, H) => {
+  const paintSign = (work) => sign.draw((ctx, W, H) => {
     ctx.fillStyle = job.color; roundRect(ctx, 0, 0, W, H, 30); ctx.fill();
     ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.font = '700 88px ' + FONT_DISPLAY; ctx.fillText(job.name, W / 2, H * 0.42);
-    ctx.font = '400 40px ' + FONT_BODY; ctx.fillText(job.area + '・' + (job.signWork || job.work), W / 2, H * 0.8);
+    let px = 40; ctx.font = '400 ' + px + 'px ' + FONT_BODY;
+    const sub = job.area + '・' + work;
+    while (px > 22 && ctx.measureText(sub).width > W * 0.92) { px -= 2; ctx.font = '400 ' + px + 'px ' + FONT_BODY; }
+    ctx.fillText(sub, W / 2, H * 0.8);
   });
+  paintSign(job.signWork || job.work);
   sign.mesh.position.set(0, 2.66, SHOP_DEPTH + 0.07); g.add(sign.mesh);
 
   // カウンター（作業台）。店員は 奥の壁と 台の あいだ（STAFF_Z）に 立ち、入口（お客さま）の 方を 向く。
@@ -916,11 +1137,11 @@ JOBS.forEach((job, i) => {
   ['v0', 'v1', 'v2'].forEach((k, n) => { if (btns[k]) btns[k].position.set(-bx - 0.32, PANEL_Y + 0.17 - n * 0.2, 0.01); });
   Object.values(btns).forEach((m) => { m.scale.setScalar(0.85); panel.add(m); m.visible = false; });
 
-  booths.push({ job, group: g, yaw, front, door, board, workArea, btns, pin });
+  booths.push({ job, group: g, yaw, front, door, board, workArea, btns, pin, paintSign });
 });
 
 // 地域の名前（お店のない地域・目じるし）
-[['ビーチ', [250, 205]], ['湖', [265, 592]], ['表：夏山登山　裏：冬スキー', [520, 392]], ['ジップライン', [432, 318]],
+[['ビーチ', [250, 205]], ['湖（冬は スケート場）', [265, 592]], ['田んぼ', [826, 424]], ['表：夏山登山　裏：冬スキー', [520, 392]], ['ジップライン', [432, 318]],
   ['フェリー乗り場（となりの国へ）', [125, 458]]].forEach(([text, at]) => {
   const p = toWorld(...at);
   const s = overviewSign(text, '', '', text.length > 10 ? 11 : text.length > 4 ? 7.5 : 4.5);
@@ -1076,12 +1297,14 @@ function tree(x, z, kind) {
   scatter(330, 455, 40, 30, 6, 1.8, (x, z) => house(x, z, pick(['#f6efe2', '#f1e4d0']), pick(['#b9573f', '#5a6f8a'])), 1.4);
 
   // 学校エリア：校舎と校庭
-  const school = toWorld(352, 610); addBox(school.x, 1.8, school.z, 8, 3.6, 3.2, '#f4ecd8'); block(school.x, school.z, 4.4);
-  addCyl(school.x, 4.2, school.z + 1.62, 0.6, 0.6, 0.08, '#ffffff', 20).rotation.x = Math.PI / 2;
+  // （校舎は お店「学校」として 建てる。ここは 校庭だけ）
   const field = toWorld(408, 585); patch(ellipse(408, 585, 26, 20), '#d6a874', 0.07); block(field.x, field.z, 3.2, 0);
 
-  // IT 企業：ガラスのビル
-  scatter(315, 670, 45, 26, 3, 1.8, (x, z, k) => building(x, z, 3.2, 3.2, [13, 10, 16][k], '#9fc3e0', { metalness: 0.35, roughness: 0.25 }));
+  // IT街：南の 通りぞいの ガラスの ビル
+  [[466, 672, 7], [548, 725, 8], [462, 610, 6]].forEach(([px, py, h]) => {
+    const p = toWorld(px, py); if (!isFree(p.x, p.z, 2.2)) return;
+    block(p.x, p.z, 2.2); building(p.x, p.z, 3.4, 3.4, h, '#9fc3e0', { metalness: 0.35, roughness: 0.25 });
+  });
 
   // 漁村：家と、沖の漁船
   scatter(600, 240, 60, 35, 9, 1.7, (x, z) => house(x, z, pick(['#f2ece0', '#e4ecef']), pick(['#3d6f9e', '#4f7f7a', '#9e4f3d'])), 1.4);
@@ -1558,6 +1781,107 @@ Object.assign(SHAPE_MODELS, {
   },
 });
 
+// --- 冬の しごと・屋台・スーパー・学校の 道具 ---------------------------------
+function syrup(color) { // シロップの びん
+  const g = new THREE.Group();
+  part(g, cyl(0.032, 0.035, 0.13, 18), color, 0, 0.065, 0, { transparent: true, opacity: 0.85, roughness: 0.2 });
+  part(g, cyl(0.014, 0.03, 0.03, 14), color, 0, 0.145, 0, { transparent: true, opacity: 0.85 });
+  part(g, cyl(0.016, 0.016, 0.02, 12), '#ffffff', 0, 0.17, 0);
+  part(g, cyl(0.0335, 0.0335, 0.04, 18), '#ffffff', 0, 0.06, 0);
+  return g;
+}
+function bun(top, mark) { // 中華まん
+  const g = new THREE.Group();
+  part(g, ball(0.055, 22, 14), top, 0, 0.035, 0).scale.set(1, 0.75, 1);
+  for (let i = 0; i < 6; i++) { const a = (i / 6) * TAU; const f = part(g, box(0.004, 0.006, 0.035), '#e6e0d2', Math.cos(a) * 0.012, 0.074, Math.sin(a) * 0.012); f.rotation.y = -a; }
+  if (mark) part(g, ball(0.008, 8, 6), mark, 0, 0.078, 0);
+  part(g, cyl(0.06, 0.06, 0.004, 20), '#f2e6c8', 0, 0.002, 0); // 下の 紙
+  return g;
+}
+Object.assign(ITEM_MODELS, {
+  // 物流（冬）
+  'みかん'() { const g = new THREE.Group(); part(g, ball(0.05, 20, 14), '#f39a2b', 0, 0.042, 0).scale.set(1, 0.82, 1); part(g, cyl(0.004, 0.004, 0.01, 6), '#3f7a2a', 0, 0.085, 0); const lf = part(g, ball(0.015, 8, 6), '#3f7a2a', 0.012, 0.085, 0); lf.scale.set(1, 0.25, 0.5); return g; },
+  'もち'() { const g = new THREE.Group(); [0, 1].forEach((k) => part(g, ball(0.05 - k * 0.012, 20, 12), '#fbfaf4', 0, 0.02 + k * 0.035, 0).scale.set(1, 0.5, 1)); part(g, ball(0.016, 10, 8), '#f39a2b', 0, 0.075, 0); return g; },
+  'カイロ'() { const g = new THREE.Group(); part(g, box(0.09, 0.012, 0.12), '#ffffff', 0, 0.006, 0); part(g, box(0.06, 0.002, 0.05), '#e0662f', 0, 0.013, 0.015); return g; },
+  '手袋'() { const g = new THREE.Group(); [-0.035, 0.035].forEach((x) => { part(g, box(0.06, 0.02, 0.09), '#d0453a', x, 0.01, 0); part(g, box(0.02, 0.018, 0.035), '#d0453a', x + (x > 0 ? 0.035 : -0.035), 0.01, 0.01); part(g, box(0.062, 0.022, 0.02), '#ffffff', x, 0.011, -0.045); }); return g; },
+  'マフラー'() { const g = new THREE.Group(); [0, 1, 2].forEach((k) => part(g, box(0.14, 0.018, 0.045), k % 2 ? '#f2e6c8' : '#3c7fc4', 0, 0.009 + k * 0.018, 0)); part(g, box(0.03, 0.006, 0.05), '#3c7fc4', 0.08, 0.004, 0.02); return g; },
+  '鍋つゆ'() { const g = new THREE.Group(); part(g, box(0.09, 0.13, 0.03), '#c8463d', 0, 0.065, 0); part(g, box(0.06, 0.04, 0.002), '#f2e6c8', 0, 0.07, 0.016); return g; },
+  // コンビニ（冬）
+  '包み紙'() { const g = new THREE.Group(); [0, 1, 2].forEach((k) => { const p = part(g, box(0.12, 0.002, 0.12), '#f2e6c8', 0, 0.002 + k * 0.003, 0); p.rotation.y = k * 0.15; }); return g; },
+  '肉まん'() { return bun('#fbfaf4'); },
+  'あんまん'() { return bun('#fbfaf4', '#c8463d'); },
+  'ピザまん'() { return bun('#f2c27a'); },
+  // カフェ（冬）
+  'ミルク'() { return ITEM_MODELS['牛乳'](); },
+  'レモン'() { const g = new THREE.Group(); part(g, ball(0.035, 16, 12), '#f6d24a', 0, 0.03, 0).scale.set(1.35, 0.85, 0.9); return g; },
+  'はちみつ'() { const g = new THREE.Group(); part(g, cyl(0.04, 0.04, 0.08, 18), '#e0a23a', 0, 0.04, 0, { transparent: true, opacity: 0.85, roughness: 0.2 }); part(g, cyl(0.042, 0.042, 0.02, 18), '#7a4a2a', 0, 0.09, 0); part(g, box(0.05, 0.025, 0.002), '#f6e27a', 0, 0.045, 0.041); return g; },
+  // 作業所（冬）
+  'わら'() { const g = new THREE.Group(); for (let i = 0; i < 9; i++) { const st = part(g, cyl(0.004, 0.004, 0.2, 5), '#d9b36a', (i % 3 - 1) * 0.008, 0.01 + Math.floor(i / 3) * 0.008, 0); st.rotation.z = Math.PI / 2; } part(g, cyl(0.02, 0.02, 0.012, 10), '#c8463d', 0, 0.018, 0).rotation.z = Math.PI / 2; return g; },
+  '紙垂'() { const g = new THREE.Group(); for (let i = 0; i < 4; i++) part(g, box(0.035, 0.003, 0.03), '#ffffff', (i % 2) * 0.02, 0.003 + i * 0.002, -0.045 + i * 0.03); return g; },
+  'だいだい'() { const g = new THREE.Group(); part(g, ball(0.045, 18, 12), '#f39a2b', 0, 0.042, 0).scale.set(1, 0.9, 1); const lf = part(g, ball(0.022, 10, 6), '#3f7a2a', 0.02, 0.085, 0); lf.scale.set(1.3, 0.25, 0.6); return g; },
+  // 森林組合（冬）
+  'おの'() { const g = new THREE.Group(); part(g, box(0.2, 0.016, 0.02), '#8a6a46', 0, 0.01, 0); part(g, box(0.035, 0.012, 0.07), '#8a8f96', 0.09, 0.012, 0.02, { metalness: 0.6, roughness: 0.3 }); return g; },
+  '薪だな'() { const g = new THREE.Group(); part(g, box(0.2, 0.012, 0.1), '#6b4a2a', 0, 0.006, 0); for (let k = 0; k < 3; k++) for (let n = 0; n < 3 - k; n++) { const lg = part(g, cyl(0.022, 0.022, 0.1, 8), '#a0784a', (n - (2 - k) / 2) * 0.05, 0.035 + k * 0.04, 0); lg.rotation.x = Math.PI / 2; } return g; },
+  // 風力（冬）
+  'ヒーター'() { const g = new THREE.Group(); part(g, box(0.14, 0.12, 0.08), '#8a8f96', 0, 0.06, 0); part(g, box(0.11, 0.08, 0.004), '#ff8a3a', 0, 0.065, 0.041, { emissive: '#ff6a1a', emissiveIntensity: 0.6 }); part(g, box(0.14, 0.012, 0.08), '#55504c', 0, 0.126, 0); return g; },
+  // 屋台
+  'かき氷の カップ'() { const g = new THREE.Group(); part(g, cyl(0.05, 0.035, 0.07, 20), '#ffffff', 0, 0.035, 0); part(g, cyl(0.051, 0.044, 0.02, 20), '#c8463d', 0, 0.05, 0); return g; },
+  'かき氷器'() { const g = new THREE.Group(); part(g, box(0.16, 0.02, 0.14), '#d0453a', 0, 0.01, 0); [-0.06, 0.06].forEach((x) => part(g, box(0.015, 0.2, 0.015), '#d0453a', x, 0.11, -0.04)); part(g, box(0.16, 0.05, 0.1), '#d0453a', 0, 0.22, -0.02); part(g, box(0.06, 0.06, 0.06), '#e8f7fd', 0, 0.165, -0.02, { transparent: true, opacity: 0.8 }); part(g, cyl(0.008, 0.008, 0.1, 8), '#c9c9c9', 0.06, 0.26, -0.02).rotation.z = Math.PI / 2; return g; },
+  'いちご シロップ'() { return syrup('#d6283a'); },
+  'メロン シロップ'() { return syrup('#4fbf5a'); },
+  'レモン シロップ'() { return syrup('#f6d24a'); },
+  '紙袋'() { const g = new THREE.Group(); part(g, box(0.09, 0.13, 0.05), '#c9a06a', 0, 0.065, 0); part(g, box(0.092, 0.02, 0.052), '#b88d55', 0, 0.12, 0); return g; },
+  '焼きいも'() { const g = new THREE.Group(); const im = part(g, ball(0.035, 16, 12), '#7a3e6a', 0, 0.03, 0); im.scale.set(2.4, 0.9, 1); part(g, ball(0.02, 10, 8), '#f2c230', 0.07, 0.03, 0).scale.set(0.4, 1, 1); return g; },
+  '紙コップ'() { const g = new THREE.Group(); part(g, cyl(0.04, 0.03, 0.09, 18), '#ffffff', 0, 0.045, 0); part(g, cyl(0.041, 0.035, 0.03, 18), '#e0662f', 0, 0.05, 0); return g; },
+  '甘酒'() { const g = new THREE.Group(); part(g, cyl(0.07, 0.065, 0.11, 22), '#f4f4f0', 0, 0.055, 0); part(g, cyl(0.066, 0.066, 0.004, 22), '#f6f0de', 0, 0.108, 0); part(g, box(0.05, 0.03, 0.002), '#c8463d', 0, 0.06, 0.07); return g; },
+  'おしるこ'() { const g = new THREE.Group(); part(g, cyl(0.07, 0.065, 0.11, 22), '#3d4a54', 0, 0.055, 0); part(g, cyl(0.066, 0.066, 0.004, 22), '#5a2a26', 0, 0.108, 0); [[-0.02, 0.01], [0.025, -0.015]].forEach(([x, z]) => part(g, box(0.025, 0.012, 0.025), '#fbfaf4', x, 0.112, z)); return g; },
+  // スーパー
+  'レジ袋'() { const g = new THREE.Group(); part(g, box(0.12, 0.14, 0.06), '#f4f6f8', 0, 0.07, 0, { transparent: true, opacity: 0.9 }); [-0.035, 0.035].forEach((x) => part(g, new THREE.TorusGeometry(0.02, 0.004, 6, 14, Math.PI), '#f4f6f8', x, 0.14, 0)); return g; },
+  'じゃがいも'() { const g = new THREE.Group(); [[-0.03, 0], [0.03, 0.01], [0, -0.03]].forEach(([x, z]) => part(g, ball(0.03, 12, 10), '#c9a06a', x, 0.025, z).scale.set(1.3, 0.85, 1)); return g; },
+  'たまご'() { const g = new THREE.Group(); part(g, box(0.15, 0.03, 0.07), '#d9e2e6', 0, 0.015, 0, { transparent: true, opacity: 0.7 }); for (let i = 0; i < 6; i++) part(g, ball(0.016, 10, 8), '#f4ead8', -0.05 + (i % 3) * 0.05, 0.03, -0.017 + Math.floor(i / 3) * 0.034).scale.set(1, 1.25, 1); return g; },
+  '白菜'() { const g = new THREE.Group(); part(g, ball(0.06, 16, 12), '#f4f6e6', 0, 0.06, 0).scale.set(0.8, 1.5, 0.8); part(g, ball(0.06, 16, 12), '#9cc75a', 0, 0.1, 0).scale.set(0.85, 0.9, 0.85); return g; },
+  '大根'() { const g = new THREE.Group(); const d = part(g, cyl(0.03, 0.018, 0.22, 14), '#fbfaf4', 0, 0.03, 0); d.rotation.z = Math.PI / 2; [-0.01, 0.01].forEach((z) => { const lf = part(g, box(0.07, 0.006, 0.02), '#6aa04a', -0.14, 0.035, z); lf.rotation.y = z * 15; }); return g; },
+  'とうふ'() { const g = new THREE.Group(); part(g, box(0.1, 0.045, 0.07), '#ffffff', 0, 0.0225, 0, { transparent: true, opacity: 0.9 }); part(g, box(0.09, 0.04, 0.06), '#fbfaf4', 0, 0.021, 0); return g; },
+  // 学校（書き初め）
+  '新聞紙'() { const g = new THREE.Group(); part(g, box(0.2, 0.004, 0.15), '#e8e6e0', 0, 0.002, 0); [-0.04, 0, 0.04].forEach((z) => part(g, box(0.16, 0.001, 0.01), '#9aa1a6', 0, 0.005, z)); return g; },
+  '下じき'() { const g = new THREE.Group(); part(g, box(0.16, 0.006, 0.12), '#2f3a7a', 0, 0.003, 0); return g; },
+  '半紙'() { const g = new THREE.Group(); part(g, box(0.1, 0.002, 0.14), '#fbfaf6', 0, 0.001, 0); return g; },
+  '文鎮'() { const g = new THREE.Group(); part(g, box(0.16, 0.014, 0.022), '#3d4a54', 0, 0.007, 0, { metalness: 0.5, roughness: 0.35 }); return g; },
+  'すずり'() { const g = new THREE.Group(); part(g, box(0.07, 0.02, 0.12), '#2b2b2b', 0, 0.01, 0); part(g, box(0.05, 0.004, 0.035), '#0f0f14', 0, 0.021, 0.035); return g; },
+  '筆'() { const g = new THREE.Group(); const h = part(g, cyl(0.007, 0.007, 0.16, 8), '#c9a06a', 0, 0.008, 0); h.rotation.z = Math.PI / 2; const tip = part(g, new THREE.ConeGeometry(0.01, 0.035, 8), '#1f1f1f', 0.095, 0.008, 0); tip.rotation.z = -Math.PI / 2; return g; },
+  'クレヨン'() { const g = new THREE.Group(); part(g, box(0.12, 0.02, 0.08), '#f2c230', 0, 0.01, 0); ['#d0453a', '#3c7fc4', '#4f9a45', '#e0662f'].forEach((c, i) => part(g, box(0.012, 0.012, 0.06), c, -0.04 + i * 0.026, 0.026, 0)); return g; },
+});
+Object.assign(SHAPE_MODELS, {
+  // 介護（冬）：湯のみの のった おぜん（とろみは スプーン つき）
+  drinkTray(s) {
+    const g = new THREE.Group();
+    part(g, box(0.22, 0.016, 0.16), '#9a6b44', 0, 0.008, 0);
+    part(g, cyl(0.035, 0.03, 0.07, 18), '#e8e2d6', 0, 0.051, 0);
+    part(g, cyl(0.032, 0.032, 0.004, 18), s.color, 0, 0.084, 0);
+    if (s.thick) part(g, box(0.09, 0.006, 0.012), '#c49a6c', 0.07, 0.02, 0.03).rotation.y = 0.4;
+    return g;
+  },
+  // 農園（冬）：いちご（赤い・白い）
+  strawberry(s) {
+    const g = new THREE.Group();
+    const b = part(g, new THREE.ConeGeometry(0.05, 0.08, 18), s.color, 0, 0.045, 0, { roughness: 0.4 }); b.rotation.x = Math.PI;
+    part(g, ball(0.05, 18, 10), s.color, 0, 0.085, 0, { roughness: 0.4 }).scale.set(1, 0.35, 1);
+    for (let i = 0; i < 5; i++) { const a = (i / 5) * TAU; const lf = part(g, box(0.035, 0.004, 0.012), '#3f7a2a', Math.cos(a) * 0.016, 0.1, Math.sin(a) * 0.016); lf.rotation.y = -a; }
+    for (let i = 0; i < 8; i++) { const a = (i / 8) * TAU; part(g, ball(0.004, 6, 4), '#f6e27a', Math.cos(a) * 0.035, 0.06, Math.sin(a) * 0.035); }
+    return g;
+  },
+  // 学校：本だな（たなの 色で 種類）
+  bookShelf(s) {
+    const g = new THREE.Group(); const W = 0.36; const H = 0.42;
+    part(g, box(W, H, 0.012), '#8a6a46', 0, H / 2, -0.07);
+    [-1, 1].forEach((sd) => part(g, box(0.015, H, 0.15), '#8a6a46', sd * (W / 2 - 0.0075), H / 2, 0));
+    [0.01, 0.21, 0.41].forEach((y) => part(g, box(W, 0.015, 0.15), '#8a6a46', 0, y, 0));
+    [0.02, 0.22].forEach((y) => { for (let i = 0; i < 7; i++) part(g, box(0.035, 0.15 + (i % 3) * 0.02, 0.11), i % 2 ? s.color : '#f2ecdf', -0.13 + i * 0.043, y + 0.08 + (i % 3) * 0.01, 0); });
+    part(g, box(W, 0.045, 0.01), s.color, 0, H - 0.03, 0.078); // たなの 名札の 色
+    return g;
+  },
+});
+
 function makeItemMesh(spec) {
   const build = SHAPE_MODELS[spec.shape] || (spec.label && ITEM_MODELS[spec.label]);
   if (build) return build(spec);
@@ -1735,6 +2059,18 @@ function decorateInterior(b) {
     [0.95, 1.45, 1.95].forEach((z) => part(g, new THREE.SphereGeometry(0.13, 16, 8, 0, TAU, 0, Math.PI / 2), '#f2c230', -(SHOP_W / 2 - 0.17), 1.115, z));
     part(g, box(0.04, 1.2, 1.6), '#5a5f66', SHOP_W / 2 - 0.03, 0.9, 1.45);
     [[1.0, '#8a8f96'], [1.4, '#e0662f'], [1.8, '#f6e27a']].forEach(([z, c]) => part(g, box(0.05, 0.5, 0.06), c, SHOP_W / 2 - 0.08, 0.95, z));
+  } else if (id === 'yatai') {
+    wallShelf(g, -1, ['かき氷の カップ', 'いちご シロップ', 'メロン シロップ', 'レモン シロップ'], '#e0662f');
+    part(g, cyl(0.3, 0.3, 0.06, 20), '#c9302c', DECO_X - 0.15, 1.3, 1.4).rotation.z = Math.PI / 2; // ちょうちん
+    part(g, ball(0.18, 14, 10), '#e0503a', DECO_X - 0.15, 1.3, 2.0, { emissive: '#ff7a3a', emissiveIntensity: 0.4 });
+  } else if (id === 'super') {
+    wallShelf(g, -1, ['牛乳', 'お茶', 'パン'], '#d0d5db');
+    wallShelf(g, 1, ['じゃがいも', 'たまご', 'みかん'], '#d0d5db');
+  } else if (id === 'school') {
+    wallShelf(g, -1, ['#c8463d', '#3c7fc4', '#e3b23c', '#4f9a45'], '#8a6a46'); // 本だな
+    // 黒板
+    part(g, box(0.03, 0.7, 1.4), '#2f4a3a', SHOP_W / 2 - 0.02, 1.35, 1.6);
+    part(g, box(0.04, 0.04, 1.44), '#8a6a46', SHOP_W / 2 - 0.04, 0.98, 1.6);
   } else if (id === 'it') {
     deskSet(g, -1, 1.7); deskSet(g, 1, 1.7);
   } else if (id === 'craft') {
@@ -1744,9 +2080,43 @@ function decorateInterior(b) {
   }
 }
 booths.forEach(decorateInterior);
+// 学校は 2 階建ての 校舎に（窓・時計）
+booths.forEach((b) => {
+  if (b.job.id !== 'school') return;
+  const g = b.group; const zc = (SHOP_DEPTH - 2.6) / 2; const d = SHOP_DEPTH + 3.0; const w = SHOP_W + 0.4;
+  const tex = windowTex.clone(); tex.needsUpdate = true; tex.repeat.set(3, 1);
+  const up = new THREE.Mesh(new THREE.BoxGeometry(w, 2.4, d), mat('#e9d6b8', { map: tex })); up.position.set(0, 3.35 + 1.2, zc); g.add(up);
+  const top = new THREE.Mesh(new THREE.BoxGeometry(w + 0.3, 0.3, d + 0.3), mat(b.job.color)); top.position.set(0, 5.9, zc); g.add(top);
+  const front = zc + d / 2 + 0.02;
+  const face = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 0.06, 28), mat('#ffffff')); face.rotation.x = Math.PI / 2; face.position.set(0, 4.7, front); g.add(face);
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.45, 0.04, 8, 28), mat(b.job.color)); rim.position.set(0, 4.7, front + 0.03); g.add(rim);
+  [[0.28, 0], [0.18, Math.PI / 2.4]].forEach(([len, a]) => { const h = new THREE.Mesh(new THREE.BoxGeometry(0.035, len, 0.02), mat('#1f2a33')); h.geometry.translate(0, len / 2, 0); h.rotation.z = -a; h.position.set(0, 4.7, front + 0.05); g.add(h); });
+  b.pin.position.y = 12; // 校舎が 高いので 旗を 少し 上に
+});
+// 冬の 湖は スケート場（さくと すべる 人。冬だけ 出す）
+(function buildRink() {
+  const c = toWorld(265, 592); const RX = 40 * MAP_SCALE; const RZ = 36 * MAP_SCALE;
+  const rink = new THREE.Group(); rink.position.set(c.x, 0, c.z); rink.visible = false; scene.add(rink);
+  for (let k = 0; k < 36; k++) {
+    const a = (k / 36) * Math.PI * 2;
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.7, 6), cmat('#8a6a46')); post.position.set(Math.cos(a) * (RX + 0.3), 0.35, Math.sin(a) * (RZ + 0.3)); rink.add(post);
+  }
+  const rail = new THREE.Mesh(new THREE.TorusGeometry(1, 0.03, 6, 72), cmat('#c8463d')); rail.rotation.x = Math.PI / 2; rail.scale.set(RX + 0.3, RZ + 0.3, 1); rail.position.y = 0.62; rink.add(rail);
+  const skaters = [];
+  [['#d0453a', 0.0, 0.7], ['#3c7fc4', 1.6, 0.55], ['#f2c230', 3.1, 0.75], ['#4f9a45', 4.5, 0.45]].forEach(([color, a0, rr]) => {
+    const p = person(color, '#3d4a54'); p.scale.setScalar(4.2); p.userData = { a0, rr }; rink.add(p); skaters.push(p);
+  });
+  rink.userData.skaters = skaters; rink.userData.RX = RX; rink.userData.RZ = RZ;
+  seasonal.rink = rink;
+  rink.userData.place = (t) => skaters.forEach((p) => {
+    const a = p.userData.a0 + t * 0.35; const x = Math.cos(a) * RX * p.userData.rr; const z = Math.sin(a) * RZ * p.userData.rr;
+    p.position.set(x, 0.08, z); p.rotation.y = -a; // すべる 向きに 体を 向ける
+  });
+  rink.userData.place(0);
+})();
 // 店員の 目線の 先に お客さま（接客の お店だけ）。台の 向こうで 店員の 方を 向く。
 booths.forEach((b) => {
-  const guests = { store: ['#3b6fb6', '#e3a33c'], cafe: ['#c4577a'], ski: ['#d0453a', '#3c7fc4'], hut: ['#4f9a45'], clean: ['#e3b23c'] }[b.job.id];
+  const guests = { yatai: ['#3c7fc4', '#f2c230'], super: ['#4f9a45', '#c4577a'], store: ['#3b6fb6', '#e3a33c'], cafe: ['#c4577a'], ski: ['#d0453a', '#3c7fc4'], hut: ['#4f9a45'], clean: ['#e3b23c'] }[b.job.id];
   if (!guests) return;
   guests.forEach((c, k) => {
     const p = person(c, '#3d4a54'); p.scale.setScalar(4.6); p.rotation.y = Math.PI;
@@ -1897,7 +2267,8 @@ function setButtons(visibleKeys) {
 const SNOW_TINT = {
   '#9cc47f': '#eef3f5', '#8fbc6e': '#eef3f5', '#7fa865': '#e2ebe4', '#7fa7a0': '#eef3f5', // 草地・丘・林・ドーム
   '#c9b36a': '#e8edf0', '#88b25a': '#e8edf0', '#a7c46a': '#e8edf0', '#b98f5a': '#e8edf0', '#d6a874': '#e8edf0', // 畑・校庭
-  '#ecdcae': '#f2f0e8', // 砂浜
+  '#ecdcae': '#f2f0e8', '#e3d9b5': '#eef2f4', // 砂浜・湖の まわり
+  '#5aa7d2': '#d9eef8', '#9cc78a': '#e8eef0', // 湖は 氷（スケート場）・田んぼも 雪
   '#b9573f': '#f4f7f9', '#5a6f8a': '#f4f7f9', '#7a8a4f': '#f4f7f9', '#3d6f9e': '#f4f7f9', '#4f7f7a': '#f4f7f9', '#9e4f3d': '#f4f7f9', '#5a3a2e': '#f4f7f9', // 屋根
   '#3f7a3a': '#cfe0d4', '#4d8a45': '#d6e6da', // 針葉樹に 雪
 };
@@ -1920,6 +2291,7 @@ const snowNear = makeSnowfall(1800, 26, 12, 26, 0.07);   // 自分の まわり
 const snowHead = new THREE.Vector3();
 function updateSnow(dt, now) {
   const winter = season === 'winter';
+  if (winter && seasonal.rink && !reduceMotion) seasonal.rink.userData.place(now / 1000);
   const inside = state.where === 'booth'; // お店の 中には 降らせない
   snowWide.pts.visible = winter && !inside; snowNear.pts.visible = winter && state.where === 'walk';
   if (!winter || inside || reduceMotion) return;
@@ -1936,9 +2308,12 @@ function updateSnow(dt, now) {
   });
 }
 
+const signWorkOf = (job) => { const vs = variantsNow(job); return !vs ? job.work : vs.length > 1 ? SEASON_NAME[season] + '：' + vs.map((v) => v.short || v.work).join('・') : vs[0].work; };
 function applySeason() {
   const winter = season === 'winter';
   JOBS.forEach((job) => { if (job.variants) selectVariant(job, 0); });
+  booths.forEach((b) => { if (!b.job.variants) return; b.paintSign(signWorkOf(b.job)); b.pin.userData.repaint(b.job.name + '・' + signWorkOf(b.job)); });
+  if (seasonal.rink) seasonal.rink.visible = winter;
   matCache.forEach((m, color) => { if (SNOW_TINT[color]) m.color.set(winter ? SNOW_TINT[color] : color); });
   scene.background.set(SKY[season]); scene.fog.color.set(SKY[season]);
   mmBase = null; // 右上の 地図も 冬の 色に
@@ -2449,7 +2824,7 @@ chipsEl.addEventListener('scroll', updateChipNav, { passive: true });
 window.addEventListener('resize', updateChipNav);
 function chipWork(job) {
   const vs = variantsNow(job); if (!vs) return job.work;
-  return SEASON_NAME[season] + '：' + (vs.length > 1 ? vs.map((v) => v.short || v.work).join('・') : vs[0].work);
+  return vs.length > 1 ? SEASON_NAME[season] + '：' + vs.map((v) => v.short || v.work).join('・') : vs[0].work;
 }
 function renderChips() {
   chipsEl.innerHTML = '';
