@@ -82,7 +82,24 @@ button.primary { background: var(--accent); color: var(--accent-ink); border-col
 .bottom {
   bottom: 0; padding: 10px 16px calc(env(safe-area-inset-bottom, 0px) + 12px);
   display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none;
+  scroll-padding-inline: 16px;
 }
+/* 帯そのものも 指を 受けないと 横に スクロールできない（.hud は 3D を さわれるよう pointer-events: none） */
+.hud.bottom {
+  pointer-events: auto; touch-action: pan-x; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch;
+  /* 右はしを うすくして「まだ 続く」と わかるように */
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+}
+.hud.bottom::-webkit-scrollbar { display: none; }
+/* スワイプが きかない 端末でも 送れるように、両はしに 送りボタン */
+.chip-nav {
+  position: fixed; z-index: 3; bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
+  width: 40px; height: 40px; padding: 0; border-radius: 50%;
+  font-size: 22px; line-height: 1; box-shadow: 0 2px 8px rgba(0,0,0,.18);
+}
+#chips-prev { left: 6px; }
+#chips-next { right: 6px; }
 .chip { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; border-radius: 999px; padding: 6px 14px 6px 8px; font-weight: 700; }
 .chip i { width: 14px; height: 14px; border-radius: 50%; display: inline-block; }
 .chip span { font-weight: 400; font-size: 12px; color: var(--ink-soft); }
@@ -139,6 +156,8 @@ button.primary { background: var(--accent); color: var(--accent-ink); border-col
 </aside>
 
 <nav class="hud bottom" id="chips" aria-label="職業をえらぶ"></nav>
+<button type="button" class="chip-nav" id="chips-prev" aria-label="前の お店へ 送る" hidden>‹</button>
+<button type="button" class="chip-nav" id="chips-next" aria-label="つぎの お店へ 送る" hidden>›</button>
 <div class="toast" id="toast" hidden></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -1823,6 +1842,23 @@ vrBtn.addEventListener('click', async () => {
 // ===========================================================================
 const $ = (id) => document.getElementById(id);
 const chipsEl = $('chips');
+// マウスの ホイール（縦）でも 横に 送る
+chipsEl.addEventListener('wheel', (e) => {
+  if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+  chipsEl.scrollLeft += e.deltaY; e.preventDefault();
+}, { passive: false });
+let shownChip = -1;
+const chipsPrev = $('chips-prev'); const chipsNext = $('chips-next');
+function updateChipNav() {
+  const max = chipsEl.scrollWidth - chipsEl.clientWidth;
+  chipsPrev.hidden = chipsEl.scrollLeft <= 4;
+  chipsNext.hidden = chipsEl.scrollLeft >= max - 4;
+}
+const pageChips = (dir) => chipsEl.scrollBy({ left: dir * chipsEl.clientWidth * 0.7, behavior: 'smooth' });
+chipsPrev.addEventListener('click', () => pageChips(-1));
+chipsNext.addEventListener('click', () => pageChips(1));
+chipsEl.addEventListener('scroll', updateChipNav, { passive: true });
+window.addEventListener('resize', updateChipNav);
 function renderChips() {
   chipsEl.innerHTML = '';
   const plazaChip = document.createElement('button');
@@ -1845,6 +1881,17 @@ function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 function renderHud() {
   $('place').textContent = state.where === 'plaza' ? '島ぜんたい' : state.booth.job.area + '　' + state.booth.job.name + '・' + state.booth.job.work;
   chipsEl.querySelectorAll('.chip').forEach((el, i) => el.setAttribute('aria-current', String(i === 0 ? state.where === 'plaza' : state.booth === booths[i - 1])));
+  // いまの 場所の チップが 画面の外なら 見える ところまで 送る
+  const cur = state.where === 'plaza' ? 0 : booths.indexOf(state.booth) + 1;
+  if (cur !== shownChip) {
+    shownChip = cur;
+    const el = chipsEl.children[cur];
+    if (el) {
+      const left = el.offsetLeft - 16; const right = el.offsetLeft + el.offsetWidth + 28 - chipsEl.clientWidth;
+      const to = chipsEl.scrollLeft > left ? left : chipsEl.scrollLeft < right ? right : null;
+      if (to !== null) chipsEl.scrollTo({ left: Math.max(0, to), behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    }
+  }
   const el = $('instr');
   if (state.where === 'plaza') {
     el.innerHTML = '<span class="tag">Work Island</span><h2>やってみたい しごとを えらぶ</h2>' +
@@ -1944,6 +1991,7 @@ renderer.setAnimationLoop((now) => {
 renderChips();
 renderHud();
 renderLog();
+updateChipNav();
 // 動作確認用（テストから 作業を 進めるため）
 window.hopeTown = { state, goBooth, startSession, select: onSelectItem, nextTargetKey };
 // 最初は 島ぜんたいを 見わたす
