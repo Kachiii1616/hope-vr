@@ -1,0 +1,1026 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>HOPE しごとタウン</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=Zen+Maru+Gothic:wght@500;700&display=swap">
+<style>
+/* 画面いっぱいの 3D の町。HTML は上の帯・下の職業チップ・左上の指示カード・右の記録だけを重ねる。 */
+:root {
+  --ink: #1f2a33;
+  --ink-soft: #55626d;
+  --paper: #f6f8f4;
+  --card: rgba(255, 255, 255, 0.92);
+  --line: #d5ddd3;
+  --accent: #e0662f;      /* しごとタウンの目印（夕方の看板色） */
+  --accent-ink: #ffffff;
+  --ok: #2f7d4f;
+  --ng: #b93a32;
+  --font-display: "Zen Maru Gothic", "Hiragino Maru Gothic ProN", "BIZ UDPGothic", sans-serif;
+  --font-body: "BIZ UDPGothic", "Hiragino Sans", "Noto Sans JP", "Yu Gothic", sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ink: #e8eee9; --ink-soft: #a9b6b0; --paper: #141a1d; --card: rgba(24, 31, 35, 0.92);
+    --line: #33413f; --accent: #f08a52; --accent-ink: #1b1209; --ok: #6cc28e; --ng: #ef7a70;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --ink: #e8eee9; --ink-soft: #a9b6b0; --paper: #141a1d; --card: rgba(24, 31, 35, 0.92);
+  --line: #33413f; --accent: #f08a52; --accent-ink: #1b1209; --ok: #6cc28e; --ng: #ef7a70;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body {
+  margin: 0; overflow: hidden; background: var(--paper); color: var(--ink);
+  font-family: var(--font-body); font-size: 15px; line-height: 1.6;
+}
+#stage { position: fixed; inset: 0; touch-action: none; }
+#stage canvas { display: block; width: 100%; height: 100%; cursor: grab; }
+#stage canvas:active { cursor: grabbing; }
+
+.hud { position: fixed; left: 0; right: 0; pointer-events: none; z-index: 2; }
+.hud > * { pointer-events: auto; }
+.top {
+  top: 0; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: calc(env(safe-area-inset-top, 0px) + 10px) 16px 10px;
+}
+.brand { font-family: var(--font-display); font-weight: 700; font-size: 18px; letter-spacing: .04em;
+  background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 4px 14px; }
+.brand small { font-family: var(--font-body); font-weight: 400; font-size: 12px; color: var(--ink-soft); margin-left: 8px; letter-spacing: 0; }
+.place { font-size: 13px; color: var(--ink-soft); background: var(--card); border-radius: 999px; padding: 4px 12px; border: 1px solid var(--line); }
+.spacer { flex: 1; }
+button {
+  font: inherit; font-weight: 700; color: var(--ink); background: var(--card);
+  border: 1px solid var(--line); border-radius: 10px; padding: 7px 14px; cursor: pointer;
+}
+button:hover { border-color: var(--accent); }
+button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+
+.instr {
+  position: fixed; z-index: 2; left: 16px; bottom: calc(env(safe-area-inset-bottom, 0px) + 64px);
+  width: min(340px, calc(100% - 32px)); max-height: 42%; overflow: auto; box-sizing: border-box; background: var(--card); border: 1px solid var(--line);
+  border-radius: 14px; padding: 12px 14px; box-shadow: 0 6px 20px rgba(0,0,0,.12);
+}
+.instr h2 { margin: 0 0 4px; font-family: var(--font-display); font-size: 17px; text-wrap: balance; }
+.instr .tag { display: inline-block; font-size: 11px; letter-spacing: .08em; color: var(--ink-soft); }
+.instr ol { margin: 6px 0 0; padding-left: 1.4em; }
+.instr li.done { color: var(--ink-soft); text-decoration: line-through; }
+.instr li.now { font-weight: 700; color: var(--accent); }
+.instr .meta { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 6px; font-size: 13px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.instr .feedback { min-height: 1.4em; font-weight: 700; }
+.instr .feedback.ok { color: var(--ok); }
+.instr .feedback.ng { color: var(--ng); }
+.instr .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+
+.bottom {
+  bottom: 0; padding: 10px 16px calc(env(safe-area-inset-bottom, 0px) + 12px);
+  display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none;
+}
+.chip { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; border-radius: 999px; padding: 6px 14px 6px 8px; font-weight: 700; }
+.chip i { width: 14px; height: 14px; border-radius: 50%; display: inline-block; }
+.chip span { font-weight: 400; font-size: 12px; color: var(--ink-soft); }
+.chip[aria-current="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+
+.log {
+  position: fixed; z-index: 3; right: 16px; top: calc(env(safe-area-inset-top, 0px) + 62px);
+  width: min(380px, calc(100% - 32px)); max-height: calc(100% - 160px); overflow: auto;
+  background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px;
+  box-shadow: 0 6px 20px rgba(0,0,0,.14);
+}
+.log h2 { margin: 0 0 6px; font-family: var(--font-display); font-size: 17px; }
+.log p.note { margin: 0 0 8px; font-size: 12px; color: var(--ink-soft); }
+.log table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.log th, .log td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.log th, .log td:not(:first-child) { white-space: nowrap; }
+.log th { font-weight: 400; color: var(--ink-soft); font-size: 12px; }
+.log .actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.log textarea { width: 100%; box-sizing: border-box; min-height: 120px; margin-top: 8px; font: 12px/1.4 ui-monospace, Menlo, monospace; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: 8px; }
+
+.toast { position: fixed; z-index: 4; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 72px); transform: translateX(-50%);
+  background: var(--ink); color: var(--paper); padding: 6px 14px; border-radius: 999px; font-size: 13px; }
+
+@media (max-width: 560px) {
+  .brand small { display: none; }
+  .instr { padding: 10px 12px; font-size: 14px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div id="stage" aria-label="しごとタウンの 3D 表示。ドラッグで見回し、タップでえらぶ"></div>
+
+<header class="hud top">
+  <div class="brand">HOPE しごとタウン<small>職業体験 VR 下書き</small></div>
+  <div class="place" id="place">広場</div>
+  <div class="spacer"></div>
+  <button id="btn-log" type="button">きろく</button>
+  <button id="btn-vr" type="button" class="primary" hidden>VR で入る</button>
+</header>
+
+<section class="instr" id="instr" aria-live="polite"></section>
+
+<aside class="log" id="log" hidden>
+  <h2>体験のきろく</h2>
+  <p class="note">hope-work の「② 作業体験」の場面（配慮なし／配慮あり）と同じ項目で残します。このブラウザの中だけに保存します。</p>
+  <div style="overflow-x:auto"><table id="log-table"></table></div>
+  <div class="actions">
+    <button id="btn-copy" type="button">JSON をコピー</button>
+    <button id="btn-clear" type="button">きろくを消す</button>
+    <button id="btn-log-close" type="button">とじる</button>
+  </div>
+  <textarea id="log-json" readonly aria-label="記録の JSON" hidden></textarea>
+</aside>
+
+<nav class="hud bottom" id="chips" aria-label="職業をえらぶ"></nav>
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+function main() {
+'use strict';
+
+// ===========================================================================
+// 職業の定義
+//   1 回 = 1 個の完成。round() が「指示」「並べる道具」「正しく選ぶ順番」を返す。
+//   ordered: true なら順番どおり、false なら順不同でぜんぶ選ぶ。
+//   hope-work の作業マスタ（手順・不良基準）に合わせられるよう、手順は steps に持つ。
+// ===========================================================================
+const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+const shuffle = (arr) => { const a = arr.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const sample = (arr, n) => shuffle(arr).slice(0, n);
+
+const ROUNDS_PER_SESSION = 5;
+
+const JOBS = [
+  {
+    id: 'logi', name: '物流センター', work: 'ピッキング', color: '#2f7d6d', category: '実務',
+    intro: '注文票の しなものを たなから ひろって かごに 入れます。',
+    defect: 'ちがう しなものを ひろう',
+    round() {
+      const pool = [
+        { label: 'りんご', shape: 'sphere', color: '#d0453a' }, { label: '牛乳', shape: 'box', color: '#f2f2ee' },
+        { label: 'パン', shape: 'box', color: '#d9a35b' }, { label: 'お茶', shape: 'cyl', color: '#5d9a52' },
+        { label: 'せっけん', shape: 'box', color: '#9ec7e6' }, { label: 'ティッシュ', shape: 'box', color: '#e9c8d8' },
+      ];
+      const n = 2 + Math.floor(Math.random() * 2);
+      const need = sample(pool, n).map((p) => p.label);
+      return { title: '注文票：' + need.join('・'), shortTitle: '注文の しなものを ひろう', items: shuffle(pool), need, ordered: false };
+    },
+  },
+  {
+    id: 'store', name: 'コンビニ', work: '品出し', color: '#3b6fb6', category: '実務',
+    intro: 'とどいた しなものを 正しい たなに ならべます。',
+    defect: 'ちがう たなに 置く',
+    round() {
+      const shelves = [
+        { label: '飲み物', shape: 'shelf', color: '#5b8fd1' }, { label: 'お菓子', shape: 'shelf', color: '#e3a33c' },
+        { label: 'パン', shape: 'shelf', color: '#c7844a' }, { label: '日用品', shape: 'shelf', color: '#7aa37a' },
+      ];
+      const goods = { '飲み物': ['お茶', '水', 'ジュース'], 'お菓子': ['ポテトチップス', 'チョコ', 'あめ'], 'パン': ['食パン', 'メロンパン'], '日用品': ['歯ブラシ', '電池', 'マスク'] };
+      const shelf = pick(shelves).label;
+      const item = pick(goods[shelf]);
+      return { title: '「' + item + '」を たなに ならべる', shortTitle: '「' + item + '」を ならべる', items: shelves, need: [shelf], ordered: false, carry: item };
+    },
+  },
+  {
+    id: 'clean', name: '清掃', work: 'テーブルふき', color: '#4f8b9b', category: '実務',
+    intro: 'テーブルの よごれを 見つけて ふきます。うすい もようは よごれでは ありません。',
+    defect: 'ふき残し・もようを ふく',
+    round() {
+      const n = 3 + Math.floor(Math.random() * 2);
+      const items = [];
+      for (let i = 0; i < n; i++) items.push({ label: '', id: 'dirt' + i, shape: 'blob', color: '#7a5634' });
+      for (let i = 0; i < 2; i++) items.push({ label: '', id: 'shade' + i, shape: 'blob', color: '#9aa1a3', opacity: 0.45 });
+      return { title: 'テーブルの よごれを ぜんぶ ふく（' + n + 'か所）', shortTitle: 'テーブルの よごれを ふく', items: shuffle(items), need: items.filter((i) => i.id.startsWith('dirt')).map((i) => i.id), ordered: false, scatter: true };
+    },
+  },
+  {
+    id: 'cafe', name: 'カフェ', work: 'ドリンクづくり', color: '#8a5a3c', category: '実務',
+    intro: '注文の ドリンクを 手順どおりに つくって わたします。',
+    defect: '手順ちがい・ちがう カップ',
+    round() {
+      const items = [
+        { label: 'ホット用カップ', shape: 'cup', color: '#f3efe6' }, { label: 'アイス用カップ', shape: 'cup', color: '#cfe8f3', opacity: 0.7 },
+        { label: 'コーヒーマシン', shape: 'box', color: '#3b3330' }, { label: '紅茶', shape: 'cyl', color: '#b5652d' },
+        { label: '氷', shape: 'box', color: '#e4f4fb', opacity: 0.8 }, { label: 'ふた', shape: 'disc', color: '#ffffff' },
+        { label: 'ストロー', shape: 'stick', color: '#3c9a5f' }, { label: 'お客さま', shape: 'person', color: '#e0a07a' },
+      ];
+      const recipes = [
+        { name: 'ホットコーヒー', need: ['ホット用カップ', 'コーヒーマシン', 'ふた', 'お客さま'] },
+        { name: 'アイスティー', need: ['アイス用カップ', '氷', '紅茶', 'ストロー', 'お客さま'] },
+        { name: 'アイスコーヒー', need: ['アイス用カップ', '氷', 'コーヒーマシン', 'ストロー', 'お客さま'] },
+      ];
+      const r = pick(recipes);
+      return { title: '注文：' + r.name, shortTitle: r.name + ' を つくる', items: shuffle(items), need: r.need, ordered: true };
+    },
+  },
+  {
+    id: 'care', name: '介護施設', work: '配膳の手伝い', color: '#c4577a', category: '実務',
+    intro: '名札と 食事の形を たしかめて、おぜんを 運びます。',
+    defect: '食事の形・人の まちがい',
+    round() {
+      const forms = [
+        { label: '普通食', shape: 'tray', color: '#f0d9a8' }, { label: 'きざみ食', shape: 'tray', color: '#cfe0a8' }, { label: 'おかゆ', shape: 'tray', color: '#f6f1e3' },
+      ];
+      const people = [
+        { label: '田中さん', shape: 'plate', color: '#f7c6a3' }, { label: '佐藤さん', shape: 'plate', color: '#bcd8f2' }, { label: '鈴木さん', shape: 'plate', color: '#d6c6ef' },
+      ];
+      const f = pick(forms).label; const p = pick(people).label;
+      return { title: p + '（' + f + '）の おぜんを 運ぶ', shortTitle: 'おぜんを 運ぶ', items: shuffle(forms).concat(shuffle(people)), need: [f, p], ordered: true };
+    },
+  },
+  {
+    id: 'office', name: '事務所', work: '書類の仕分け', color: '#5a5f9e', category: '事務',
+    intro: '書類の 種類を 見て、正しい トレーに 入れます。',
+    defect: 'ちがう トレーに 入れる',
+    round() {
+      const trays = [
+        { label: '請求書', shape: 'tray', color: '#6f9be0' }, { label: '納品書', shape: 'tray', color: '#7fc29b' },
+        { label: '申込書', shape: 'tray', color: '#f0b85a' }, { label: '見積書', shape: 'tray', color: '#d98aa6' },
+      ];
+      const t = pick(trays).label;
+      return { title: '「' + t + '」を トレーに 入れる', shortTitle: '書類を 仕分ける', items: trays, need: [t], ordered: false, carry: t };
+    },
+  },
+  {
+    id: 'farm', name: '農園', work: 'トマトの収穫', color: '#5f8f3a', category: '実務',
+    intro: '赤く じゅくした トマトだけを とります。青い トマトは のこします。',
+    defect: '青い トマトを とる',
+    round() {
+      const n = 3 + Math.floor(Math.random() * 2);
+      const items = [];
+      for (let i = 0; i < n; i++) items.push({ label: '', id: 'red' + i, shape: 'sphere', color: '#d63c2f' });
+      for (let i = 0; i < 3; i++) items.push({ label: '', id: 'green' + i, shape: 'sphere', color: '#7fae4a' });
+      return { title: '赤い トマトを ぜんぶ とる（' + n + 'こ）', shortTitle: '赤い トマトを とる', items: shuffle(items), need: items.filter((i) => i.id.startsWith('red')).map((i) => i.id), ordered: false };
+    },
+  },
+  {
+    id: 'craft', name: '作業所', work: 'お守りづくり', color: '#b0703a', category: '実務',
+    intro: 'お守りを 手順どおりに つくって、検品かごに 入れます。',
+    defect: '手順ちがい（ひもの前に 中紙 など）',
+    round() {
+      const items = [
+        { label: 'ふくろ', shape: 'pouch', color: '#c8463d' }, { label: '中紙', shape: 'card', color: '#fbf6e6' },
+        { label: 'ひも', shape: 'stick', color: '#e3b23c' }, { label: '検品かご', shape: 'basket', color: '#a8865a' },
+        { label: 'ハサミ', shape: 'stick', color: '#8a8f96' }, { label: 'のり', shape: 'cyl', color: '#f1e9a8' },
+      ];
+      return { title: 'お守りを 1こ つくる', shortTitle: 'お守りを つくる', items: shuffle(items), need: ['ふくろ', '中紙', 'ひも', '検品かご'], ordered: true };
+    },
+  },
+];
+
+// hope-work の SUPPORT_METHODS と同じ言い方にそろえる（記録をそのまま貼れるように）。
+const SUPPORTS_WITH = ['チェックリスト形式の手順書', '説明を一つずつ小分けにする', '治具・ガイドを使う', '目標数を伝える'];
+const SUPPORTS_WITHOUT = ['口頭のみ'];
+const AUTO_HINT_SEC = 8;
+
+// ===========================================================================
+// 3D の土台
+// ===========================================================================
+const stage = document.getElementById('stage');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(stage.clientWidth, stage.clientHeight);
+renderer.xr.enabled = true;
+stage.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#bfe0ec');
+scene.fog = new THREE.Fog('#bfe0ec', 28, 70);
+
+const rig = new THREE.Group();
+scene.add(rig);
+const camera = new THREE.PerspectiveCamera(70, stage.clientWidth / stage.clientHeight, 0.05, 200);
+camera.position.set(0, 1.6, 0);
+camera.rotation.order = 'YXZ';
+rig.add(camera);
+
+scene.add(new THREE.HemisphereLight('#ffffff', '#8aa07a', 1.05));
+const sun = new THREE.DirectionalLight('#fff4e0', 0.9);
+sun.position.set(8, 14, 6);
+scene.add(sun);
+
+const mat = (color, extra) => new THREE.MeshStandardMaterial(Object.assign({ color, roughness: 0.75, metalness: 0.02 }, extra || {}));
+
+// 地面と広場
+const ground = new THREE.Mesh(new THREE.CircleGeometry(60, 64), mat('#a9c98b'));
+ground.rotation.x = -Math.PI / 2;
+scene.add(ground);
+const plaza = new THREE.Mesh(new THREE.CircleGeometry(16, 64), mat('#e8dfcf'));
+plaza.rotation.x = -Math.PI / 2; plaza.position.y = 0.01;
+scene.add(plaza);
+const ring = new THREE.Mesh(new THREE.RingGeometry(3.2, 3.6, 64), mat('#d8cbb3'));
+ring.rotation.x = -Math.PI / 2; ring.position.y = 0.02;
+scene.add(ring);
+
+// 文字を描く板
+function wrapLines(ctx, text, maxWidth) {
+  const out = [];
+  for (const para of String(text).split('\n')) {
+    let line = '';
+    for (const ch of para) {
+      if (ctx.measureText(line + ch).width > maxWidth && line) { out.push(line); line = ch; } else { line += ch; }
+    }
+    out.push(line);
+  }
+  return out;
+}
+function makeCanvas(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
+const FONT_DISPLAY = '"Zen Maru Gothic", "BIZ UDPGothic", sans-serif';
+const FONT_BODY = '"BIZ UDPGothic", "Zen Maru Gothic", sans-serif';
+
+function labelSprite(text, opts) {
+  const o = Object.assign({ size: 56, bg: 'rgba(255,255,255,0.92)', fg: '#1f2a33', h: 0.11 }, opts || {});
+  const c = makeCanvas(512, 128); const ctx = c.getContext('2d');
+  ctx.font = '700 ' + o.size + 'px ' + FONT_BODY;
+  const w = Math.min(500, ctx.measureText(text).width + 48);
+  ctx.fillStyle = o.bg; roundRect(ctx, (512 - w) / 2, 14, w, 100, 50); ctx.fill();
+  ctx.fillStyle = o.fg; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text, 256, 66);
+  const tex = new THREE.CanvasTexture(c);
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
+  s.scale.set(o.h * 4, o.h, 1); s.renderOrder = 10;
+  return s;
+}
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+
+// 掲示板（各ブースの指示・ボタン）。canvas を描きなおして使う。
+class Board {
+  constructor(w, h, pxPerM) {
+    this.canvas = makeCanvas(Math.round(w * pxPerM), Math.round(h * pxPerM));
+    this.ctx = this.canvas.getContext('2d');
+    this.tex = new THREE.CanvasTexture(this.canvas);
+    this.mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: this.tex, transparent: true }));
+  }
+  draw(fn) { const { ctx, canvas } = this; ctx.clearRect(0, 0, canvas.width, canvas.height); fn(ctx, canvas.width, canvas.height); this.tex.needsUpdate = true; }
+}
+
+function makeButton(text, color, w, h) {
+  const b = new Board(w || 0.5, h || 0.16, 640);
+  b.draw((ctx, W, H) => {
+    ctx.fillStyle = color; roundRect(ctx, 4, 4, W - 8, H - 8, H / 2 - 4); ctx.fill();
+    ctx.fillStyle = '#ffffff'; ctx.font = '700 ' + Math.round(H * 0.42) + 'px ' + FONT_BODY;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text, W / 2, H / 2 + 2);
+  });
+  b.mesh.userData.button = true;
+  return b.mesh;
+}
+
+// ===========================================================================
+// 町：中央の案内塔と、まわりに職業ブース
+// ===========================================================================
+const BOOTH_RADIUS = 11;
+const booths = [];
+const plazaClickables = [];
+
+(function buildGuideTower() {
+  const tower = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.7, 3.6, 24), mat('#e0662f'));
+  tower.position.y = 1.8; scene.add(tower);
+  const sign = new Board(2.6, 1.0, 300);
+  sign.draw((ctx, W, H) => {
+    ctx.fillStyle = '#fffaf2'; roundRect(ctx, 0, 0, W, H, 40); ctx.fill();
+    ctx.fillStyle = '#e0662f'; ctx.font = '700 96px ' + FONT_DISPLAY; ctx.textAlign = 'center'; ctx.fillText('しごとタウン', W / 2, 120);
+    ctx.fillStyle = '#55626d'; ctx.font = '400 40px ' + FONT_BODY; ctx.fillText('やってみたい しごとを ゆびさして えらぶ', W / 2, 220);
+  });
+  for (let i = 0; i < 4; i++) {
+    const s = sign.mesh.clone(); const a = i * Math.PI / 2;
+    s.position.set(Math.sin(a) * 0.95, 3.0, Math.cos(a) * 0.95); s.rotation.y = a; scene.add(s);
+  }
+})();
+
+// 木（町らしさ）
+for (let i = 0; i < 18; i++) {
+  const a = (i / 18) * Math.PI * 2 + 0.17; const r = 19 + (i % 3) * 2.5;
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 1.2, 8), mat('#7a5a3a'));
+  const crown = new THREE.Mesh(new THREE.IcosahedronGeometry(0.9, 0), mat(i % 2 ? '#5f9a52' : '#6fae5e', { flatShading: true }));
+  trunk.position.set(Math.sin(a) * r, 0.6, -Math.cos(a) * r); crown.position.set(trunk.position.x, 1.75, trunk.position.z);
+  scene.add(trunk, crown);
+}
+
+JOBS.forEach((job, i) => {
+  const angle = (i / JOBS.length) * Math.PI * 2;
+  const dir = new THREE.Vector3(Math.sin(angle), 0, -Math.cos(angle));
+  const g = new THREE.Group();
+  g.position.copy(dir.clone().multiplyScalar(BOOTH_RADIUS));
+  g.rotation.y = -angle;
+  scene.add(g);
+
+  // 建物（背中が外、正面が広場の中心）。ローカル +z が広場側。
+  const body = new THREE.Mesh(new THREE.BoxGeometry(4.2, 3.0, 2.6), mat('#f4efe6'));
+  body.position.set(0, 1.5, -1.3); g.add(body);
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(4.6, 0.35, 3.2), mat(job.color));
+  roof.position.set(0, 3.17, -1.1); g.add(roof);
+  const awning = new THREE.Mesh(new THREE.BoxGeometry(4.4, 0.08, 1.0), mat(job.color));
+  awning.position.set(0, 2.55, 0.35); awning.rotation.x = 0.25; g.add(awning);
+
+  const sign = new Board(3.4, 0.7, 300);
+  sign.draw((ctx, W, H) => {
+    ctx.fillStyle = job.color; roundRect(ctx, 0, 0, W, H, 30); ctx.fill();
+    ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = '700 88px ' + FONT_DISPLAY; ctx.fillText(job.name, W / 2, H * 0.42);
+    ctx.font = '400 40px ' + FONT_BODY; ctx.fillText(job.work, W / 2, H * 0.8);
+  });
+  sign.mesh.position.set(0, 3.75, 0.2); g.add(sign.mesh);
+
+  // カウンター（作業台）
+  const counter = new THREE.Mesh(new THREE.BoxGeometry(3.0, 0.9, 0.9), mat('#d9c4a2'));
+  counter.position.set(0, 0.45, 1.5); g.add(counter);
+
+  // 掲示板（指示）
+  const board = new Board(2.4, 1.35, 420);
+  board.mesh.position.set(0, 1.95, 0.02); g.add(board.mesh);
+  board.draw((ctx, W, H) => {
+    ctx.fillStyle = '#fffdf8'; roundRect(ctx, 0, 0, W, H, 36); ctx.fill();
+    ctx.fillStyle = job.color; ctx.font = '700 72px ' + FONT_DISPLAY; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('ようこそ', W / 2, H * 0.4);
+    ctx.fillStyle = '#55626d'; ctx.font = '400 40px ' + FONT_BODY; ctx.fillText(job.work + 'を 体験できます', W / 2, H * 0.62);
+  });
+
+  // 作業する道具を置く場所
+  const workArea = new THREE.Group(); g.add(workArea);
+
+  // ブースの入口の当たり判定（広場から選ぶ用）
+  body.userData.boothIndex = i; sign.mesh.userData.boothIndex = i; roof.userData.boothIndex = i;
+  plazaClickables.push(body, sign.mesh, roof);
+
+  // ブースのボタン（場所は固定。表示は状態ごとに切り替える）
+  const btns = {
+    without: makeButton('はじめる：配慮なし', '#55626d', 0.78, 0.16),
+    with: makeButton('はじめる：配慮あり', job.color, 0.78, 0.16),
+    hint: makeButton('ヒント', '#e0a23a', 0.36, 0.14),
+    back: makeButton('広場へ もどる', '#3d4a54', 0.56, 0.14),
+    again: makeButton('もう一度', job.color, 0.46, 0.14),
+  };
+  // 掲示板の左右に並べる（VR でも 目線を 大きく 下げずに 押せる高さ）
+  btns.with.position.set(-1.62, 2.2, 0.03); btns.without.position.set(-1.62, 1.95, 0.03);
+  btns.hint.position.set(-1.62, 1.95, 0.03); btns.again.position.set(1.62, 1.95, 0.03); btns.back.position.set(1.62, 1.55, 0.03);
+  Object.values(btns).forEach((m) => { g.add(m); m.visible = false; });
+
+  booths.push({ job, group: g, angle, board, workArea, btns });
+});
+
+// ===========================================================================
+// 道具（作業で選ぶもの）の形
+// ===========================================================================
+function makeItemMesh(spec) {
+  const m = mat(spec.color, spec.opacity ? { transparent: true, opacity: spec.opacity } : null);
+  let geo; let y = 0;
+  switch (spec.shape) {
+    case 'sphere': geo = new THREE.SphereGeometry(0.075, 20, 14); y = 0.075; break;
+    case 'cyl': geo = new THREE.CylinderGeometry(0.05, 0.05, 0.2, 18); y = 0.1; break;
+    case 'cup': geo = new THREE.CylinderGeometry(0.055, 0.04, 0.13, 18); y = 0.065; break;
+    case 'disc': geo = new THREE.CylinderGeometry(0.06, 0.06, 0.02, 18); y = 0.01; break;
+    case 'stick': geo = new THREE.BoxGeometry(0.2, 0.025, 0.025); y = 0.02; break;
+    case 'tray': geo = new THREE.BoxGeometry(0.3, 0.04, 0.22); y = 0.02; break;
+    case 'plate': geo = new THREE.BoxGeometry(0.22, 0.12, 0.02); y = 0.06; break;
+    case 'card': geo = new THREE.BoxGeometry(0.12, 0.005, 0.16); y = 0.005; break;
+    case 'pouch': geo = new THREE.BoxGeometry(0.1, 0.14, 0.03); y = 0.07; break;
+    case 'basket': geo = new THREE.CylinderGeometry(0.13, 0.1, 0.1, 18, 1, true); y = 0.05; m.side = THREE.DoubleSide; break;
+    case 'shelf': geo = new THREE.BoxGeometry(0.42, 0.5, 0.18); y = 0.25; break;
+    case 'person': geo = new THREE.CylinderGeometry(0.07, 0.07, 0.34, 14); y = 0.17; break;
+    case 'blob': geo = new THREE.CircleGeometry(0.11, 18); break;
+    default: geo = new THREE.BoxGeometry(0.12, 0.14, 0.1); y = 0.07;
+  }
+  const mesh = new THREE.Mesh(geo, m);
+  if (spec.shape === 'blob') { mesh.rotation.x = -Math.PI / 2; mesh.scale.set(1 + Math.random() * 0.5, 1 + Math.random() * 0.3, 1); }
+  mesh.position.y = y;
+  return mesh;
+}
+
+// ガイドの光の輪（配慮あり・ヒントで出す）
+function makeGlowRing() {
+  const r = new THREE.Mesh(new THREE.RingGeometry(0.11, 0.15, 32), new THREE.MeshBasicMaterial({ color: '#ffd23f', transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthTest: false }));
+  r.rotation.x = -Math.PI / 2; r.renderOrder = 9; r.visible = false;
+  return r;
+}
+
+// ===========================================================================
+// 状態
+// ===========================================================================
+const state = {
+  where: 'plaza',        // 'plaza' | 'booth'
+  booth: null,           // booths[i]
+  phase: 'choose',       // 'choose' | 'work' | 'result'
+  withSupport: false,
+  session: null,         // { started, completed, inspected, defects, promptCount, questionCount, roundIndex }
+  round: null,           // { def, slots:[{spec, key, mesh, ring, done}], pos, lastActionAt, hintShown, mistakeThisRound }
+  feedback: { text: '', kind: '' },
+};
+let logEntries = loadLog();
+
+function itemKey(spec) { return spec.id || spec.label; }
+
+// ===========================================================================
+// 移動
+// ===========================================================================
+let tween = null;
+function moveRig(pos, yaw, pitch, dur) {
+  const from = { p: rig.position.clone(), yaw: rig.rotation.y };
+  const to = { p: pos.clone(), yaw };
+  // 回転は近い向きへ
+  let d = to.yaw - from.yaw; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; to.yaw = from.yaw + d;
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  tween = { from, to, t0: performance.now(), dur: reduce ? 1 : (dur || 700) };
+  look.yaw = 0; look.pitch = pitch || 0;
+}
+
+function goPlaza() {
+  stopSpeech();
+  clearWork();
+  if (state.booth) Object.values(state.booth.btns).forEach((m) => { m.visible = false; });
+  state.where = 'plaza'; state.booth = null; state.phase = 'choose'; state.session = null; state.round = null;
+  const lastAngle = rig.rotation.y;
+  moveRig(new THREE.Vector3(0, 0, 0), lastAngle, 0);
+  renderHud();
+}
+
+function goBooth(i) {
+  if (state.booth && state.booth !== booths[i]) { clearWork(); Object.values(state.booth.btns).forEach((m) => { m.visible = false; }); }
+  stopSpeech();
+  const b = booths[i];
+  state.where = 'booth'; state.booth = b; state.phase = 'choose'; state.session = null; state.round = null; state.feedback = { text: '', kind: '' };
+  const stand = b.group.localToWorld(new THREE.Vector3(0, 0, 3.2));
+  moveRig(stand, -b.angle, 0.15); // 少し下を向いて、台と掲示板が両方見えるように
+  showChoose();
+  renderHud();
+}
+
+// ===========================================================================
+// ブースの流れ：えらぶ → 作業 → 結果
+// ===========================================================================
+function setButtons(visibleKeys) {
+  const b = state.booth; if (!b) return;
+  for (const [k, m] of Object.entries(b.btns)) m.visible = visibleKeys.includes(k);
+}
+
+function showChoose() {
+  const { job, board } = state.booth;
+  state.phase = 'choose';
+  setButtons(['without', 'with', 'back']);
+  board.draw((ctx, W, H) => {
+    paintBoardBase(ctx, W, H, job);
+    ctx.fillStyle = '#1f2a33'; ctx.font = '700 64px ' + FONT_DISPLAY; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.fillText(job.work, 48, 120);
+    ctx.font = '400 40px ' + FONT_BODY; ctx.fillStyle = '#33404a';
+    wrapLines(ctx, job.intro, W - 96).forEach((l, n) => ctx.fillText(l, 48, 210 + n * 54));
+    ctx.fillStyle = '#55626d'; ctx.font = '400 32px ' + FONT_BODY;
+    ctx.fillText('1 回の体験は ' + ROUNDS_PER_SESSION + ' こ。下の ボタンで はじめます。', 48, H - 80);
+  });
+}
+
+function paintBoardBase(ctx, W, H, job) {
+  ctx.fillStyle = '#fffdf8'; roundRect(ctx, 0, 0, W, H, 36); ctx.fill();
+  ctx.fillStyle = job.color; roundRect(ctx, 0, 0, W, 92, 36); ctx.fill(); ctx.fillRect(0, 50, W, 42);
+  ctx.fillStyle = '#ffffff'; ctx.font = '700 46px ' + FONT_DISPLAY; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.fillText(job.name + '　' + job.work, 40, 48);
+}
+
+function startSession(withSupport) {
+  state.withSupport = withSupport;
+  state.session = { started: performance.now(), completed: 0, inspected: 0, defects: 0, promptCount: 0, questionCount: 0, roundIndex: 0 };
+  setButtons(['hint', 'back']);
+  nextRound();
+}
+
+function clearWork() {
+  const b = state.booth; if (!b) return;
+  while (b.workArea.children.length) b.workArea.remove(b.workArea.children[0]);
+}
+
+function nextRound() {
+  const b = state.booth;
+  clearWork();
+  state.phase = 'work';
+  const def = b.job.round();
+  const slots = [];
+  const n = def.items.length;
+  const cols = Math.min(n, 4);
+  const rows = Math.ceil(n / cols);
+  def.items.forEach((spec, idx) => {
+    const col = idx % cols; const row = Math.floor(idx / cols);
+    const holder = new THREE.Group();
+    let x; let z; let baseY;
+    if (def.scatter) {
+      // 台の上に ばらばらに 散らす
+      x = -1.2 + (idx / Math.max(1, n - 1)) * 2.4 + (Math.random() - 0.5) * 0.12;
+      z = 1.3 + (idx % 2) * 0.35 + (Math.random() - 0.5) * 0.06;
+      baseY = 0.905;
+    } else {
+      const spanX = 2.4; x = -spanX / 2 + (col + 0.5) * (spanX / cols);
+      z = rows > 1 ? 1.64 - row * 0.32 : 1.5; // 0 行目が手前
+      baseY = 0.9;
+    }
+    holder.position.set(x, baseY, z);
+    const mesh = makeItemMesh(spec);
+    holder.add(mesh);
+    const ringMesh = makeGlowRing(); ringMesh.position.y = 0.005; holder.add(ringMesh);
+    if (spec.label) { const s = labelSprite(spec.label); s.position.y = (spec.shape === 'shelf' ? 0.62 : 0.3) + row * 0.14; holder.add(s); }
+    mesh.userData.slotIndex = idx;
+    b.workArea.add(holder);
+    slots.push({ spec, key: itemKey(spec), mesh, ring: ringMesh, holder, done: false });
+  });
+  // 運ぶもの（品出し・仕分け）は手もとに見せる
+  if (def.carry) {
+    const carry = labelSprite('もっている：' + def.carry, { bg: 'rgba(255,240,200,0.95)', h: 0.12 });
+    carry.position.set(0, 1.25, 2.0); b.workArea.add(carry);
+  }
+  state.round = { def, slots, pos: 0, lastActionAt: performance.now(), hintShown: false, mistakeThisRound: false };
+  state.feedback = { text: '', kind: '' };
+  drawWorkBoard();
+  renderHud();
+  if (state.withSupport) speak(def.title + '。' + (def.ordered ? '最初は、' + def.need[0] + '。' : ''));
+}
+
+function remainingKeys() {
+  const r = state.round; if (!r) return [];
+  if (r.def.ordered) return r.def.need.slice(r.pos);
+  const done = new Set(r.slots.filter((s) => s.done).map((s) => s.key));
+  return r.def.need.filter((k) => !done.has(k));
+}
+function nextTargetKey() { const rem = remainingKeys(); return rem[0]; }
+
+function stepLabel(key) {
+  const r = state.round; const slot = r.slots.find((s) => s.key === key);
+  return slot && slot.spec.label ? slot.spec.label : key;
+}
+
+function drawWorkBoard() {
+  const { job, board } = state.booth; const r = state.round; const s = state.session;
+  board.draw((ctx, W, H) => {
+    paintBoardBase(ctx, W, H, job);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.fillStyle = '#1f2a33'; ctx.font = '700 52px ' + FONT_DISPLAY;
+    const title = state.withSupport ? r.def.title : r.def.shortTitle;
+    wrapLines(ctx, title, W - 96).slice(0, 2).forEach((l, n) => ctx.fillText(l, 48, 116 + n * 62));
+    let y = 250;
+    if (state.withSupport && r.def.ordered) {
+      ctx.font = '400 36px ' + FONT_BODY;
+      r.def.need.forEach((k, n) => {
+        const done = n < r.pos; const now = n === r.pos;
+        ctx.fillStyle = done ? '#9aa4ab' : now ? job.color : '#33404a';
+        ctx.fillText((done ? '✓ ' : (n + 1) + '. ') + stepLabel(k), 48 + (n % 3) * 300, y + Math.floor(n / 3) * 48);
+      });
+      y += Math.ceil(r.def.need.length / 3) * 48 + 10;
+    } else if (state.withSupport) {
+      ctx.font = '400 38px ' + FONT_BODY; ctx.fillStyle = '#33404a';
+      ctx.fillText('のこり ' + remainingKeys().length + ' こ', 48, y); y += 56;
+    }
+    ctx.font = '700 40px ' + FONT_BODY;
+    ctx.fillStyle = state.feedback.kind === 'ok' ? '#2f7d4f' : '#b93a32';
+    if (state.feedback.text) ctx.fillText(state.feedback.text, 48, Math.max(y, H - 150));
+    ctx.font = '400 32px ' + FONT_BODY; ctx.fillStyle = '#55626d';
+    const goal = state.withSupport ? ' / ' + ROUNDS_PER_SESSION : '';
+    ctx.fillText((state.withSupport ? '配慮あり' : '配慮なし') + '　できた ' + s.completed + goal + '　ミス ' + s.defects, 48, H - 70);
+  });
+}
+
+function onSelectItem(slotIndex) {
+  const r = state.round; if (!r || state.phase !== 'work') return;
+  const slot = r.slots[slotIndex]; if (!slot || slot.done) return;
+  r.lastActionAt = performance.now();
+  const target = nextTargetKey();
+  const ok = r.def.ordered ? slot.key === target : remainingKeys().includes(slot.key);
+  if (ok) {
+    slot.done = true; if (r.def.ordered) r.pos++;
+    slot.ring.visible = false; r.hintShown = false;
+    animateDone(slot);
+    state.feedback = { text: 'OK！', kind: 'ok' };
+    if (remainingKeys().length === 0) return finishRound();
+    if (state.withSupport && r.def.ordered) speak('つぎは、' + stepLabel(nextTargetKey()) + '。');
+  } else {
+    state.session.defects++; r.mistakeThisRound = true;
+    flashWrong(slot);
+    state.feedback = { text: r.def.ordered ? 'じゅんばんを たしかめよう' : 'それでは ないかも', kind: 'ng' };
+    if (state.withSupport) speak(state.feedback.text);
+  }
+  drawWorkBoard(); renderHud();
+}
+
+function finishRound() {
+  const s = state.session;
+  s.completed++; s.inspected++; s.roundIndex++;
+  state.feedback = { text: 'できました！', kind: 'ok' };
+  drawWorkBoard(); renderHud();
+  if (state.withSupport) speak('できました。');
+  state.phase = 'between';
+  setTimeout(() => {
+    if (!state.session || state.session !== s) return;
+    if (s.roundIndex >= ROUNDS_PER_SESSION) showResult(); else nextRound();
+  }, 900);
+}
+
+function showResult() {
+  const b = state.booth; const s = state.session;
+  clearWork();
+  state.phase = 'result';
+  const durationSec = Math.round((performance.now() - s.started) / 1000);
+  const entry = {
+    at: new Date().toISOString(),
+    jobId: b.job.id, taskName: b.job.name + '（' + b.job.work + '）', category: b.job.category,
+    phase: {
+      label: state.withSupport ? 'VR 体験（配慮あり）' : 'VR 体験（配慮なし）',
+      withSupport: state.withSupport,
+      supports: state.withSupport ? SUPPORTS_WITH : SUPPORTS_WITHOUT,
+      durationSec, completed: s.completed, inspected: s.inspected, defects: s.defects,
+      promptCount: s.promptCount, questionCount: s.questionCount,
+      observation: '',
+    },
+  };
+  logEntries.unshift(entry); saveLog(); renderLog();
+  setButtons(['again', 'back']);
+  b.board.draw((ctx, W, H) => {
+    paintBoardBase(ctx, W, H, b.job);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top'; ctx.fillStyle = '#1f2a33';
+    ctx.font = '700 60px ' + FONT_DISPLAY; ctx.fillText('おつかれさまでした', 48, 116);
+    ctx.font = '400 40px ' + FONT_BODY; ctx.fillStyle = '#33404a';
+    const rows = [
+      ['できた数', s.completed + ' こ'], ['かかった時間', fmtDuration(durationSec)], ['ミス', s.defects + ' 回'],
+      ['ヒント（自分から）', s.questionCount + ' 回'], ['ガイド（自動）', s.promptCount + ' 回'],
+    ];
+    rows.forEach(([k, v], n) => { const col = n % 2; const row = Math.floor(n / 2); ctx.fillText(k + '：' + v, 48 + col * 480, 210 + row * 60); });
+    ctx.fillStyle = '#55626d'; ctx.font = '400 30px ' + FONT_BODY;
+    ctx.fillText('「きろく」に 残しました。点数ではなく、つぎに ためす 配慮を 考える 材料です。', 48, H - 70);
+  });
+  state.session = null; state.round = null;
+  renderHud();
+  speak('おつかれさまでした。');
+}
+
+function fmtDuration(sec) { const m = Math.floor(sec / 60); const s = sec % 60; return (m ? m + '分' : '') + s + '秒'; }
+
+function useHint(auto) {
+  const r = state.round; if (!r || state.phase !== 'work') return;
+  const key = nextTargetKey(); const slot = r.slots.find((s) => s.key === key && !s.done);
+  if (!slot) return;
+  if (auto) state.session.promptCount++; else state.session.questionCount++;
+  slot.ring.visible = true; r.hintShown = true; r.lastActionAt = performance.now();
+  const label = slot.spec.label || 'ひかっている ところ';
+  state.feedback = { text: 'ヒント：' + label, kind: 'ok' };
+  speak(r.def.ordered ? 'つぎは、' + label + '。' : label + 'を えらびます。');
+  drawWorkBoard(); renderHud();
+}
+
+// 動き
+const anims = [];
+function animateDone(slot) { anims.push({ kind: 'done', slot, t0: performance.now() }); }
+function flashWrong(slot) {
+  const m = slot.mesh.material; const prev = m.emissive.clone();
+  m.emissive.set('#c0392b'); anims.push({ kind: 'wrong', slot, t0: performance.now(), prev });
+}
+function stepAnims(now) {
+  for (let i = anims.length - 1; i >= 0; i--) {
+    const a = anims[i]; const t = (now - a.t0) / 1000;
+    if (a.kind === 'done') {
+      a.slot.holder.position.y += 0.012; a.slot.holder.scale.setScalar(Math.max(0.01, 1 - t * 2));
+      if (t > 0.5) { a.slot.holder.visible = false; anims.splice(i, 1); }
+    } else if (a.kind === 'wrong') {
+      a.slot.holder.position.x += Math.sin(t * 60) * 0.003;
+      if (t > 0.4) { a.slot.mesh.material.emissive.copy(a.prev); anims.splice(i, 1); }
+    }
+  }
+}
+
+// ===========================================================================
+// 読み上げ（配慮あり）
+// ===========================================================================
+function speak(text) {
+  if (!state.withSupport || !('speechSynthesis' in window)) return;
+  try { window.speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.lang = 'ja-JP'; u.rate = 0.95; window.speechSynthesis.speak(u); } catch (e) { /* 読み上げなしで続ける */ }
+}
+function stopSpeech() { try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch (e) { /* noop */ } }
+
+// ===========================================================================
+// 入力：マウス・タッチ（見回し＋タップ）と VR コントローラー
+// ===========================================================================
+const look = { yaw: 0, pitch: 0 };
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+let drag = null;
+
+renderer.domElement.addEventListener('pointerdown', (e) => {
+  drag = { x: e.clientX, y: e.clientY, yaw: look.yaw, pitch: look.pitch, moved: 0 };
+  renderer.domElement.setPointerCapture(e.pointerId);
+});
+renderer.domElement.addEventListener('pointermove', (e) => {
+  if (!drag) return;
+  const dx = e.clientX - drag.x; const dy = e.clientY - drag.y; drag.moved = Math.max(drag.moved, Math.abs(dx) + Math.abs(dy));
+  look.yaw = drag.yaw + dx * 0.005; look.pitch = Math.max(-1.1, Math.min(0.9, drag.pitch + dy * 0.004));
+});
+renderer.domElement.addEventListener('pointerup', (e) => {
+  if (drag && drag.moved < 8) {
+    const rect = renderer.domElement.getBoundingClientRect();
+    pointer.set(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
+    raycaster.setFromCamera(pointer, camera);
+    handleRay(raycaster);
+  }
+  drag = null;
+});
+
+function currentClickables() {
+  if (state.where === 'plaza') return plazaClickables;
+  const b = state.booth; const list = Object.values(b.btns).filter((m) => m.visible);
+  if (state.phase === 'work' && state.round) state.round.slots.forEach((s) => { if (!s.done) list.push(s.mesh); });
+  return list.concat(plazaClickables.filter((m) => m.userData.boothIndex !== booths.indexOf(b)));
+}
+
+function handleRay(ray) {
+  const hits = ray.intersectObjects(currentClickables(), false);
+  if (!hits.length) return;
+  const obj = hits[0].object;
+  if (obj.userData.boothIndex !== undefined) { if (state.where === 'plaza' || state.phase !== 'work') goBooth(obj.userData.boothIndex); return; }
+  if (obj.userData.slotIndex !== undefined) { onSelectItem(obj.userData.slotIndex); return; }
+  const b = state.booth; if (!b) return;
+  if (obj === b.btns.without) startSession(false);
+  else if (obj === b.btns.with) startSession(true);
+  else if (obj === b.btns.again) showChoose();
+  else if (obj === b.btns.hint) useHint(false);
+  else if (obj === b.btns.back) goPlaza();
+  renderHud();
+}
+
+// VR コントローラー
+const tempMatrix = new THREE.Matrix4();
+for (let i = 0; i < 2; i++) {
+  const c = renderer.xr.getController(i);
+  const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, -4)]), new THREE.LineBasicMaterial({ color: '#ffd23f' }));
+  c.add(line);
+  c.addEventListener('select', () => {
+    tempMatrix.identity().extractRotation(c.matrixWorld);
+    raycaster.ray.origin.setFromMatrixPosition(c.matrixWorld);
+    raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
+    handleRay(raycaster);
+  });
+  rig.add(c);
+}
+
+const vrBtn = document.getElementById('btn-vr');
+if (navigator.xr && navigator.xr.isSessionSupported) {
+  navigator.xr.isSessionSupported('immersive-vr').then((ok) => { vrBtn.hidden = !ok; }).catch(() => {});
+}
+let xrSession = null;
+vrBtn.addEventListener('click', async () => {
+  if (xrSession) { xrSession.end(); return; }
+  try {
+    const s = await navigator.xr.requestSession('immersive-vr', { optionalFeatures: ['local-floor'] });
+    xrSession = s; vrBtn.textContent = 'VR を出る';
+    renderer.xr.setReferenceSpaceType('local-floor');
+    await renderer.xr.setSession(s);
+    camera.position.set(0, 0, 0);
+    s.addEventListener('end', () => { xrSession = null; vrBtn.textContent = 'VR で入る'; camera.position.set(0, 1.6, 0); });
+  } catch (e) { toast('VR を開けませんでした。ヘッドセットのブラウザで開いてください。'); }
+});
+
+// ===========================================================================
+// HTML の重ね表示
+// ===========================================================================
+const $ = (id) => document.getElementById(id);
+const chipsEl = $('chips');
+function renderChips() {
+  chipsEl.innerHTML = '';
+  const plazaChip = document.createElement('button');
+  plazaChip.type = 'button'; plazaChip.className = 'chip'; plazaChip.innerHTML = '<i style="background:#e0662f"></i>広場';
+  plazaChip.setAttribute('aria-current', String(state.where === 'plaza'));
+  plazaChip.addEventListener('click', goPlaza);
+  chipsEl.appendChild(plazaChip);
+  booths.forEach((b, i) => {
+    const el = document.createElement('button');
+    el.type = 'button'; el.className = 'chip';
+    el.innerHTML = '<i style="background:' + b.job.color + '"></i>' + b.job.name + '<span>' + b.job.work + '</span>';
+    el.setAttribute('aria-current', String(state.booth === b));
+    el.addEventListener('click', () => goBooth(i));
+    chipsEl.appendChild(el);
+  });
+}
+
+function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+function renderHud() {
+  $('place').textContent = state.where === 'plaza' ? '広場' : state.booth.job.name + '・' + state.booth.job.work;
+  chipsEl.querySelectorAll('.chip').forEach((el, i) => el.setAttribute('aria-current', String(i === 0 ? state.where === 'plaza' : state.booth === booths[i - 1])));
+  const el = $('instr');
+  if (state.where === 'plaza') {
+    el.innerHTML = '<span class="tag">広場</span><h2>やってみたい しごとを えらぶ</h2>' +
+      '<div>まわりの お店を タップ（VR では ゆびさして トリガー）すると、その お店の前に 移動します。ドラッグで 見回せます。</div>';
+    return;
+  }
+  const job = state.booth.job;
+  if (state.phase === 'choose') {
+    el.innerHTML = '<span class="tag">' + esc(job.name) + '</span><h2>' + esc(job.work) + '</h2><div>' + esc(job.intro) + '</div>' +
+      '<div class="row"><button type="button" id="h-without">はじめる：配慮なし</button><button type="button" class="primary" id="h-with">はじめる：配慮あり</button></div>';
+    $('h-without').onclick = () => startSession(false); $('h-with').onclick = () => startSession(true);
+    return;
+  }
+  if (state.phase === 'result') {
+    const last = logEntries[0];
+    el.innerHTML = '<span class="tag">' + esc(job.name) + '</span><h2>おつかれさまでした</h2>' +
+      (last ? '<div class="meta"><span>できた ' + last.phase.completed + ' こ</span><span>ミス ' + last.phase.defects + '</span><span>ヒント ' + last.phase.questionCount + '</span><span>ガイド ' + last.phase.promptCount + '</span><span>' + fmtDuration(last.phase.durationSec) + '</span></div>' : '') +
+      '<div class="row"><button type="button" id="h-again">もう一度</button><button type="button" id="h-log">きろくを見る</button></div>';
+    $('h-again').onclick = showChoose_; $('h-log').onclick = () => toggleLog(true);
+    return;
+  }
+  const r = state.round; const s = state.session; if (!r || !s) return;
+  let steps = '';
+  if (state.withSupport && r.def.ordered) {
+    steps = '<ol>' + r.def.need.map((k, n) => '<li class="' + (n < r.pos ? 'done' : n === r.pos ? 'now' : '') + '">' + esc(stepLabel(k)) + '</li>').join('') + '</ol>';
+  } else if (state.withSupport) {
+    steps = '<div>のこり ' + remainingKeys().length + ' こ</div>';
+  }
+  el.innerHTML = '<span class="tag">' + esc(job.name) + '・' + (state.withSupport ? '配慮あり' : '配慮なし') + '</span>' +
+    '<h2>' + esc(state.withSupport ? r.def.title : r.def.shortTitle) + '</h2>' + steps +
+    '<div class="feedback ' + state.feedback.kind + '">' + esc(state.feedback.text) + '</div>' +
+    '<div class="meta"><span>できた ' + s.completed + (state.withSupport ? ' / ' + ROUNDS_PER_SESSION : '') + '</span><span>ミス ' + s.defects + '</span><span>ヒント ' + s.questionCount + '</span></div>' +
+    '<div class="row"><button type="button" id="h-hint">ヒント</button><button type="button" id="h-back">広場へ もどる</button></div>';
+  $('h-hint').onclick = () => useHint(false); $('h-back').onclick = goPlaza;
+}
+function showChoose_() { showChoose(); renderHud(); }
+
+// 記録
+function loadLog() { try { return JSON.parse(localStorage.getItem('hope-vr-draft-log') || '[]'); } catch (e) { return []; } }
+function saveLog() { try { localStorage.setItem('hope-vr-draft-log', JSON.stringify(logEntries.slice(0, 100))); } catch (e) { /* 保存できなくても続ける */ } }
+function renderLog() {
+  const t = $('log-table');
+  if (!logEntries.length) { t.innerHTML = '<tr><td>まだ ありません。お店で 体験すると ここに 残ります。</td></tr>'; return; }
+  t.innerHTML = '<tr><th>しごと</th><th>場面</th><th>できた</th><th>ミス</th><th>ヒント/ガイド</th><th>時間</th></tr>' +
+    logEntries.map((e) => '<tr><td>' + esc(e.taskName) + '</td><td>' + (e.phase.withSupport ? '配慮あり' : '配慮なし') + '</td><td>' + e.phase.completed + '</td><td>' + e.phase.defects + '</td><td>' + e.phase.questionCount + ' / ' + e.phase.promptCount + '</td><td>' + fmtDuration(e.phase.durationSec) + '</td></tr>').join('');
+}
+function toggleLog(force) { const el = $('log'); el.hidden = force === undefined ? !el.hidden : !force; if (!el.hidden) renderLog(); }
+$('btn-log').addEventListener('click', () => toggleLog());
+$('btn-log-close').addEventListener('click', () => toggleLog(false));
+$('btn-clear').addEventListener('click', () => {
+  const b = $('btn-clear');
+  if (b.dataset.armed) { logEntries = []; saveLog(); renderLog(); delete b.dataset.armed; b.textContent = 'きろくを消す'; toast('消しました'); return; }
+  b.dataset.armed = '1'; b.textContent = 'もう一度押すと消します';
+  setTimeout(() => { delete b.dataset.armed; b.textContent = 'きろくを消す'; }, 3000);
+});
+$('btn-copy').addEventListener('click', () => {
+  const json = JSON.stringify(logEntries, null, 2); const ta = $('log-json');
+  ta.value = json;
+  const done = () => toast('コピーしました');
+  const fallback = () => { ta.hidden = false; ta.focus(); ta.select(); toast('下の 文字を 選んで コピーしてください'); };
+  try { navigator.clipboard.writeText(json).then(done, fallback); } catch (e) { fallback(); }
+});
+
+let toastTimer = null;
+function toast(text) { const t = $('toast'); t.textContent = text; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 2200); }
+
+// ===========================================================================
+// ループ
+// ===========================================================================
+function onResize() {
+  renderer.setSize(stage.clientWidth, stage.clientHeight);
+  camera.aspect = stage.clientWidth / stage.clientHeight;
+  camera.fov = camera.aspect < 1 ? 95 : 70; // 縦長（スマホ）では 広く 見せる
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', onResize);
+onResize();
+
+renderer.setAnimationLoop((now) => {
+  if (tween) {
+    const t = Math.min(1, (now - tween.t0) / tween.dur); const e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    rig.position.lerpVectors(tween.from.p, tween.to.p, e); rig.rotation.y = tween.from.yaw + (tween.to.yaw - tween.from.yaw) * e;
+    if (t >= 1) tween = null;
+  }
+  if (!renderer.xr.isPresenting) { camera.rotation.y = look.yaw; camera.rotation.x = -look.pitch; }
+  // 配慮あり：しばらく手が止まったら、つぎに選ぶものを光らせる（声かけ 1 回として数える）
+  const r = state.round;
+  if (r && state.phase === 'work' && state.withSupport && !r.hintShown && (now - r.lastActionAt) / 1000 > AUTO_HINT_SEC) useHint(true);
+  if (r) r.slots.forEach((s) => { if (s.ring.visible) { const k = 1 + Math.sin(now / 180) * 0.12; s.ring.scale.set(k, k, k); } });
+  stepAnims(now);
+  renderer.render(scene, camera);
+});
+
+renderChips();
+renderHud();
+renderLog();
+// 動作確認用（テストから 作業を 進めるため）
+window.hopeTown = { state, goBooth, startSession, select: onSelectItem, nextTargetKey };
+// 最初は「物流センター」の方を向いておく
+rig.rotation.y = 0;
+if (document.fonts && document.fonts.ready) {
+  // フォントが届いてから看板・掲示板を描きなおす
+  document.fonts.ready.then(() => { if (state.where === 'booth') { if (state.phase === 'choose') showChoose(); else if (state.phase === 'work') drawWorkBoard(); } });
+}
+}
+
+// 看板の文字を正しいフォントで描くため、フォントが届いてから町を建てる（2 秒で見切る）。
+(function boot() {
+  const wait = document.fonts && document.fonts.load
+    ? Promise.all(['700 40px "Zen Maru Gothic"', '400 40px "BIZ UDPGothic"', '700 40px "BIZ UDPGothic"'].map((f) => document.fonts.load(f, 'しごと')))
+    : Promise.resolve();
+  let started = false;
+  const go = () => { if (!started) { started = true; main(); } };
+  Promise.race([wait, new Promise((r) => setTimeout(r, 2000))]).then(go, go);
+})();
+</script>
+</body>
+</html>
