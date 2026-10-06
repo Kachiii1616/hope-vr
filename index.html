@@ -535,6 +535,7 @@ const EXTRA_ACTS = {
   forest: { '手袋': '手袋を はめる', 'のこぎり': 'のこぎりで 丸太を 切る', 'おの': 'おので 薪を わる', '薪だな': '薪を つむ' },
   wind: { 'ヒーター': 'ヒーターで 氷を とかす' },
   office: { '首都': '首都の トレーに 入れる', '繁華街': '繁華街の トレーに 入れる', '漁村': '漁村の トレーに 入れる', '農村': '農村の トレーに 入れる' },
+  rink: { 'ボートの かぎ': 'ボートの かぎを わたす', 'オール': 'オールを わたす', 'ヘルメット': 'ヘルメットを わたす', '手袋': '手袋を わたす', 'マフラー': 'マフラーを わたす', '浮き輪': '浮き輪を わたす' },
   yatai: {
     'かき氷の カップ': 'カップを とる', 'かき氷器': '氷を けずる', 'いちご シロップ': 'いちご シロップを かける', 'メロン シロップ': 'メロン シロップを かける',
     'レモン シロップ': 'レモン シロップを かける', 'スプーン': 'スプーンを さす', 'お客さま': 'お客さまに わたす',
@@ -546,6 +547,7 @@ const EXTRA_ACTS = {
   },
 };
 ACTIONS.super = (l) => l + 'を 入れる';
+ACTIONS.rink = (l) => l + 'を わたす';
 ACTIONS.school = (l) => l + 'の たなに もどす';
 function actionText(job, spec) {
   const a = ACTIONS[job.id]; const l = spec.label;
@@ -556,6 +558,36 @@ function actionText(job, spec) {
 
 // ---- 地図に 足した お店（屋台・スーパー・学校）。夏の しごとを ここに、冬の しごとは WINTER に。
 JOBS.push(
+  {
+    id: 'rink', area: '湖', name: 'スケート場', work: 'ボートの受付', color: '#3a87b5', category: '実務',
+    intro: '', defect: '', round() { return null; },
+    variants: {
+      summer: [{
+        work: 'ボートの受付', short: 'ボート',
+        intro: '受付票を 見て、体の 大きさに あう ライフジャケットと、ボートの かぎを わたします。',
+        defect: 'ちがう サイズ・わたし わすれ',
+        round() {
+          const sizes = ['S', 'M', 'L'];
+          const items = sizes.map((z) => ({ label: 'ライフジャケット ' + z, shape: 'lifejacket', color: '#f39a2b', size: z }))
+            .concat([{ label: 'ボートの かぎ', color: '#e3b23c' }, { label: 'オール', color: '#8a6a46' }, { label: '浮き輪', shape: 'disc', color: '#f39a2b' }]);
+          const z = pick(sizes); const card = '受付票：ライフジャケット ' + z + '・ボート 1そう';
+          return { title: card, shortTitle: 'ボートの 受付', items: shuffle(items), need: ['ライフジャケット ' + z, 'ボートの かぎ'], ordered: false, carryText: card };
+        },
+      }],
+      winter: [{
+        work: 'スケートの受付', short: 'スケート',
+        intro: '受付票を 見て、足の 大きさに あう スケートぐつを わたします。子どもには ヘルメット、大人には 手袋も わたします。',
+        defect: 'ちがう サイズ・わたし わすれ',
+        round() {
+          const sizes = [20, 22, 24, 26];
+          const items = sizes.map((n) => ({ label: 'スケートぐつ ' + n, shape: 'skate', color: n < 23 ? '#e07fa4' : '#3c7fc4' }))
+            .concat([{ label: 'ヘルメット', shape: 'helmet', color: '#f2c230' }, { label: '手袋', color: '#d0453a' }, { label: 'マフラー', color: '#ffffff' }]);
+          const n = pick(sizes); const kid = n < 23; const card = '受付票：' + n + 'cm・' + (kid ? '子ども' : '大人');
+          return { title: card, shortTitle: 'スケートの 受付', items: shuffle(items), need: ['スケートぐつ ' + n, kid ? 'ヘルメット' : '手袋'], ordered: false, carryText: card };
+        },
+      }],
+    },
+  },
   {
     id: 'yatai', area: 'ビーチ', name: '屋台', work: 'かき氷づくり', color: '#e0662f', category: '実務',
     intro: '注文の かき氷を 手順どおりに つくって わたします。', defect: '手順ちがい・ちがう シロップ',
@@ -861,7 +893,8 @@ const SITES = {
   clean: { at: [312, 446], face: 's' },    // 首都：事務所の となり（もとは ビーチの 海の家）
   yatai: { at: [232, 335], face: 'n' },    // ビーチの 屋台（ビーチを向く）
   super: { at: [285, 660], face: 'e' },    // 繁華街の 南：スーパー
-  school: { at: [340, 606], face: 's' },   // 学校エリア：校舎（中に 入れる。入口は 南の 海ぞいの 道がわ）
+  school: { at: [340, 606], face: 's' },
+  rink: { at: [238, 658], face: 'n' },     // 湖の 南：夏は ボート乗り場、冬は スケート場の 受付（入口は 湖がわ）   // 学校エリア：校舎（中に 入れる。入口は 南の 海ぞいの 道がわ）
   craft: { at: [352, 540], face: 'n' },    // 学校エリア：職業訓練校の作業室
   forest: { at: [392, 252], face: 's' },   // 林業エリア
   fish: { at: [592, 250], face: 's' },     // 漁村
@@ -884,7 +917,7 @@ const ROADS = [
   [[742, 425], [800, 470], [860, 560]],
   [[244, 455], [202, 468]], // 首都 → フェリー乗り場
   [[503, 541], [503, 735]],                                   // IT街の 通り（目抜き通り → 南の 海）
-  [[160, 686], [250, 688], [330, 686]],                       // カフェ → スーパー（南の 海ぞい）
+  [[160, 688], [238, 693], [330, 688]],                       // カフェ → スーパー（南の 海ぞい）
   [[575, 470], [595, 520], [585, 600], [604, 700], [620, 762]], // 川ぞいの 道（山の ふもと → 南の 海）
   [[860, 560], [895, 605]], [[895, 605], [772, 676]], [[895, 605], [850, 705]], // 農村の 東の 道
   [[680, 330], [742, 346]],                                   // 山の 北の 道 → 物流センター
@@ -900,6 +933,10 @@ const RIVERS = [
   { w: 1.4, line: [[598, 440], [690, 515], [780, 592], [866, 668]] },               // 山 → 農村の 東 → 南東の 海
 ];
 
+// ビーチ（北西の 海岸。夏は 泳いだり 日向ぼっこ したり できる）
+const BEACH = [[110, 320], [130, 270], [200, 210], [300, 150], [380, 115], [430, 110], [432, 150], [380, 162], [300, 196], [230, 250], [170, 300], [150, 350]];
+// 湖（冬は スケート場）。楕円の 半径は m
+const LAKE = { at: [265, 592], rx: 40 * 0.12, rz: 36 * 0.12, blk: null };
 // 島の上の場所が空いているか（建物・木を散らすときに使う）
 const blocked = []; // { x, z, r }（m）
 function insideIsland(px, py) {
@@ -984,7 +1021,7 @@ function addCyl(x, y, z, rt, rb, h, color, seg) {
   const island = new THREE.Mesh(geo, [cmat('#9cc47f'), cmat('#dcc893')]);
   island.rotation.x = -Math.PI / 2; island.position.y = -1.2; scene.add(island);
   // ビーチ（北西の海岸）
-  patch([[110, 320], [130, 270], [200, 210], [300, 150], [380, 115], [430, 110], [432, 150], [380, 162], [300, 196], [230, 250], [170, 300], [150, 350]], '#ecdcae', 0.04);
+  patch(BEACH, '#ecdcae', 0.04);
   // 地域ごとの地面
   patch(ellipse(255, 455, 70, 52), '#d9d4c7', 0.05);       // 首都
   patch(ellipse(170, 600, 62, 72), '#cdc5b8', 0.05);       // 繁華街
@@ -1000,7 +1037,8 @@ function addCyl(x, y, z, rt, rb, h, color, seg) {
   [416, 432].forEach((py) => patch([[795, py - 1], [858, py - 1], [858, py + 1], [795, py + 1]], '#b08a5a', 0.068));
   [816, 837].forEach((px) => patch([[px - 1, 400], [px + 1, 400], [px + 1, 448], [px - 1, 448]], '#b08a5a', 0.068));
   block(...(() => { const p = toWorld(826, 424); return [p.x, p.z, 4.2, 0]; })());
-  block(...(() => { const p = toWorld(265, 592); return [p.x, p.z, 5.8]; })());
+  // 湖：町の 家や 木は 5.8m よけるが、歩く ときは 季節で かわる（夏は 岸まで、冬は 氷の 上も 歩ける）
+  LAKE.blk = (() => { const p = toWorld(...LAKE.at); return { x: p.x, z: p.z, r: 5.8, w: 3.6 }; })(); blocked.push(LAKE.blk);
   // 川（道より下に描き、交わるところは橋の欄干を立てる）
   riverSegs.forEach(([a, b, w], k) => {
     const m = new THREE.Mesh(new THREE.PlaneGeometry(w, a.distanceTo(b)), cmat('#5aa7d1'));
@@ -1065,7 +1103,7 @@ const PANEL_SCALE = 0.7;
 function buildShopShell(g, job) {
   const wallMat = () => mat(job.id === 'farm' ? '#dff0e4' : job.id === 'school' ? '#e9d6b8' : '#f4efe6', job.id === 'farm' ? { transparent: true, opacity: 0.35, roughness: 0.1 } : null);
   const add = (geo, m, x, y, z) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); g.add(o); return o; };
-  const floorColor = { yatai: '#d9c4a2', super: '#e9e6dc', school: '#b98f5a', fish: '#cfd8dc', forest: '#9c7a54', ski: '#d9dde3', logi: '#b9bcb8', store: '#e9e6dc', clean: '#d9cdb8', cafe: '#a87b55', care: '#d8c3a0', office: '#c9ccd3', farm: '#8f7a5a', craft: '#c4a27a', hut: '#9c7a54', wind: '#c9ccd3', it: '#c9ccd3' }[job.id] || '#d9cdb8';
+  const floorColor = { rink: '#cfe3ee', yatai: '#d9c4a2', super: '#e9e6dc', school: '#b98f5a', fish: '#cfd8dc', forest: '#9c7a54', ski: '#d9dde3', logi: '#b9bcb8', store: '#e9e6dc', clean: '#d9cdb8', cafe: '#a87b55', care: '#d8c3a0', office: '#c9ccd3', farm: '#8f7a5a', craft: '#c4a27a', hut: '#9c7a54', wind: '#c9ccd3', it: '#c9ccd3' }[job.id] || '#d9cdb8';
   const floor = add(new THREE.PlaneGeometry(SHOP_W, SHOP_DEPTH), mat(floorColor), 0, 0.1, SHOP_DEPTH / 2); floor.rotation.x = -Math.PI / 2;
   [-1, 1].forEach((sd) => {
     add(new THREE.BoxGeometry(0.1, 3.0, SHOP_DEPTH), wallMat(), sd * (SHOP_W / 2 + 0.05), 1.5, SHOP_DEPTH / 2);
@@ -1196,11 +1234,11 @@ Object.values(HOME_SITES).forEach((h) => { const p = toWorld(...h.at); h.blk = {
 let season = (() => { const m = new Date().getMonth() + 1; return m === 12 || m <= 3 ? 'winter' : 'summer'; })();
 const SEASON_NAME = { summer: '夏', winter: '冬' };
 const isOpen = (job) => !job.season || job.season === season;
-const seasonal = { snowCap: null, capH: 0, peakH: 0, runs: [], trail: null };
+const seasonal = { snowCap: null, capH: 0, peakH: 0, runs: [], trail: null, parasols: [], trailAt: null, mount: null };
 
 // 山の表（南）の登山口。スキー場は裏にあって見えにくいので、看板で案内し、看板からも行けるようにする。
 (function buildTrailhead() {
-  const p = toWorld(532, 503);
+  const p = toWorld(532, 503); seasonal.trailAt = p.clone();
   const sign = new Board(2.6, 1.3, 300);
   seasonal.trail = sign;
   sign.mesh.position.set(p.x, 1.9, p.z);
@@ -1284,6 +1322,7 @@ function tree(x, z, kind) {
   const liftDir = turn(toSki, 0.4);
   const liftA = new THREE.Vector3(peak.x + liftDir.x * (MR + 1.2), 2.6, peak.z + liftDir.z * (MR + 1.2));
   const liftB = new THREE.Vector3(peak.x + liftDir.x * MR * 0.36, MH * 0.64 + 2.2, peak.z + liftDir.z * MR * 0.36);
+  seasonal.mount = { peak, MR, MH, heightAt, runs: [turn(toSki, -0.35), turn(toSki, -0.05)], widths: [2.6, 1.8], liftA, liftB }; // 自分で スキー・山登り する ときに 使う
   block(liftA.x, liftA.z, 0.8);
   [liftA, liftB].forEach((p) => addCyl(p.x, p.y / 2, p.z, 0.12, 0.12, p.y, '#55626d', 6));
   scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([liftA, liftB]), new THREE.LineBasicMaterial({ color: '#33404a' })));
@@ -1389,6 +1428,7 @@ function tree(x, z, kind) {
     const p = toWorld(px, py); if (!isFree(p.x, p.z, 1)) return;
     addCyl(p.x, 1.1, p.z, 0.04, 0.04, 2.2, '#f4f4f0', 6);
     const u = new THREE.Mesh(new THREE.ConeGeometry(1.3, 0.6, 12), cmat(['#e0662f', '#3b6fb6', '#f2c230'][k % 3])); u.position.set(p.x, 2.3, p.z); scene.add(u);
+    seasonal.parasols.push(new THREE.Vector3(p.x, 0, p.z));
   });
 
   // 林業エリア：針葉樹の森。島のあちこちにも木。
@@ -1843,6 +1883,8 @@ function bun(top, mark) { // 中華まん
   return g;
 }
 Object.assign(ITEM_MODELS, {
+  'ボートの かぎ'() { const g = new THREE.Group(); part(g, box(0.05, 0.006, 0.08), '#e3b23c', 0, 0.003, 0); part(g, new THREE.TorusGeometry(0.015, 0.004, 6, 14), '#c9c9c9', 0, 0.005, -0.05).rotation.x = Math.PI / 2; part(g, box(0.008, 0.004, 0.05), '#c9c9c9', 0, 0.004, -0.09); return g; },
+  'オール'() { const g = new THREE.Group(); part(g, box(0.22, 0.012, 0.016), '#8a6a46', -0.02, 0.008, 0); part(g, box(0.07, 0.01, 0.04), '#a8865a', 0.11, 0.008, 0); return g; },
   // 物流（冬）
   'みかん'() { const g = new THREE.Group(); part(g, ball(0.05, 20, 14), '#f39a2b', 0, 0.042, 0).scale.set(1, 0.82, 1); part(g, cyl(0.004, 0.004, 0.01, 6), '#3f7a2a', 0, 0.085, 0); const lf = part(g, ball(0.015, 8, 6), '#3f7a2a', 0.012, 0.085, 0); lf.scale.set(1, 0.25, 0.5); return g; },
   'もち'() { const g = new THREE.Group(); [0, 1].forEach((k) => part(g, ball(0.05 - k * 0.012, 20, 12), '#fbfaf4', 0, 0.02 + k * 0.035, 0).scale.set(1, 0.5, 1)); part(g, ball(0.016, 10, 8), '#f39a2b', 0, 0.075, 0); return g; },
@@ -1896,6 +1938,22 @@ Object.assign(ITEM_MODELS, {
   'クレヨン'() { const g = new THREE.Group(); part(g, box(0.12, 0.02, 0.08), '#f2c230', 0, 0.01, 0); ['#d0453a', '#3c7fc4', '#4f9a45', '#e0662f'].forEach((c, i) => part(g, box(0.012, 0.012, 0.06), c, -0.04 + i * 0.026, 0.026, 0)); return g; },
 });
 Object.assign(SHAPE_MODELS, {
+  // スケートぐつ（くつ＋刃）
+  skate(s) {
+    const g = new THREE.Group();
+    part(g, box(0.07, 0.1, 0.16), s.color, 0, 0.075, 0.01); part(g, box(0.07, 0.07, 0.06), s.color, 0, 0.15, -0.04);
+    part(g, box(0.006, 0.02, 0.2), '#c9cdd2', 0, 0.012, 0.01, { metalness: 0.7, roughness: 0.25 });
+    [-0.06, 0.07].forEach((z) => part(g, box(0.01, 0.03, 0.01), '#8a8f96', 0, 0.03, z));
+    return g;
+  },
+  // ライフジャケット（オレンジの ベスト・サイズで 大きさ）
+  lifejacket(s) {
+    const g = new THREE.Group(); const k = { S: 0.8, M: 1, L: 1.2 }[s.size] || 1;
+    part(g, box(0.16 * k, 0.03, 0.18 * k), s.color, 0, 0.015, 0);
+    [-1, 1].forEach((sd) => part(g, box(0.06 * k, 0.035, 0.16 * k), s.color, sd * 0.05 * k, 0.03, 0));
+    [-0.03, 0.03].forEach((z) => part(g, box(0.17 * k, 0.006, 0.012), '#1f2a33', 0, 0.05, z * k));
+    return g;
+  },
   // 介護（冬）：湯のみの のった おぜん（とろみは スプーン つき）
   drinkTray(s) {
     const g = new THREE.Group();
@@ -2103,6 +2161,13 @@ function decorateInterior(b) {
     [0.95, 1.45, 1.95].forEach((z) => part(g, new THREE.SphereGeometry(0.13, 16, 8, 0, TAU, 0, Math.PI / 2), '#f2c230', -(SHOP_W / 2 - 0.17), 1.115, z));
     part(g, box(0.04, 1.2, 1.6), '#5a5f66', SHOP_W / 2 - 0.03, 0.9, 1.45);
     [[1.0, '#8a8f96'], [1.4, '#e0662f'], [1.8, '#f6e27a']].forEach(([z, c]) => part(g, box(0.05, 0.5, 0.06), c, SHOP_W / 2 - 0.08, 0.95, z));
+  } else if (id === 'rink') {
+    // くつ・ジャケットの たな
+    [0.3, 0.75, 1.2].forEach((y, row) => {
+      part(g, box(0.36, 0.03, 1.6), '#c9ced6', -DECO_X, y, 1.45);
+      [0.85, 1.25, 1.65, 2.05].forEach((z, k) => part(g, box(0.16, 0.14, 0.2), row === 2 ? '#f39a2b' : (k % 2 ? '#3c7fc4' : '#e07fa4'), -DECO_X, y + 0.085, z));
+    });
+    part(g, box(0.03, 0.6, 1.0), '#3a87b5', SHOP_W / 2 - 0.02, 1.3, 1.5); // 料金の 看板
   } else if (id === 'yatai') {
     wallShelf(g, -1, ['かき氷の カップ', 'いちご シロップ', 'メロン シロップ', 'レモン シロップ'], '#e0662f');
     part(g, cyl(0.3, 0.3, 0.06, 20), '#c9302c', DECO_X - 0.15, 1.3, 1.4).rotation.z = Math.PI / 2; // ちょうちん
@@ -2167,7 +2232,43 @@ booths.forEach((b) => {
 // ===========================================================================
 const PROFILE_KEY = 'hope-vr-profile';
 let profile = (() => { try { return JSON.parse(localStorage.getItem(PROFILE_KEY) || 'null'); } catch (e) { return null; } })();
-function saveProfile() { try { localStorage.setItem(PROFILE_KEY, JSON.stringify(profile)); } catch (e) { /* 保存できなくても 続ける */ } }
+function saveProfile() {
+  if (profile) profile.updatedAt = new Date().toISOString();
+  try { localStorage.setItem(PROFILE_KEY, JSON.stringify(profile)); } catch (e) { /* 保存できなくても 続ける */ }
+  cloudSaveSoon();
+}
+// ---- スプレッドシート（GAS）にも 保存（デモ版）。URL と 利用者ID は 設定で 入れる（このブラウザに 覚える）
+//   gas/Code.gs を ウェブアプリとして デプロイした URL。全員の 既定に する ときは ここに 書く
+const DEFAULT_GAS_URL = '';
+const CLOUD_KEY = 'hope-vr-cloud';
+const cloud = (() => { try { return Object.assign({ url: DEFAULT_GAS_URL, id: '' }, JSON.parse(localStorage.getItem(CLOUD_KEY) || '{}')); } catch (e) { return { url: DEFAULT_GAS_URL, id: '' }; } })();
+let cloudStatus = ''; let cloudTimer = null;
+const cloudOn = () => !!(cloud.url && cloud.id);
+function saveCloudCfg() { try { localStorage.setItem(CLOUD_KEY, JSON.stringify({ url: cloud.url, id: cloud.id })); } catch (e) { /* noop */ } }
+function cloudPost(body) {
+  if (!cloudOn()) return Promise.resolve(null);
+  return fetch(cloud.url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(Object.assign({ id: cloud.id }, body)) })
+    .then((res) => res.json())
+    .then((j) => { cloudStatus = j && j.ok ? 'スプレッドシートに 保存しました（' + new Date().toLocaleTimeString('ja-JP') + '）' : 'スプレッドシート：' + ((j && j.error) || 'エラー'); return j; })
+    .catch(() => { cloudStatus = 'スプレッドシートに つながりません（このブラウザには 保存しました）'; return null; });
+}
+function cloudLoad(id) {
+  if (!cloud.url || !id) return Promise.resolve(null);
+  return fetch(cloud.url + (cloud.url.includes('?') ? '&' : '?') + 'action=load&id=' + encodeURIComponent(id)).then((res) => res.json()).catch(() => null);
+}
+function cloudSaveSoon() {
+  if (!cloudOn() || !profile) return;
+  clearTimeout(cloudTimer); cloudTimer = setTimeout(() => cloudPost({ action: 'saveProfile', profile }), 1200);
+}
+// スプレッドシートの ほうが 新しければ そちらを 使う（ほかの 端末で あそんだ ぶん）
+function adoptCloudProfile(p) {
+  if (!p) return false;
+  if (profile && profile.updatedAt && p.updatedAt && p.updatedAt <= profile.updatedAt) return false;
+  profile = Object.assign({ money: 0, badges: {}, owned: [] }, p);
+  try { localStorage.setItem(PROFILE_KEY, JSON.stringify(profile)); } catch (e) { /* noop */ }
+  buildHome(); renderWallet();
+  return true;
+}
 const GENDER = { m: '男性', f: '女性', n: 'えらばない' };
 const MODE = { money: 'お金と バッジ', badge: 'バッジのみ' };
 const MEDAL = ['なし', '銅', '銀', '金'];
@@ -2358,7 +2459,7 @@ function arriveAtPort() {
 }
 // 店員の 目線の 先に お客さま（接客の お店だけ）。台の 向こうで 店員の 方を 向く。
 booths.forEach((b) => {
-  const guests = { yatai: ['#3c7fc4', '#f2c230'], super: ['#4f9a45', '#c4577a'], store: ['#3b6fb6', '#e3a33c'], cafe: ['#c4577a'], ski: ['#d0453a', '#3c7fc4'], hut: ['#4f9a45'], clean: ['#e3b23c'] }[b.job.id];
+  const guests = { rink: ['#e07fa4', '#3c7fc4'], yatai: ['#3c7fc4', '#f2c230'], super: ['#4f9a45', '#c4577a'], store: ['#3b6fb6', '#e3a33c'], cafe: ['#c4577a'], ski: ['#d0453a', '#3c7fc4'], hut: ['#4f9a45'], clean: ['#e3b23c'] }[b.job.id];
   if (!guests) return;
   guests.forEach((c, k) => {
     const p = person(c, '#3d4a54'); p.scale.setScalar(4.6); p.rotation.y = Math.PI;
@@ -2456,6 +2557,7 @@ function startWalk(pos, yaw) {
 }
 // お店から 外へ（入口の 前に 出て、お店に 背中を 向ける）
 function exitToWalk() {
+  if (state.phase === 'work' || state.phase === 'between') toast('体験を とちゅうで やめました（きろくは 残りません）');
   const b = state.booth; if (!b) return;
   let p = null;
   for (const d of [SHOP_DEPTH + 3.0, SHOP_DEPTH + 2.2]) { const c = b.group.position.clone().addScaledVector(b.front, d); if (walkable(c.x, c.z)) { p = c; break; } }
@@ -2482,6 +2584,9 @@ function walkStep(dt) {
     turn = 0;
   }
   if (turn) look.yaw -= turn * 1.8 * dt; // パソコン・スマホは なめらかに 向きを かえる
+  if ((walkStep.acc = (walkStep.acc || 0) + dt) > 0.3) { walkStep.acc = 0; checkNearby(); }
+  if (onIce(rig.position.x, rig.position.z)) { skateStep(dt, fwd, strafe); return; } // 冬の 湖：すべる
+  if (state.skating) { state.skating = false; skateV.set(0, 0, 0); renderHud(); }
   if (!fwd && !strafe) return;
   camera.getWorldDirection(tmpDir); tmpDir.y = 0; if (tmpDir.lengthSq() < 1e-6) return; tmpDir.normalize();
   const speed = (walkKeys.run ? 5 : 2.6) * dt;
@@ -2513,7 +2618,7 @@ window.addEventListener('blur', () => { Object.keys(walkKeys).forEach((k) => { w
 // ===========================================================================
 function setButtons(visibleKeys) {
   const b = state.booth; if (!b) return;
-  const keys = state.cameFromWalk && visibleKeys.includes('back') ? visibleKeys.concat('exit') : visibleKeys;
+  const keys = visibleKeys.includes('back') ? visibleKeys.concat('exit') : visibleKeys; // どの 場面でも その 建物の 入口から 外に 出られる
   for (const [k, m] of Object.entries(b.btns)) m.visible = keys.includes(k);
 }
 
@@ -2570,6 +2675,7 @@ function applySeason() {
   JOBS.forEach((job) => { if (job.variants) selectVariant(job, 0); });
   booths.forEach((b) => { if (!b.job.variants) return; b.paintSign(signWorkOf(b.job)); b.pin.userData.repaint(b.job.name + '・' + signWorkOf(b.job)); });
   if (seasonal.rink) seasonal.rink.visible = winter;
+  if (LAKE.blk) LAKE.blk.w = winter ? 0 : 3.6; // 冬は 氷の 上を 歩ける（すべる）
   matCache.forEach((m, color) => { if (SNOW_TINT[color]) m.color.set(winter ? SNOW_TINT[color] : color); });
   scene.background.set(SKY[season]); scene.fog.color.set(SKY[season]);
   mmBase = null; // 右上の 地図も 冬の 色に
@@ -2646,7 +2752,9 @@ function showChoose() {
     ctx.font = '400 40px ' + FONT_BODY; ctx.fillStyle = '#33404a';
     wrapLines(ctx, job.intro, W - 96).forEach((l, n) => ctx.fillText(l, 48, 210 + n * 54));
     ctx.fillStyle = '#55626d'; ctx.font = '400 32px ' + FONT_BODY;
-    ctx.fillText('1 回の体験は ' + ROUNDS_PER_SESSION + ' こ。下の ボタンで はじめます。', 48, H - 80);
+    ctx.fillText('1 回の体験は ' + ROUNDS_PER_SESSION + ' こ。下の ボタンで はじめます。', 48, H - 112);
+    ctx.fillStyle = '#7a4a12'; ctx.font = '400 28px ' + FONT_BODY;
+    ctx.fillText('配慮ありは 銀バッジまで（金バッジは 配慮なしで ミス 0・ヒント 0）', 48, H - 66);
   });
 }
 
@@ -2836,6 +2944,7 @@ function showResult() {
   };
   logEntries.unshift(entry); saveLog(); renderLog();
   const rw = rewardFor(b.job, s, state.withSupport); state.lastReward = rw;
+  cloudPost({ action: 'addLog', name: profile ? profile.name : '', entry: Object.assign({}, entry, { medal: rw ? rw.medal : '', pay: rw ? rw.pay : 0 }) });
   if (rw) {
     if (rw.up) toast('バッジ（' + MEDAL[rw.medal] + '）を もらいました！');
     if (rw.trophy) setTimeout(() => toast('トロフィー（' + MEDAL[rw.trophy] + '）！ 全部の お店が ' + MEDAL[rw.trophy] + 'に そろいました'), 2400);
@@ -2939,7 +3048,7 @@ function currentClickables() {
   if (state.where === 'plaza') return booths.map((b) => b.pin).concat(plazaClickables);
   if (state.where === 'walk') return plazaClickables;
   if (state.where === 'home') return home.btns ? Object.values(home.btns) : [];
-  if (state.where === 'opening') return [];
+  if (state.where === 'opening' || state.where === 'play') return [];
   const b = state.booth; const list = Object.values(b.btns).filter((m) => m.visible);
   if (state.phase === 'work' && state.round) state.round.slots.forEach((s) => { if (!s.done) s.mesh.traverse((o) => { if (o.isMesh) list.push(o); }); });
   return list; // お店の中では 壁ごしに ほかの お店を えらばない（もどるのは「島ぜんたいへ」）
@@ -3122,8 +3231,8 @@ function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 
 function renderHud() {
   $('btn-home').hidden = !home.group;
-  $('place').textContent = state.where === 'plaza' ? '島ぜんたい' : state.where === 'walk' ? '島を 歩いています' : state.where === 'home' ? profile.name + 'さんの 家（' + home.site.name + '）' : state.where === 'opening' ? 'フェリーで 入港中' : state.booth.job.area + '　' + state.booth.job.name + '・' + state.booth.job.work;
-  $('pad').hidden = state.where !== 'walk';
+  $('place').textContent = state.where === 'plaza' ? '島ぜんたい' : state.where === 'walk' ? '島を 歩いています' : state.where === 'home' ? profile.name + 'さんの 家（' + home.site.name + '）' : state.where === 'opening' ? 'フェリーで 入港中' : state.where === 'play' ? PLAY_NAME[state.play.kind] : state.booth.job.area + '　' + state.booth.job.name + '・' + state.booth.job.work;
+  $('pad').hidden = !(state.where === 'walk' || (state.where === 'play' && state.play && state.play.kind !== 'sun'));
   $('btn-walk').textContent = state.where === 'walk' ? '見わたす' : '島を歩く';
   chipsEl.querySelectorAll('.chip').forEach((el, i) => el.setAttribute('aria-current', String(i === 0 ? state.where === 'plaza' : state.booth === booths[i - 1])));
   // いまの 場所の チップが 画面の外なら 見える ところまで 送る
@@ -3145,6 +3254,13 @@ function renderHud() {
     $('h-walk').onclick = () => startWalk();
     return;
   }
+  if (state.where === 'play') {
+    const k = state.play.kind;
+    const how = { ski: '← → で よける・▲を 押すと そのまま（Shift で 速く）。下まで すべると ゴール', climb: '▲で のぼる・▼で おりる。頂上から 島ぜんたいが 見えます', swim: '▲▼で 進む・◀▶で 向きを かえる。岸から 遠くへは 行けません', sun: 'パラソルの 下で ねころんでいます。ドラッグで 見回せます' }[k];
+    el.innerHTML = '<span class="tag">あそぶ</span><h2>' + PLAY_NAME[k] + '</h2><div>' + how + '</div><div class="row"><button type="button" class="primary" id="h-endplay">' + (k === 'sun' ? 'おきる' : k === 'swim' ? '岸に あがる' : 'おわる') + '</button></div>';
+    $('h-endplay').onclick = endPlay;
+    return;
+  }
   if (state.where === 'opening') {
     el.innerHTML = '<span class="tag">オープニング</span><h2>フェリーで Work Island へ</h2><div>首都の フェリー乗り場に 入港します。</div>';
     return;
@@ -3160,11 +3276,13 @@ function renderHud() {
     el.innerHTML = '<span class="tag">島を歩く</span><h2>歩いて お店を さがす</h2>' +
       '<div>お店の 入口まで 歩くと、中に 入れます。お店を タップしても 入れます。</div>' +
       '<div class="meta"><span>パソコン：W A S D・矢印キー（Shift で 走る）・ドラッグで 見回す</span><span>スマホ：右下の ボタン</span><span>VR：左スティックで 歩く・右スティックで 向きを かえる</span></div>' +
-      '<div class="row"><button type="button" id="h-plaza">島ぜんたいへ</button></div>';
+      (state.skating ? '<div class="feedback ok">スケート中：▲で すべり出し、手を はなすと ゆっくり 止まります</div>' : '') +
+      '<div class="row">' + nearbyActions().map(([k, t]) => '<button type="button" class="primary" data-act="' + k + '">' + t + '</button>').join('') + '<button type="button" id="h-plaza">島ぜんたいへ</button></div>';
     $('h-plaza').onclick = goPlaza;
+    el.querySelectorAll('[data-act]').forEach((b) => { b.onclick = () => PLAY_ACTS[b.dataset.act](); });
     return;
   }
-  const exitBtn = state.cameFromWalk ? '<button type="button" id="h-exit">外に出る</button>' : '';
+  const exitBtn = '<button type="button" id="h-exit">外に出る</button>';
   const job = state.booth.job;
   if (state.phase === 'choose' && !isOpen(job)) {
     const want = SEASON_NAME[job.season];
@@ -3183,9 +3301,13 @@ function renderHud() {
   }
   if (state.phase === 'choose') {
     el.innerHTML = '<span class="tag">' + esc(job.name) + '</span><h2>' + esc(job.work) + '</h2><div>' + esc(job.intro) + '</div>' +
-      '<div class="row"><button type="button" id="h-without">はじめる：配慮なし</button><button type="button" class="primary" id="h-with">はじめる：配慮あり</button>' + exitBtn + '</div>';
+      '<div class="row"><button type="button" id="h-without">はじめる：配慮なし</button><button type="button" class="primary" id="h-with">はじめる：配慮あり</button>' + exitBtn + '</div>' +
+      '<div class="meta"><span>配慮ありは 銀バッジまで。金バッジは 配慮なしで ミス 0・ヒント 0。</span></div>';
     $('h-without').onclick = () => startSession(false); $('h-with').onclick = () => startSession(true);
     if ($('h-exit')) $('h-exit').onclick = exitToWalk;
+    const fun = { ski: season === 'winter' && ['自分も スキーを する', startSki], rink: season === 'winter' && ['自分も すべる', () => { const c = LAKE.blk; startWalk(new THREE.Vector3(c.x, 0, c.z), 0); }],
+      hut: season === 'summer' && ['山に のぼる', startClimb], yatai: ['お客さんとして 買う', openYataiShop] }[job.id];
+    if (fun) { el.querySelector('.row').insertAdjacentHTML('beforeend', '<button type="button" id="h-fun">' + fun[0] + '</button>'); $('h-fun').onclick = fun[1]; }
     return;
   }
   if (state.phase === 'result') {
@@ -3210,10 +3332,161 @@ function renderHud() {
     (r.def.carryText ? '<div>' + esc(r.def.carryText) + '</div>' : '') + steps +
     '<div class="feedback ' + state.feedback.kind + '">' + esc(state.feedback.text) + '</div>' +
     '<div class="meta"><span>できた ' + s.completed + (state.withSupport ? ' / ' + ROUNDS_PER_SESSION : '') + '</span><span>ミス ' + s.defects + '</span><span>ヒント ' + s.questionCount + '</span></div>' +
-    '<div class="row"><button type="button" id="h-hint">ヒント</button><button type="button" id="h-back">島ぜんたいへ</button></div>';
-  $('h-hint').onclick = () => useHint(false); $('h-back').onclick = goPlaza;
+    '<div class="row"><button type="button" id="h-hint">ヒント</button><button type="button" id="h-back">島ぜんたいへ</button>' + exitBtn + '</div>';
+  $('h-hint').onclick = () => useHint(false); $('h-back').onclick = goPlaza; $('h-exit').onclick = exitToWalk;
 }
 function showChoose_() { showChoose(); renderHud(); }
+
+// ===========================================================================
+// 自分で あそぶ（仕事の あいまに）
+//   冬：湖で スケート（氷の 上に 乗ると すべる）・ゲレンデで スキー（リフトで 上へ → すべりおりる）
+//   夏：山登り（登山口から 頂上へ）・ビーチで 泳ぐ・パラソルの 下で 日向ぼっこ
+//   いつでも：屋台で 買う（お金モードは お金を 使う）
+// ===========================================================================
+const inPoly = (poly, px, py) => { let ins = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const [xi, yi] = poly[i]; const [xj, yj] = poly[j]; if ((yi > py) !== (yj > py) && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi) ins = !ins; } return ins; };
+const onIce = (x, z) => season === 'winter' && LAKE.blk && ((x - LAKE.blk.x) / LAKE.rx) ** 2 + ((z - LAKE.blk.z) / LAKE.rz) ** 2 < 1;
+const onBeach = (x, z) => inPoly(BEACH, ...toMap(x, z));
+const skateV = new THREE.Vector3();
+const PLAY_NAME = { ski: 'スキー', climb: '山登り', swim: '海で 泳ぐ', sun: '日向ぼっこ' };
+// 左スティック（VR）
+function xrMove() {
+  const xr = renderer.xr.isPresenting && renderer.xr.getSession(); if (!xr) return null;
+  for (const src of xr.inputSources) { const gp = src.gamepad; if (src.handedness === 'left' && gp && gp.axes.length >= 4 && Math.hypot(gp.axes[2], gp.axes[3]) > 0.2) return { fwd: -gp.axes[3], strafe: gp.axes[2] }; }
+  return { fwd: 0, strafe: 0 };
+}
+// スケート：氷の 上では すべって 進み、ゆっくり 止まる
+function skateStep(dt, fwd, strafe) {
+  if (!state.skating) { state.skating = true; toast('スケート中：すべって 進みます'); renderHud(); }
+  camera.getWorldDirection(tmpDir); tmpDir.y = 0; if (tmpDir.lengthSq() < 1e-6) return; tmpDir.normalize();
+  skateV.x += (tmpDir.x * fwd - tmpDir.z * strafe) * 3.2 * dt; skateV.z += (tmpDir.z * fwd + tmpDir.x * strafe) * 3.2 * dt;
+  const sp = Math.hypot(skateV.x, skateV.z); const max = walkKeys.run ? 6 : 4.2; if (sp > max) skateV.multiplyScalar(max / sp);
+  skateV.multiplyScalar(Math.max(0, 1 - 0.45 * dt));
+  const p = rig.position; const nx = p.x + skateV.x * dt; const nz = p.z + skateV.z * dt;
+  if (onIce(nx, nz) || walkable(nx, nz)) { p.x = nx; p.z = nz; } else skateV.multiplyScalar(-0.3); // はしで はね返る
+}
+function leaveForPlay() {
+  stopSpeech(); clearWork();
+  if (state.booth) Object.values(state.booth.btns).forEach((m) => { m.visible = false; });
+  state.booth = null; state.phase = 'choose'; state.session = null; state.round = null; state.cameFromWalk = false; state.skating = false;
+  overviewOnly.forEach((m) => { m.visible = false; }); tween = null; look.yaw = 0;
+  Object.keys(walkKeys).forEach((k) => { walkKeys[k] = false; }); syncPad();
+}
+function startSki() {
+  const m = seasonal.mount; if (season !== 'winter') { toast('スキーは 冬だけです（上の「季節」）'); return; }
+  leaveForPlay();
+  state.where = 'play'; state.play = { kind: 'ski', run: Math.random() < 0.5 ? 0 : 1, r: m.MR * 0.32, lat: 0, v: 1.2, t0: performance.now() };
+  toast('リフトで 上に つきました。← → で よけながら すべります');
+  renderHud();
+}
+function startClimb() {
+  if (season !== 'summer') { toast('冬の 山は スキー場です（夏に 登れます）'); return; }
+  const m = seasonal.mount; const th = seasonal.trailAt;
+  leaveForPlay();
+  state.where = 'play'; state.play = { kind: 'climb', s: 0, a0: Math.atan2(th.z - m.peak.z, th.x - m.peak.x), summit: false };
+  renderHud();
+}
+function startSwim() {
+  if (season !== 'summer') { toast('泳げるのは 夏だけです'); return; }
+  const land = rig.position.clone(); let w = null;
+  for (let rr = 1; rr < 25 && !w; rr += 0.5) for (let a = 0; a < 24 && !w; a++) { const x = land.x + Math.cos(a / 24 * TAU) * rr; const z = land.z + Math.sin(a / 24 * TAU) * rr; if (!insideIsland(...toMap(x, z))) w = new THREE.Vector3(x, 0, z); }
+  if (!w) { toast('ここからは 海に 入れません'); return; }
+  leaveForPlay();
+  state.where = 'play'; state.play = { kind: 'swim', land, t: 0 };
+  rig.position.set(w.x, -1.7, w.z); rig.rotation.y = Math.atan2(w.x - land.x, w.z - land.z); look.pitch = 0; // 岸（ビーチ）の 方を 向いて 海に 浮かぶ
+  renderHud();
+}
+let towel = null;
+function startSun() {
+  const p = rig.position; let best = null; let bd = 9;
+  seasonal.parasols.forEach((q) => { const d = Math.hypot(q.x - p.x, q.z - p.z); if (d < bd) { bd = d; best = q; } });
+  if (!best || season !== 'summer') { toast('パラソルの 近くで できます（夏）'); return; }
+  leaveForPlay();
+  if (!towel) { towel = new THREE.Group(); const t = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.02, 1.8), mat('#3c7fc4')); t.position.y = 0.06; towel.add(t); const st = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.021, 0.3), mat('#ffffff')); st.position.set(0, 0.07, 0.4); towel.add(st); scene.add(towel); }
+  towel.position.set(best.x + 0.5, 0, best.z); towel.visible = true;
+  state.where = 'play'; state.play = { kind: 'sun', at: best.clone(), t: 0, said: false };
+  rig.position.set(best.x + 0.3, -1.2, best.z); rig.rotation.y = 0; look.yaw = 0; look.pitch = -1.05; // ねころんで パラソルと 空を 見あげる
+  renderHud();
+}
+function endPlay() {
+  const pl = state.play; if (!pl) return;
+  const m = seasonal.mount; if (towel) towel.visible = false;
+  state.play = null;
+  if (pl.kind === 'ski') { const dir = m.runs[pl.run]; startWalk(new THREE.Vector3(m.peak.x + dir.x * (m.MR + 2.5), 0, m.peak.z + dir.z * (m.MR + 2.5)), Math.atan2(-dir.x, -dir.z)); }
+  else if (pl.kind === 'climb') startWalk(seasonal.trailAt.clone().add(new THREE.Vector3(1.5, 0, 1.5)), 0);
+  else if (pl.kind === 'swim') startWalk(pl.land, rig.rotation.y + Math.PI);
+  else if (pl.kind === 'sun') startWalk(new THREE.Vector3(pl.at.x + 1.6, 0, pl.at.z + 0.8), 0);
+}
+function stepPlay(dt, now) {
+  const pl = state.play; if (state.where !== 'play' || !pl) return;
+  const m = seasonal.mount; const xr = xrMove();
+  const fwd = xr ? xr.fwd : (walkKeys.fwd ? 1 : 0) - (walkKeys.back ? 1 : 0);
+  const side = xr ? xr.strafe : (walkKeys.right ? 1 : 0) - (walkKeys.left ? 1 : 0);
+  if (pl.kind === 'ski') {
+    const dir = m.runs[pl.run]; const sd = new THREE.Vector3(-dir.z, 0, dir.x); const W = m.widths[pl.run];
+    pl.v = Math.min(walkKeys.run ? 11 : 8, pl.v + (2.2 - (side ? 0.9 : 0)) * dt);
+    pl.lat = Math.max(-W * 0.45, Math.min(W * 0.45, pl.lat + side * 2.4 * dt));
+    pl.r += pl.v * dt * 0.55;
+    const x = m.peak.x + dir.x * pl.r + sd.x * pl.lat; const z = m.peak.z + dir.z * pl.r + sd.z * pl.lat;
+    rig.position.set(x, m.heightAt(x, z) + 0.12, z); rig.rotation.y = Math.atan2(-dir.x, -dir.z) - side * 0.15; look.pitch = 0.32;
+    if (pl.r > m.MR * 1.12) { toast('ゴール！ ' + Math.round((now - pl.t0) / 1000) + '秒で すべりました'); endPlay(); }
+  } else if (pl.kind === 'climb') {
+    pl.s = Math.max(0, Math.min(1, pl.s + fwd * dt / 40));
+    const at = (s) => { const a = pl.a0 + s * Math.PI * 2.2; const r = m.MR * (1 - s) * 0.97 + 0.4 * s; return [m.peak.x + Math.cos(a) * r, m.peak.z + Math.sin(a) * r]; };
+    const [x, z] = at(pl.s); const [x2, z2] = at(Math.min(1, pl.s + 0.01));
+    rig.position.set(x, m.heightAt(x, z) + 0.15, z);
+    if (pl.s < 0.995) rig.rotation.y = Math.atan2(-(x2 - x), -(z2 - z));
+    if (pl.s >= 0.99 && !pl.summit) { pl.summit = true; toast('山頂に とうちゃく！ 島が ぜんぶ 見わたせます'); look.pitch = 0.2; }
+    if (pl.s <= 0 && fwd < 0) endPlay();
+  } else if (pl.kind === 'swim') {
+    pl.t += dt; rig.rotation.y -= ((walkKeys.right ? 1 : 0) - (walkKeys.left ? 1 : 0)) * 1.5 * dt;
+    camera.getWorldDirection(tmpDir); tmpDir.y = 0; tmpDir.normalize();
+    const sf = xr ? xr.strafe : 0; const sp = 1.3 * dt;
+    const nx = rig.position.x + (tmpDir.x * fwd - tmpDir.z * sf) * sp; const nz = rig.position.z + (tmpDir.z * fwd + tmpDir.x * sf) * sp;
+    if (!insideIsland(...toMap(nx, nz)) && Math.hypot(nx - pl.land.x, nz - pl.land.z) < 30) { rig.position.x = nx; rig.position.z = nz; }
+    rig.position.y = -1.7 + Math.sin(pl.t * 2) * 0.06; // 波で ゆれる
+  } else if (pl.kind === 'sun') {
+    pl.t += dt;
+    if (pl.t > 6 && !pl.said) { pl.said = true; toast('あたたかくて 気持ちいい…'); }
+  }
+}
+// 歩いている とき、近くで できる こと
+function nearbyActions() {
+  if (state.where !== 'walk') return [];
+  const p = rig.position; const out = []; const m = seasonal.mount;
+  if (season === 'winter' && m && Math.hypot(p.x - m.liftA.x, p.z - m.liftA.z) < 7) out.push(['ski', 'リフトで 上って スキー']);
+  if (season === 'summer' && seasonal.trailAt && Math.hypot(p.x - seasonal.trailAt.x, p.z - seasonal.trailAt.z) < 7) out.push(['climb', '山に のぼる']);
+  const nearParasol = seasonal.parasols.some((q) => Math.hypot(q.x - p.x, q.z - p.z) < 6);
+  if (season === 'summer' && (onBeach(p.x, p.z) || nearParasol)) {
+    out.push(['swim', '海で 泳ぐ']);
+    if (nearParasol) out.push(['sun', 'パラソルで 日向ぼっこ']);
+  }
+  const y = booths.find((b) => b.job.id === 'yatai'); if (y && Math.hypot(y.door.x - p.x, y.door.z - p.z) < 6) out.push(['buy', '屋台で 買う']);
+  return out;
+}
+const PLAY_ACTS = { ski: startSki, climb: startClimb, swim: startSwim, sun: startSun, buy: () => openYataiShop() };
+let lastNearby = '';
+function checkNearby() { const k = nearbyActions().map((a) => a[0]).join(',') + (state.skating ? '|s' : ''); if (k !== lastNearby) { lastNearby = k; renderHud(); } }
+// 屋台で 買う（お客さんとして）
+const SNACKS = { summer: [['いちごの かき氷', 200], ['メロンの かき氷', 200], ['ラムネ', 150], ['やきそば', 300]], winter: [['焼きいも', 200], ['甘酒', 150], ['おしるこ', 250]] };
+function openYataiShop() {
+  if (!profile) return;
+  modal.dataset.closable = '1';
+  const money = profile.mode === 'money';
+  openModal('<h2>屋台で 買う</h2><p>' + (money ? 'お金：' + yen(profile.money) : 'バッジのみモードなので、ごちそうに なります') + '</p>' +
+    '<div class="shop-grid">' + SNACKS[season].map(([n, price], i) => '<div class="item"><b>' + esc(n) + '</b><span>' + (money ? yen(price) : '') + '</span><button type="button" data-snack="' + i + '"' + (money && profile.money < price ? ' disabled>お金が たりない' : ' class="primary">' + (money ? '買う' : 'もらう')) + '</button></div>').join('') +
+    '</div><div class="row"><button type="button" id="ys-close">とじる</button></div>',
+  (card) => {
+    card.querySelectorAll('[data-snack]:not([disabled])').forEach((btn) => {
+      btn.onclick = () => {
+        const [n, price] = SNACKS[season][Number(btn.dataset.snack)];
+        if (money) profile.money -= price;
+        profile.snacks = (profile.snacks || 0) + 1; saveProfile(); renderWallet(); closeModal();
+        toast(n + 'を ' + (money ? '買いました' : 'もらいました') + '。おいしい！');
+      };
+    });
+    $('ys-close').onclick = closeModal;
+  });
+}
 
 // ---- 画面の まんなかの カード（オープニング・家の 場所・設定・買い物・バッジ帳）
 const modal = $('modal'); const modalCard = $('modal-card');
@@ -3241,9 +3514,19 @@ function openOpening() {
     '<label class="field" for="op-name">名前</label><input type="text" id="op-name" maxlength="12" placeholder="例：みな" autocomplete="off">' +
     '<div class="field">性別（家の 中の 自分の 姿に 使います）</div>' + radio('op-g', GENDER, 'n') +
     '<div class="field">あそびかた</div>' + radio('op-m', MODE_HTML, 'money') +
-    '<div class="row"><button type="button" class="primary" id="op-go">フェリーで 出発</button><button type="button" id="op-skip">オープニングを とばす</button></div>',
+    (cloud.url ? '<label class="field" for="op-id">利用者ID（記録を スプレッドシートに 残す・ほかの 端末から ひきつぐ）</label><input type="text" id="op-id" maxlength="32" placeholder="例：A001" autocomplete="off" value="' + esc(cloud.id) + '">' : '') +
+    '<div class="row"><button type="button" class="primary" id="op-go">フェリーで 出発</button><button type="button" id="op-skip">オープニングを とばす</button>' + (cloud.url ? '<button type="button" id="op-load">IDで つづきから</button>' : '') + '</div>',
   () => {
+    if ($('op-load')) $('op-load').onclick = () => {
+      const id = $('op-id').value.trim(); if (!id) { toast('利用者IDを 入れて ください'); return; }
+      cloud.id = id; saveCloudCfg();
+      cloudLoad(id).then((j) => {
+        if (j && j.profile && adoptCloudProfile(j.profile)) { closeModal(); toast(profile.name + 'さん、おかえりなさい'); if (home.group) goHome(true); else openAreaPicker(true); }
+        else toast('この IDの 記録は ありません。新しく はじめて ください');
+      });
+    };
     const start = (skip) => {
+      if ($('op-id')) { cloud.id = $('op-id').value.trim(); saveCloudCfg(); }
       const name = $('op-name').value.trim() || 'あなた';
       profile = { name, gender: pickVal('op-g') || 'n', mode: pickVal('op-m') || 'money', home: null, money: 0, badges: {}, owned: [], since: new Date().toISOString() };
       saveProfile(); renderWallet();
@@ -3280,6 +3563,11 @@ function openSettings() {
     '<div class="field">あそびかた</div>' + radio('st-m', MODE_HTML, profile.mode) +
     '<p>あそびかたを かえても、いままでの バッジ・お金・家具は のこります。</p>' +
     '<div class="row"><button type="button" class="primary" id="st-save">保存</button><button type="button" id="st-move">引っ越し</button><button type="button" id="st-close">とじる</button></div>' +
+    '<div class="field">スプレッドシートに 保存（デモ）</div><p>gas/Code.gs の ウェブアプリの URL と、利用者ID（本名ではなく 番号など）を 入れると、ほかの 端末でも つづきから あそべます。</p>' +
+    '<input type="text" id="st-url" placeholder="https://script.google.com/macros/s/…/exec" value="' + esc(cloud.url) + '" autocomplete="off">' +
+    '<input type="text" id="st-id" placeholder="利用者ID（例：A001）" maxlength="32" value="' + esc(cloud.id) + '" autocomplete="off" style="margin-top:6px">' +
+    '<div class="row"><button type="button" id="st-cloud">つないで 保存</button><button type="button" id="st-pull">スプレッドシートから 読みこむ</button></div>' +
+    '<p id="st-cloud-status">' + esc(cloudStatus || (cloudOn() ? 'つながる 設定に なっています' : 'まだ つないで いません（このブラウザだけに 保存）')) + '</p>' +
     '<div class="row"><button type="button" id="st-reset">最初から やりなおす</button></div>',
   () => {
     $('st-save').onclick = () => {
@@ -3287,6 +3575,9 @@ function openSettings() {
       saveProfile(); buildHome(); renderWallet(); closeModal(); renderHud(); toast('保存しました');
     };
     $('st-move').onclick = () => openAreaPicker(false);
+    const setCloud = () => { cloud.url = $('st-url').value.trim(); cloud.id = $('st-id').value.trim(); saveCloudCfg(); };
+    $('st-cloud').onclick = () => { setCloud(); if (!cloudOn()) { $('st-cloud-status').textContent = 'URL と 利用者IDを 入れて ください'; return; } $('st-cloud-status').textContent = '保存中…'; cloudPost({ action: 'saveProfile', profile }).then(() => { $('st-cloud-status').textContent = cloudStatus; }); };
+    $('st-pull').onclick = () => { setCloud(); $('st-cloud-status').textContent = '読みこみ中…'; cloudLoad(cloud.id).then((j) => { if (j && j.profile) { profile.updatedAt = ''; adoptCloudProfile(j.profile); renderHud(); $('st-cloud-status').textContent = '読みこみました（' + esc(profile.name) + 'さん）'; } else $('st-cloud-status').textContent = j ? 'この IDの 記録は ありません' : 'つながりません'; }); };
     $('st-close').onclick = closeModal;
     $('st-reset').onclick = () => {
       const b = $('st-reset');
@@ -3326,7 +3617,7 @@ function openBadgeBook() {
   if (!profile) return;
   modal.dataset.closable = '1';
   const next = ['最後まで やる（配慮ありでも OK）', 'ミス 1回までで 最後まで', '配慮なしで ミス 0・ヒント 0', 'そろいました'];
-  openModal('<h2>バッジ帳</h2><p>銅：最後まで やる ／ 銀：ミス 1回まで ／ 金：配慮なしで ミス 0・ヒント 0。全部の お店で そろうと トロフィー。</p>' +
+  openModal('<h2>バッジ帳</h2><p>銅：最後まで やる ／ 銀：ミス 1回まで ／ 金：配慮なしで ミス 0・ヒント 0（配慮ありは 銀まで）。全部の お店で そろうと トロフィー。</p>' +
     '<table class="badge-table"><tr><th>お店</th><th>バッジ</th><th>つぎの めやす</th></tr>' +
     JOBS.map((j) => { const lv = badgeOf(j.id); return '<tr><td>' + esc(j.name) + '</td><td><span class="medal" style="background:' + MEDAL_COLOR[lv] + '">' + MEDAL[lv] + '</span></td><td>' + next[lv] + '</td></tr>'; }).join('') +
     '</table><p>トロフィー：' + MEDAL[trophyLevel()] + '</p><div class="row"><button type="button" id="bb-close">とじる</button></div>',
@@ -3385,6 +3676,7 @@ renderer.setAnimationLoop((now) => {
   }
   if (!renderer.xr.isPresenting) { camera.rotation.y = look.yaw; camera.rotation.x = -look.pitch; }
   walkStep(dt);
+  stepPlay(dt, now);
   stepOpening(now);
   updateSnow(dt, now);
   // 配慮あり：しばらく手が止まったら、つぎに選ぶものを光らせる（声かけ 1 回として数える）
@@ -3416,13 +3708,14 @@ $('btn-home').addEventListener('click', () => goHome());
 $('btn-settings').addEventListener('click', openSettings);
 window.hopeTown = {
   state, goBooth, startSession, select: onSelectItem, nextTargetKey, setSeason, startWalk, exitToWalk, walkKeys, rig, booths, goHome, exitHome, goPlaza,
-  get profile() { return profile; }, home, openShop, openBadgeBook, openSettings, openAreaPicker,
+  get profile() { return profile; }, home, seasonal, LAKE, toWorld, nearbyActions, openShop, openBadgeBook, openSettings, openAreaPicker,
   // テスト用：オープニングを とばして 家を 用意する
   quickStart(homeKey, mode) { profile = { name: 'テスト', gender: 'n', mode: mode || 'money', home: homeKey || 'downtown', money: 0, badges: {}, owned: [], since: new Date().toISOString() }; saveProfile(); closeModal(); buildHome(); renderWallet(); goPlaza(); },
 };
 // 最初は 島ぜんたいを 見わたす。名前が まだ なら オープニング、家が あれば 家から 出発
 rig.position.copy(OVERVIEW.pos); rig.rotation.y = OVERVIEW.yaw; look.pitch = OVERVIEW.pitch;
 buildHome(); renderWallet();
+if (profile && cloudOn()) cloudLoad(cloud.id).then((j) => { if (j && j.profile && adoptCloudProfile(j.profile) && state.where === 'home') goHome(true); });
 if (!profile) openOpening();
 else if (home.group) goHome(true);
 else openAreaPicker(true);
