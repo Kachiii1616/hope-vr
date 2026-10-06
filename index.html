@@ -103,6 +103,18 @@ button.primary { background: var(--accent); color: var(--accent-ink); border-col
 .log .actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
 .log textarea { width: 100%; box-sizing: border-box; min-height: 120px; margin-top: 8px; font: 12px/1.4 ui-monospace, Menlo, monospace; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: 8px; }
 
+.pad {
+  position: fixed; z-index: 3; right: 16px; bottom: calc(env(safe-area-inset-bottom, 0px) + 68px);
+  display: grid; grid-template-columns: repeat(3, 52px); grid-template-rows: repeat(2, 52px); gap: 6px;
+  touch-action: none; user-select: none; -webkit-user-select: none;
+}
+.pad[hidden] { display: none; }
+.pad button { padding: 0; font-size: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,.12); }
+.pad button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.pad .up { grid-column: 2; grid-row: 1; }
+.pad .left { grid-column: 1; grid-row: 2; }
+.pad .down { grid-column: 2; grid-row: 2; }
+.pad .right { grid-column: 3; grid-row: 2; }
 .toast { position: fixed; z-index: 4; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 72px); transform: translateX(-50%);
   background: var(--ink); color: var(--paper); padding: 6px 14px; border-radius: 999px; font-size: 13px; }
 
@@ -120,6 +132,7 @@ button.primary { background: var(--accent); color: var(--accent-ink); border-col
   <div class="brand">HOPE しごとタウン<small>職業体験 VR 下書き</small></div>
   <div class="place" id="place">島ぜんたい</div>
   <div class="spacer"></div>
+  <button id="btn-walk" type="button">島を歩く</button>
   <button id="btn-season" type="button">季節：夏</button>
   <button id="btn-log" type="button">きろく</button>
   <button id="btn-vr" type="button" class="primary" hidden>VR で入る</button>
@@ -140,6 +153,12 @@ button.primary { background: var(--accent); color: var(--accent-ink); border-col
 </aside>
 
 <nav class="hud bottom" id="chips" aria-label="職業をえらぶ"></nav>
+<div class="pad" id="pad" hidden aria-label="歩くボタン">
+  <button type="button" class="up" data-key="fwd" aria-label="前へ">▲</button>
+  <button type="button" class="left" data-key="left" aria-label="左を向く">◀</button>
+  <button type="button" class="down" data-key="back" aria-label="うしろへ">▼</button>
+  <button type="button" class="right" data-key="right" aria-label="右を向く">▶</button>
+</div>
 <div class="toast" id="toast" hidden></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -556,18 +575,28 @@ function crossPoint(a, b, c, d) {
   const t = ((c.x - a.x) * r2z - (c.z - a.z) * r2x) / den; const u = ((c.x - a.x) * r1z - (c.z - a.z) * r1x) / den;
   return t >= 0 && t <= 1 && u >= 0 && u <= 1 ? new THREE.Vector3(a.x + r1x * t, 0, a.z + r1z * t) : null;
 }
-function block(x, z, r) { blocked.push({ x, z, r }); }
+// w は 歩くときの ぶつかる大きさ（0 は 歩いて 通れる＝畑・校庭・入口の前など。省くと r と同じ）
+function block(x, z, r, w) { blocked.push({ x, z, r, w: w === undefined ? r : w }); }
+// 歩いて 行けるか（島の中・建物や 木に ぶつからない・川は 橋の 上だけ）
+const WALKER_R = 0.3;
+function walkable(x, z) {
+  const m = WALKER_R / MAP_SCALE; const [px, py] = toMap(x, z);
+  if (![[0, 0], [m, 0], [-m, 0], [0, m], [0, -m]].every(([ox, oy]) => insideIsland(px + ox, py + oy))) return false;
+  if (blocked.some((b) => b.w > 0 && Math.hypot(b.x - x, b.z - z) < b.w + WALKER_R)) return false;
+  const onRoad = roadSegs.some(([a, b]) => segDist(x, z, a, b) < ROAD_W / 2);
+  return onRoad || !riverSegs.some(([a, b, w]) => segDist(x, z, a, b) < w / 2 + 0.1);
+}
 
 // 毎回同じ町になるよう、決まった順の乱数で散らす
 let seed = 20260616;
 const rand = () => { seed |= 0; seed = (seed + 0x6D2B79F5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
-function scatter(cx, cy, rx, ry, count, r, make) {
+function scatter(cx, cy, rx, ry, count, r, make, walkR) {
   let placed = 0;
   for (let tries = 0; tries < count * 40 && placed < count; tries++) {
     const a = rand() * Math.PI * 2; const d = Math.sqrt(rand());
     const p = toWorld(cx + Math.cos(a) * rx * d, cy + Math.sin(a) * ry * d);
     if (!isFree(p.x, p.z, r)) continue;
-    block(p.x, p.z, r); make(p.x, p.z, placed); placed++;
+    block(p.x, p.z, r, walkR); make(p.x, p.z, placed); placed++;
   }
 }
 
@@ -699,7 +728,8 @@ JOBS.forEach((job, i) => {
   // 建物（奥の部屋〜入口）と、入口の前はふさいでおく
   const front = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
   block(g.position.x + front.x * 0.9, g.position.z + front.z * 0.9, 4.3);
-  block(g.position.x + front.x * (SHOP_DEPTH + 1.2), g.position.z + front.z * (SHOP_DEPTH + 1.2), 1.4);
+  block(g.position.x + front.x * (SHOP_DEPTH + 1.2), g.position.z + front.z * (SHOP_DEPTH + 1.2), 1.4, 0);
+  const door = new THREE.Vector3(g.position.x + front.x * (SHOP_DEPTH + 1.2), 0, g.position.z + front.z * (SHOP_DEPTH + 1.2)); // 入口の前（歩いて ここに 来ると 中に 入る）
 
   // 建物（背中が外、正面がローカル +z）
   //   z = 0 が お店の奥の壁（掲示板）、z = SHOP_DEPTH が 入口の壁。作業台と 立つ位置は その間（お店の中）。
@@ -751,13 +781,14 @@ JOBS.forEach((job, i) => {
     hint: makeButton('ヒント', '#e0a23a', 0.36, 0.14),
     back: makeButton('島ぜんたいへ', '#3d4a54', 0.56, 0.14),
     again: makeButton('もう一度', job.color, 0.46, 0.14),
+    exit: makeButton('外に出る', '#2f7d4f', 0.56, 0.14),
   };
   // 掲示板の左右に並べる（VR でも 目線を 大きく 下げずに 押せる高さ）
   btns.with.position.set(-1.62, 2.2, 0.03); btns.without.position.set(-1.62, 1.95, 0.03);
-  btns.hint.position.set(-1.62, 1.95, 0.03); btns.again.position.set(1.62, 1.95, 0.03); btns.back.position.set(1.62, 1.55, 0.03);
+  btns.hint.position.set(-1.62, 1.95, 0.03); btns.again.position.set(1.62, 1.95, 0.03); btns.back.position.set(1.62, 1.55, 0.03); btns.exit.position.set(1.62, 1.35, 0.03);
   Object.values(btns).forEach((m) => { g.add(m); m.visible = false; });
 
-  booths.push({ job, group: g, yaw, board, workArea, btns, pin });
+  booths.push({ job, group: g, yaw, front, door, board, workArea, btns, pin });
 });
 
 // 地域の名前（お店のない地域・目じるし）
@@ -913,19 +944,19 @@ function tree(x, z, kind) {
     if (rand() < 0.7) neonSign(x, z, h, w);
   });
   // 住宅地
-  scatter(190, 520, 48, 48, 12, 1.8, (x, z) => house(x, z, pick(['#f6efe2', '#f1e4d0', '#e8eef2']), pick(['#b9573f', '#5a6f8a', '#7a8a4f'])));
-  scatter(330, 455, 40, 30, 6, 1.8, (x, z) => house(x, z, pick(['#f6efe2', '#f1e4d0']), pick(['#b9573f', '#5a6f8a'])));
+  scatter(190, 520, 48, 48, 12, 1.8, (x, z) => house(x, z, pick(['#f6efe2', '#f1e4d0', '#e8eef2']), pick(['#b9573f', '#5a6f8a', '#7a8a4f'])), 1.4);
+  scatter(330, 455, 40, 30, 6, 1.8, (x, z) => house(x, z, pick(['#f6efe2', '#f1e4d0']), pick(['#b9573f', '#5a6f8a'])), 1.4);
 
   // 学校エリア：校舎と校庭
   const school = toWorld(352, 610); addBox(school.x, 1.8, school.z, 8, 3.6, 3.2, '#f4ecd8'); block(school.x, school.z, 4.4);
   addCyl(school.x, 4.2, school.z + 1.62, 0.6, 0.6, 0.08, '#ffffff', 20).rotation.x = Math.PI / 2;
-  const field = toWorld(408, 585); patch(ellipse(408, 585, 26, 20), '#d6a874', 0.07); block(field.x, field.z, 3.2);
+  const field = toWorld(408, 585); patch(ellipse(408, 585, 26, 20), '#d6a874', 0.07); block(field.x, field.z, 3.2, 0);
 
   // IT 企業：ガラスのビル
   scatter(315, 670, 45, 26, 3, 1.8, (x, z, k) => building(x, z, 3.2, 3.2, [13, 10, 16][k], '#9fc3e0', { metalness: 0.35, roughness: 0.25 }));
 
   // 漁村：家と、沖の漁船
-  scatter(600, 240, 60, 35, 9, 1.7, (x, z) => house(x, z, pick(['#f2ece0', '#e4ecef']), pick(['#3d6f9e', '#4f7f7a', '#9e4f3d'])));
+  scatter(600, 240, 60, 35, 9, 1.7, (x, z) => house(x, z, pick(['#f2ece0', '#e4ecef']), pick(['#3d6f9e', '#4f7f7a', '#9e4f3d'])), 1.4);
   function boat(px, py, ry) {
     const p = toWorld(px, py);
     addBox(p.x, -0.15, p.z, 1.4, 0.5, 3.6, '#f4f4f0', ry); addBox(p.x, 0.45, p.z, 1.0, 0.7, 1.2, '#2d7fa3', ry);
@@ -947,7 +978,7 @@ function tree(x, z, kind) {
   for (let py = 545; py < 760; py += 30) {
     for (let px = 620; px < 900; px += 42) {
       const p = toWorld(px + 21, py + 15); if (!isFree(p.x, p.z, 2.1)) continue;
-      block(p.x, p.z, 2.1);
+      block(p.x, p.z, 2.1, 0);
       patch([[px + 2, py + 2], [px + 40, py + 2], [px + 40, py + 28], [px + 2, py + 28]], pick(['#c9b36a', '#88b25a', '#a7c46a', '#b98f5a']), 0.06);
     }
   }
@@ -966,8 +997,8 @@ function tree(x, z, kind) {
   });
 
   // 林業エリア：針葉樹の森。島のあちこちにも木。
-  scatter(392, 262, 105, 82, 75, 0.9, (x, z) => tree(x, z, 'conifer'));
-  scatter(515, 450, 430, 340, 70, 0.9, (x, z) => tree(x, z));
+  scatter(392, 262, 105, 82, 75, 0.9, (x, z) => tree(x, z, 'conifer'), 0.35);
+  scatter(515, 450, 430, 340, 70, 0.9, (x, z) => tree(x, z), 0.35);
 })();
 
 // ===========================================================================
@@ -1533,6 +1564,7 @@ function goPlaza() {
   stopSpeech();
   clearWork();
   if (state.booth) Object.values(state.booth.btns).forEach((m) => { m.visible = false; });
+  state.cameFromWalk = false;
   state.where = 'plaza'; state.booth = null; state.phase = 'choose'; state.session = null; state.round = null;
   moveRig(OVERVIEW.pos, OVERVIEW.yaw, OVERVIEW.pitch);
   overviewOnly.forEach((m) => { m.visible = true; });
@@ -1540,6 +1572,7 @@ function goPlaza() {
 }
 
 function goBooth(i) {
+  state.cameFromWalk = state.where === 'walk' || (state.where === 'booth' && state.cameFromWalk);
   if (state.booth && state.booth !== booths[i]) { clearWork(); Object.values(state.booth.btns).forEach((m) => { m.visible = false; }); }
   stopSpeech();
   const b = booths[i];
@@ -1551,12 +1584,77 @@ function goBooth(i) {
   renderHud();
 }
 
+// 島を 歩く（地面の 高さで、道や 広場を 歩いて お店の 入口から 入る）
+const WALK_START = { at: [400, 505], yaw: -0.8 }; // 学校の 東の 交差点。北東（山）を 向く
+function startWalk(pos, yaw) {
+  stopSpeech();
+  clearWork();
+  if (state.booth) Object.values(state.booth.btns).forEach((m) => { m.visible = false; });
+  state.where = 'walk'; state.booth = null; state.phase = 'choose'; state.session = null; state.round = null; state.cameFromWalk = false;
+  overviewOnly.forEach((m) => { m.visible = false; });
+  moveRig(pos || toWorld(...WALK_START.at), yaw === undefined ? WALK_START.yaw : yaw, 0);
+  renderHud();
+}
+// お店から 外へ（入口の 前に 出て、お店に 背中を 向ける）
+function exitToWalk() {
+  const b = state.booth; if (!b) return;
+  let p = null;
+  for (const d of [SHOP_DEPTH + 3.0, SHOP_DEPTH + 2.2]) { const c = b.group.position.clone().addScaledVector(b.front, d); if (walkable(c.x, c.z)) { p = c; break; } }
+  startWalk(p || b.group.position.clone().addScaledVector(b.front, SHOP_DEPTH + 3.0), b.yaw + Math.PI);
+}
+const walkKeys = { fwd: false, back: false, left: false, right: false, run: false };
+const KEYMAP = { KeyW: 'fwd', ArrowUp: 'fwd', KeyS: 'back', ArrowDown: 'back', KeyA: 'left', ArrowLeft: 'left', KeyD: 'right', ArrowRight: 'right', ShiftLeft: 'run', ShiftRight: 'run' };
+const tmpDir = new THREE.Vector3(); const tmpHead = new THREE.Vector3();
+let snapReady = true;
+function walkStep(dt) {
+  if (state.where !== 'walk' || tween) return;
+  let fwd = (walkKeys.fwd ? 1 : 0) - (walkKeys.back ? 1 : 0); let strafe = 0; let turn = (walkKeys.right ? 1 : 0) - (walkKeys.left ? 1 : 0);
+  // VR：左スティックで 歩く、右スティックで 30 度ずつ 向きを かえる（酔いにくい）
+  const xr = renderer.xr.isPresenting && renderer.xr.getSession();
+  if (xr) {
+    for (const src of xr.inputSources) {
+      const gp = src.gamepad; if (!gp || gp.axes.length < 4) continue;
+      const ax = gp.axes[2]; const ay = gp.axes[3];
+      if (src.handedness === 'left') { if (Math.hypot(ax, ay) > 0.2) { fwd = -ay; strafe = ax; } } else if (src.handedness === 'right') {
+        if (Math.abs(ax) > 0.7 && snapReady) { snapTurn(ax > 0 ? -Math.PI / 6 : Math.PI / 6); snapReady = false; }
+        if (Math.abs(ax) < 0.3) snapReady = true;
+      }
+    }
+    turn = 0;
+  }
+  if (turn) look.yaw -= turn * 1.8 * dt; // パソコン・スマホは なめらかに 向きを かえる
+  if (!fwd && !strafe) return;
+  camera.getWorldDirection(tmpDir); tmpDir.y = 0; if (tmpDir.lengthSq() < 1e-6) return; tmpDir.normalize();
+  const speed = (walkKeys.run ? 5 : 2.6) * dt;
+  const dx = (tmpDir.x * fwd - tmpDir.z * strafe) * speed; const dz = (tmpDir.z * fwd + tmpDir.x * strafe) * speed;
+  const p = rig.position;
+  if (walkable(p.x + dx, p.z + dz)) { p.x += dx; p.z += dz; } else if (walkable(p.x + dx, p.z)) p.x += dx; else if (walkable(p.x, p.z + dz)) p.z += dz; // 壁ぞいに すべる
+  // お店の 入口に 来たら 中へ
+  const near = booths.findIndex((b) => Math.hypot(b.door.x - p.x, b.door.z - p.z) < 1.3);
+  if (near >= 0) { Object.keys(walkKeys).forEach((k) => { walkKeys[k] = false; }); syncPad(); goBooth(near); }
+}
+function snapTurn(a) {
+  camera.getWorldPosition(tmpHead); const before = tmpHead.clone();
+  rig.rotation.y += a; rig.updateMatrixWorld(true);
+  camera.getWorldPosition(tmpHead);
+  rig.position.x += before.x - tmpHead.x; rig.position.z += before.z - tmpHead.z;
+}
+function syncPad() { document.querySelectorAll('#pad button').forEach((b) => b.setAttribute('aria-pressed', String(!!walkKeys[b.dataset.key]))); }
+window.addEventListener('keydown', (e) => {
+  if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || !(e.code in KEYMAP)) return;
+  if (state.where === 'walk' && e.code.startsWith('Arrow')) e.preventDefault();
+  walkKeys[KEYMAP[e.code]] = true;
+});
+window.addEventListener('keyup', (e) => { if (e.code in KEYMAP) walkKeys[KEYMAP[e.code]] = false; });
+window.addEventListener('blur', () => { Object.keys(walkKeys).forEach((k) => { walkKeys[k] = false; }); syncPad(); });
+
 // ===========================================================================
 // ブースの流れ：えらぶ → 作業 → 結果
 // ===========================================================================
 function setButtons(visibleKeys) {
   const b = state.booth; if (!b) return;
-  for (const [k, m] of Object.entries(b.btns)) m.visible = visibleKeys.includes(k);
+  const keys = state.cameFromWalk && visibleKeys.includes('back') ? visibleKeys.concat('exit') : visibleKeys;
+  for (const [k, m] of Object.entries(b.btns)) m.visible = keys.includes(k);
 }
 
 function applySeason() {
@@ -1890,6 +1988,7 @@ renderer.domElement.addEventListener('pointerup', (e) => {
 
 function currentClickables() {
   if (state.where === 'plaza') return booths.map((b) => b.pin).concat(plazaClickables);
+  if (state.where === 'walk') return plazaClickables;
   const b = state.booth; const list = Object.values(b.btns).filter((m) => m.visible);
   if (state.phase === 'work' && state.round) state.round.slots.forEach((s) => { if (!s.done) s.mesh.traverse((o) => { if (o.isMesh) list.push(o); }); });
   return list; // お店の中では 壁ごしに ほかの お店を えらばない（もどるのは「島ぜんたいへ」）
@@ -1907,6 +2006,7 @@ function handleRay(ray) {
   else if (obj === b.btns.again) showChoose();
   else if (obj === b.btns.hint) useHint(false);
   else if (obj === b.btns.back) goPlaza();
+  else if (obj === b.btns.exit) exitToWalk();
   renderHud();
 }
 
@@ -1967,34 +2067,50 @@ function renderChips() {
 function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 
 function renderHud() {
-  $('place').textContent = state.where === 'plaza' ? '島ぜんたい' : state.booth.job.area + '　' + state.booth.job.name + '・' + state.booth.job.work;
+  $('place').textContent = state.where === 'plaza' ? '島ぜんたい' : state.where === 'walk' ? '島を 歩いています' : state.booth.job.area + '　' + state.booth.job.name + '・' + state.booth.job.work;
+  $('pad').hidden = state.where !== 'walk';
+  $('btn-walk').textContent = state.where === 'walk' ? '見わたす' : '島を歩く';
   chipsEl.querySelectorAll('.chip').forEach((el, i) => el.setAttribute('aria-current', String(i === 0 ? state.where === 'plaza' : state.booth === booths[i - 1])));
   const el = $('instr');
   if (state.where === 'plaza') {
     el.innerHTML = '<span class="tag">Work Island</span><h2>やってみたい しごとを えらぶ</h2>' +
-      '<div>島の 地域ごとに、その土地の しごとが あります。旗や お店を タップ（VR では ゆびさして トリガー）すると、その お店の前に 移動します。ドラッグで 見回せます。</div>';
+      '<div>島の 地域ごとに、その土地の しごとが あります。旗や お店を タップ（VR では ゆびさして トリガー）すると、その お店の前に 移動します。ドラッグで 見回せます。</div>' +
+      '<div class="row"><button type="button" class="primary" id="h-walk">島を 歩いてみる</button></div>';
+    $('h-walk').onclick = () => startWalk();
     return;
   }
+  if (state.where === 'walk') {
+    el.innerHTML = '<span class="tag">島を歩く</span><h2>歩いて お店を さがす</h2>' +
+      '<div>お店の 入口まで 歩くと、中に 入れます。お店を タップしても 入れます。</div>' +
+      '<div class="meta"><span>パソコン：W A S D・矢印キー（Shift で 走る）・ドラッグで 見回す</span><span>スマホ：右下の ボタン</span><span>VR：左スティックで 歩く・右スティックで 向きを かえる</span></div>' +
+      '<div class="row"><button type="button" id="h-plaza">島ぜんたいへ</button></div>';
+    $('h-plaza').onclick = goPlaza;
+    return;
+  }
+  const exitBtn = state.cameFromWalk ? '<button type="button" id="h-exit">外に出る</button>' : '';
   const job = state.booth.job;
   if (state.phase === 'choose' && !isOpen(job)) {
     const want = SEASON_NAME[job.season];
     el.innerHTML = '<span class="tag">' + esc(job.name) + '</span><h2>いまは ' + SEASON_NAME[season] + '。お休みです</h2><div>' + esc(job.name) + 'は ' + want + 'に ひらきます。</div>' +
-      '<div class="row"><button type="button" class="primary" id="h-season">' + want + 'に する</button></div>';
+      '<div class="row"><button type="button" class="primary" id="h-season">' + want + 'に する</button>' + exitBtn + '</div>';
     $('h-season').onclick = () => setSeason(job.season);
+    if ($('h-exit')) $('h-exit').onclick = exitToWalk;
     return;
   }
   if (state.phase === 'choose') {
     el.innerHTML = '<span class="tag">' + esc(job.name) + '</span><h2>' + esc(job.work) + '</h2><div>' + esc(job.intro) + '</div>' +
-      '<div class="row"><button type="button" id="h-without">はじめる：配慮なし</button><button type="button" class="primary" id="h-with">はじめる：配慮あり</button></div>';
+      '<div class="row"><button type="button" id="h-without">はじめる：配慮なし</button><button type="button" class="primary" id="h-with">はじめる：配慮あり</button>' + exitBtn + '</div>';
     $('h-without').onclick = () => startSession(false); $('h-with').onclick = () => startSession(true);
+    if ($('h-exit')) $('h-exit').onclick = exitToWalk;
     return;
   }
   if (state.phase === 'result') {
     const last = logEntries[0];
     el.innerHTML = '<span class="tag">' + esc(job.name) + '</span><h2>おつかれさまでした</h2>' +
       (last ? '<div class="meta"><span>できた ' + last.phase.completed + ' こ</span><span>ミス ' + last.phase.defects + '</span><span>ヒント ' + last.phase.questionCount + '</span><span>ガイド ' + last.phase.promptCount + '</span><span>' + fmtDuration(last.phase.durationSec) + '</span></div>' : '') +
-      '<div class="row"><button type="button" id="h-again">もう一度</button><button type="button" id="h-log">きろくを見る</button></div>';
+      '<div class="row"><button type="button" id="h-again">もう一度</button><button type="button" id="h-log">きろくを見る</button>' + exitBtn + '</div>';
     $('h-again').onclick = showChoose_; $('h-log').onclick = () => toggleLog(true);
+    if ($('h-exit')) $('h-exit').onclick = exitToWalk;
     return;
   }
   const r = state.round; const s = state.session; if (!r || !s) return;
@@ -2056,13 +2172,16 @@ window.addEventListener('resize', onResize);
 onResize();
 
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+let lastFrame = performance.now();
 renderer.setAnimationLoop((now) => {
+  const dt = Math.min(0.1, (now - lastFrame) / 1000); lastFrame = now;
   if (tween) {
     const t = Math.min(1, (now - tween.t0) / tween.dur); const e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
     rig.position.lerpVectors(tween.from.p, tween.to.p, e); rig.rotation.y = tween.from.yaw + (tween.to.yaw - tween.from.yaw) * e;
     if (t >= 1) tween = null;
   }
   if (!renderer.xr.isPresenting) { camera.rotation.y = look.yaw; camera.rotation.x = -look.pitch; }
+  walkStep(dt);
   // 配慮あり：しばらく手が止まったら、つぎに選ぶものを光らせる（声かけ 1 回として数える）
   const r = state.round;
   if (r && state.phase === 'work' && state.withSupport && !r.hintShown && (now - r.lastActionAt) / 1000 > AUTO_HINT_SEC) useHint(true);
@@ -2075,10 +2194,17 @@ renderer.setAnimationLoop((now) => {
 renderChips();
 renderHud();
 renderLog();
+// スマホの 歩くボタン（押している 間だけ 歩く）
+document.querySelectorAll('#pad button').forEach((btn) => {
+  const set = (v) => (e) => { e.preventDefault(); walkKeys[btn.dataset.key] = v; syncPad(); };
+  btn.addEventListener('pointerdown', set(true));
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach((t) => btn.addEventListener(t, set(false)));
+});
+$('btn-walk').addEventListener('click', () => { if (state.where === 'walk') goPlaza(); else startWalk(); });
 applySeason();
 $('btn-season').addEventListener('click', () => setSeason(season === 'winter' ? 'summer' : 'winter'));
 // 動作確認用（テストから 作業を 進めるため）
-window.hopeTown = { state, goBooth, startSession, select: onSelectItem, nextTargetKey, setSeason };
+window.hopeTown = { state, goBooth, startSession, select: onSelectItem, nextTargetKey, setSeason, startWalk, exitToWalk, walkKeys, rig, booths };
 // 最初は 島ぜんたいを 見わたす
 rig.position.copy(OVERVIEW.pos); rig.rotation.y = OVERVIEW.yaw; look.pitch = OVERVIEW.pitch;
 if (document.fonts && document.fonts.ready) {
