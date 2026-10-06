@@ -1225,6 +1225,9 @@ const HOME_SITES = {
   farm: { name: '農村', note: '農園と 田んぼの そば。しずかな いなか', at: [834, 598], face: 's' },
 };
 Object.values(HOME_SITES).forEach((h) => { const p = toWorld(...h.at); h.blk = { x: p.x, z: p.z, r: 2.9, w: 0 }; blocked.push(h.blk); });
+// 家具屋（しごと体験は なし。お客さんとして 家具を 買いに 行く お店）。目抜き通りの 南がわで、入口は 北（通り）向き
+const FURN = { at: [445, 570], doorAt: [445, 528], W: 4.6, H: 4.2 };
+FURN.pos = toWorld(...FURN.at); FURN.door = toWorld(...FURN.doorAt); block(FURN.pos.x, FURN.pos.z, 3.0);
 
 // 地域の名前（お店のない地域・目じるし）
 [['ビーチ', [250, 205]], ['湖（冬は スケート場）', [265, 592]], ['田んぼ', [826, 424]], ['表：夏山登山　裏：冬スキー', [520, 392]],
@@ -1380,6 +1383,17 @@ function tree(x, z, kind) {
   // 学校エリア：校舎と校庭
   // （校舎は お店「学校」として 建てる。ここは 校庭だけ）
   const field = toWorld(408, 585); patch(ellipse(408, 585, 26, 20), '#d6a874', 0.07); block(field.x, field.z, 3.2, 0);
+
+  // 家具屋：木の 色の 店。入口の 上に 看板、店先に ソファと 観葉植物
+  (() => {
+    const { pos: p, W, H } = FURN; const fz = p.z - W / 2; // 北がわ（通りがわ）の 壁
+    building(p.x, p.z, W, W, H, '#d9b48a');
+    addBox(p.x, H + 0.15, p.z, W + 0.4, 0.3, W + 0.4, '#8a6a46');
+    addBox(p.x, 1.1, fz - 0.03, 1.4, 2.2, 0.06, '#6b4a2a'); // 入口
+    const sign = new Board(3.2, 0.8, 120); sign.draw((ctx, w, h) => { ctx.fillStyle = '#8a6a46'; roundRect(ctx, 0, 0, w, h, h * 0.2); ctx.fill(); ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = '700 ' + Math.round(h * 0.55) + 'px ' + FONT_DISPLAY; ctx.fillText('家具屋', w / 2, h * 0.54); });
+    sign.mesh.position.set(p.x, H - 0.8, fz - 0.06); sign.mesh.rotation.y = Math.PI; scene.add(sign.mesh);
+    const pin = overviewSign('家具屋', '家具を 買う', '#8a6a46', 5); pin.position.set(p.x, 8, p.z); pin.lookAt(OVERVIEW.pos); scene.add(pin); overviewOnly.push(pin);
+  })();
 
   // IT街：南の 通りぞいの ガラスの ビル
   [[466, 672, 7], [548, 725, 8], [462, 610, 6]].forEach(([px, py, h]) => {
@@ -2315,6 +2329,10 @@ const FURNITURE = {
   tv() { const g = new THREE.Group(); part(g, box(1.1, 0.45, 0.4), '#8a6a46', 0, 0.225, 0); part(g, box(1.0, 0.6, 0.05), '#1f2a33', 0, 0.8, -0.05); part(g, box(0.92, 0.52, 0.01), '#4f8fd1', 0, 0.8, -0.02, { emissive: '#2a5a85', emissiveIntensity: 0.5 }); return g; },
   bed() { const g = new THREE.Group(); part(g, box(1.05, 0.3, 1.95), '#8a6a46', 0, 0.15, 0); part(g, box(1.0, 0.16, 1.9), '#fbfaf4', 0, 0.38, 0); part(g, box(0.7, 0.1, 0.32), '#ffffff', 0, 0.5, -0.7); part(g, box(1.02, 0.08, 1.2), '#e07fa4', 0, 0.48, 0.32); part(g, box(1.05, 0.7, 0.06), '#8a6a46', 0, 0.35, -0.98); return g; },
 };
+// 家具屋の 店先に 見本の ソファと 観葉植物
+(() => { const p = FURN.pos; const fz = p.z - FURN.W / 2;
+  const sofa = FURNITURE.sofa(); sofa.position.set(p.x + 1.4, 0, fz - 0.7); sofa.rotation.y = Math.PI; scene.add(sofa);
+  const plant = FURNITURE.plant(); plant.position.set(p.x - 1.3, 0, fz - 0.5); scene.add(plant); })();
 function trophyMesh(color, ghost) {
   const g = new THREE.Group(); const ex = ghost ? { transparent: true, opacity: 0.2 } : { metalness: 0.6, roughness: 0.3 };
   const c = ghost ? '#c9ced2' : color;
@@ -2517,6 +2535,8 @@ function goHome(instant) {
   renderHud();
 }
 function exitHome() { startWalk(home.group.position.clone().addScaledVector(home.front, home.HD / 2 + 3.2), home.yaw + Math.PI); }
+// 家具屋の 入口の 前へ（お店に 向いて 立つ）
+function goFurniture() { const d = FURN.door; const p = new THREE.Vector3(d.x, 0, d.z - 1.5); startWalk(p, Math.PI); toast('家具屋に 着きました。入口の 前で「家具屋で ' + (profile.mode === 'money' ? '買う' : 'もらう') + '」を おしてください'); }
 function goPlaza() {
   stopSpeech();
   clearWork();
@@ -3126,8 +3146,8 @@ function buildMinimapBase() {
   const path = (pts) => { x.beginPath(); pts.forEach(([px, py], i) => { const [u, v] = mmPos(px, py); if (i) x.lineTo(u, v); else x.moveTo(u, v); }); };
   path(ISLAND); x.closePath(); x.fillStyle = season === 'winter' ? SNOW_TINT['#9cc47f'] : '#9cc47f'; x.fill();
   // 山
-  const [mx, my] = mmPos(520, 392); x.beginPath(); x.arc(mx, my, (11 / MAP_SCALE) * mmScale, 0, Math.PI * 2); x.fillStyle = '#7f9161'; x.fill();
-  x.beginPath(); x.arc(mx, my, (11 * 0.37 / MAP_SCALE) * mmScale, 0, Math.PI * 2); x.fillStyle = '#f7fbff'; x.fill();
+  const [mx, my] = mmPos(520, 392); x.beginPath(); x.arc(mx, my, (12.5 / MAP_SCALE) * mmScale, 0, Math.PI * 2); x.fillStyle = '#7f9161'; x.fill();
+  x.beginPath(); x.arc(mx, my, (12.5 * 0.3 / MAP_SCALE) * mmScale, 0, Math.PI * 2); x.fillStyle = '#f7fbff'; x.fill();
   // 湖・川・道
   const [lx, ly] = mmPos(265, 592); x.beginPath(); x.ellipse(lx, ly, 40 * mmScale, 36 * mmScale, 0, 0, Math.PI * 2); x.fillStyle = '#5aa7d1'; x.fill();
   x.lineCap = 'round'; x.lineJoin = 'round';
@@ -3150,10 +3170,17 @@ function drawMinimap() {
     if (state.booth === b) { x.beginPath(); x.arc(u, v, dot * 1.9, 0, Math.PI * 2); x.strokeStyle = '#ffd23f'; x.lineWidth = Math.max(2, dot * 0.4); x.stroke(); }
     x.globalAlpha = 1;
   });
-  // お店の しごと（なんの 職業体験か）を 点の 下に 小さく
+  // 家具屋（茶色の 四角）
+  const [fu, fv] = mmPos(...FURN.at); x.fillStyle = '#8a6a46'; x.fillRect(fu - dot, fv - dot, dot * 2, dot * 2);
+  x.lineWidth = Math.max(1.5, dot * 0.3); x.strokeStyle = '#ffffff'; x.strokeRect(fu - dot, fv - dot, dot * 2, dot * 2);
+  // 大きい 地図の ときだけ、お店の しごと（なんの 職業体験か）を 点の 下に
   const big = mmWrap.classList.contains('big');
-  x.font = '700 ' + Math.round((big ? 11 : 8) * px) + 'px ' + FONT_BODY; x.textAlign = 'center'; x.textBaseline = 'top'; x.lineJoin = 'round';
-  booths.forEach((b) => {
+  x.font = '700 ' + Math.round(11 * px) + 'px ' + FONT_BODY; x.textAlign = 'center'; x.textBaseline = 'top'; x.lineJoin = 'round';
+  if (big) {
+    x.lineWidth = 3 * px; x.strokeStyle = 'rgba(255,255,255,0.9)'; x.strokeText('家具屋', fu, fv + dot + 1.5 * px);
+    x.fillStyle = '#1f2a33'; x.fillText('家具屋', fu, fv + dot + 1.5 * px);
+  }
+  if (big) booths.forEach((b) => {
     const [u, v] = mmPos(...SITES[b.job.id].at); const vs = variantsNow(b.job);
     const t = vs && vs.length > 1 ? vs.map((w) => w.short || w.work).join('・') : b.job.work;
     x.globalAlpha = isOpen(b.job) ? 1 : 0.5;
@@ -3183,6 +3210,7 @@ mmCanvas.addEventListener('click', (e) => {
   let best = -1; let bestD = 40;
   booths.forEach((b, i) => { const [sx, sy] = SITES[b.job.id].at; const d = Math.hypot(sx - px, sy - py); if (d < bestD) { bestD = d; best = i; } });
   if (home.site && Math.hypot(home.site.at[0] - px, home.site.at[1] - py) < Math.min(bestD, 30)) { goHome(); return; } // 自分の 家
+  if (profile && Math.hypot(FURN.at[0] - px, FURN.at[1] - py) < Math.min(bestD, 30)) { goFurniture(); return; } // 家具屋
   if (best < 0) return;
   if (state.phase === 'work' || state.phase === 'between') { toast('体験が おわってから 移動できます'); return; }
   goBooth(best);
@@ -3281,8 +3309,8 @@ function renderHud() {
   if (state.where === 'home') {
     el.innerHTML = '<span class="tag">' + esc(home.site.name) + '</span><h2>' + esc(profile.name) + 'さんの 家</h2>' +
       '<div class="meta"><span>バッジ ' + badgeCount() + ' / ' + JOBS.length + '</span>' + (profile.mode === 'money' ? '<span>お金 ' + yen(profile.money) + '</span>' : '') + '<span>トロフィー ' + MEDAL[trophyLevel()] + '</span></div>' +
-      '<div class="row"><button type="button" class="primary" id="h-out">外に出る</button><button type="button" id="h-shop">' + (profile.mode === 'money' ? 'かいもの' : 'もらえる もの') + '</button><button type="button" id="h-badges">バッジ帳</button><button type="button" id="h-plaza">島ぜんたい</button></div>';
-    $('h-out').onclick = exitHome; $('h-shop').onclick = openShop; $('h-badges').onclick = openBadgeBook; $('h-plaza').onclick = goPlaza;
+      '<div class="row"><button type="button" class="primary" id="h-out">外に出る</button><button type="button" id="h-shop">家具屋へ 行く</button><button type="button" id="h-badges">バッジ帳</button><button type="button" id="h-plaza">島ぜんたい</button></div>';
+    $('h-out').onclick = exitHome; $('h-shop').onclick = goFurniture; $('h-badges').onclick = openBadgeBook; $('h-plaza').onclick = goPlaza;
     return;
   }
   if (state.where === 'walk') {
@@ -3474,9 +3502,10 @@ function nearbyActions() {
     if (nearParasol) out.push(['sun', 'パラソルで 日向ぼっこ']);
   }
   const y = booths.find((b) => b.job.id === 'yatai'); if (y && Math.hypot(y.door.x - p.x, y.door.z - p.z) < 6) out.push(['buy', '屋台で 買う']);
+  if (profile && Math.hypot(FURN.door.x - p.x, FURN.door.z - p.z) < 6) out.push(['furn', profile.mode === 'money' ? '家具屋で 買う' : '家具屋で もらう']);
   return out;
 }
-const PLAY_ACTS = { ski: startSki, climb: startClimb, swim: startSwim, sun: startSun, buy: () => openYataiShop() };
+const PLAY_ACTS = { ski: startSki, climb: startClimb, swim: startSwim, sun: startSun, buy: () => openYataiShop(), furn: () => openShop() };
 let lastNearby = '';
 function checkNearby() { const k = nearbyActions().map((a) => a[0]).join(',') + (state.skating ? '|s' : ''); if (k !== lastNearby) { lastNearby = k; renderHud(); } }
 // 屋台で 買う（お客さんとして）
@@ -3605,7 +3634,7 @@ function openShop() {
   if (!profile) return;
   modal.dataset.closable = '1';
   const money = profile.mode === 'money'; const nb = badgeCount();
-  openModal('<h2>' + (money ? 'かいもの' : 'もらえる もの') + '</h2><p>' + (money ? 'お金：' + yen(profile.money) + '。買った 家具は 家に 置かれます。' : 'バッジ：' + nb + 'こ。バッジが ふえると もらえる 家具が ふえます。') + '</p>' +
+  openModal('<h2>家具屋：' + (money ? 'かいもの' : 'もらえる もの') + '</h2><p>' + (money ? 'お金：' + yen(profile.money) + '。買った 家具は 家に とどけます。' : 'バッジ：' + nb + 'こ。バッジが ふえると もらえる 家具が ふえます。家に とどけます。') + '</p>' +
     '<div class="shop-grid">' + CATALOG.map((it) => {
       const own = profile.owned.includes(it.id);
       const can = money ? profile.money >= it.price : nb >= it.badges;
@@ -3721,7 +3750,7 @@ $('btn-home').addEventListener('click', () => goHome());
 $('btn-settings').addEventListener('click', openSettings);
 window.hopeTown = {
   state, goBooth, startSession, select: onSelectItem, nextTargetKey, setSeason, startWalk, exitToWalk, walkKeys, rig, booths, goHome, exitHome, goPlaza,
-  get profile() { return profile; }, home, seasonal, LAKE, toWorld, nearbyActions, openShop, openBadgeBook, openSettings, openAreaPicker,
+  get profile() { return profile; }, home, FURN, goFurniture, seasonal, LAKE, toWorld, nearbyActions, openShop, openBadgeBook, openSettings, openAreaPicker,
   // テスト用：オープニングを とばして 家を 用意する
   quickStart(homeKey, mode) { profile = { name: 'テスト', gender: 'n', mode: mode || 'money', home: homeKey || 'downtown', money: 0, badges: {}, owned: [], since: new Date().toISOString() }; saveProfile(); closeModal(); buildHome(); renderWallet(); goPlaza(); },
 };
