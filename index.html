@@ -1645,6 +1645,7 @@ function nextRound() {
   const n = def.items.length;
   const cols = Math.min(n, 4);
   const rows = Math.ceil(n / cols);
+  const labels = [];
   def.items.forEach((spec, idx) => {
     const col = idx % cols; const row = Math.floor(idx / cols);
     const holder = new THREE.Group();
@@ -1656,6 +1657,7 @@ function nextRound() {
       baseY = 0.905;
     } else {
       const spanX = 2.4; x = -spanX / 2 + (col + 0.5) * (spanX / cols);
+      if (rows > 1 && row % 2) x += spanX / cols / 2 - 0.15; // 奥の列は 半分ずらして、名札が 手前の 名札と 重ならないように
       z = rows > 1 ? 1.64 - row * 0.32 : 1.5; // 0 行目が手前
       baseY = 0.9;
     }
@@ -1665,14 +1667,20 @@ function nextRound() {
     mesh.traverse((o) => { o.userData.slotIndex = idx; });
     holder.add(mesh);
     const ringMesh = makeGlowRing(); ringMesh.position.y = 0.005; holder.add(ringMesh);
-    if (spec.label) { const s = labelSprite(spec.label); s.position.y = Math.max(0.3, top + 0.12) + row * 0.14; holder.add(s); }
+    if (spec.label) { const s = labelSprite(spec.label); s.userData.row = row; s.userData.want = Math.max(0.3, top + 0.12); holder.add(s); labels.push(s); }
     b.workArea.add(holder);
     slots.push({ spec, key: itemKey(spec), mesh, ring: ringMesh, holder, done: false });
   });
+  // 名札は 列ごとに 高さを そろえ、奥の列は 手前の列より 必ず 上に（重ならないように）
+  const rowY = [];
+  labels.forEach((l) => { rowY[l.userData.row] = Math.max(rowY[l.userData.row] || 0, l.userData.want); });
+  for (let k = 1; k < rowY.length; k++) if (rowY[k] !== undefined) rowY[k] = Math.max(rowY[k], (rowY[k - 1] || 0) + 0.17);
+  labels.forEach((l) => { l.position.y = rowY[l.userData.row]; });
   // 運ぶもの（品出し・仕分け）は手もとに見せる
   if (def.carry || def.carryText) {
     const carry = labelSprite(def.carryText || 'もっている：' + def.carry, { bg: 'rgba(255,240,200,0.95)', h: 0.12 });
-    carry.position.set(0, 1.25, 2.0); b.workArea.add(carry);
+    // 手もとの票は 道具の 名札より 手前・下に（品物の モデルが あるときは 右に よける）
+    carry.position.set(def.carry && ITEM_MODELS[def.carry] ? 0.42 : 0, 1.16, 2.3); b.workArea.add(carry);
     if (def.carry && ITEM_MODELS[def.carry]) {
       const held = fitInto(ITEM_MODELS[def.carry]({ color: '#ffffff' }), 0.16, 0.16, 0.16);
       held.position.set(0, 1.08, 2.45); held.rotation.y = -0.3; b.workArea.add(held); // 手もと（台より 手前）
