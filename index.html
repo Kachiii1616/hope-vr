@@ -118,7 +118,7 @@ button.primary { background: var(--accent); color: var(--accent-ink); border-col
 
 <header class="hud top">
   <div class="brand">HOPE しごとタウン<small>職業体験 VR 下書き</small></div>
-  <div class="place" id="place">広場</div>
+  <div class="place" id="place">島ぜんたい</div>
   <div class="spacer"></div>
   <button id="btn-log" type="button">きろく</button>
   <button id="btn-vr" type="button" class="primary" hidden>VR で入る</button>
@@ -160,7 +160,7 @@ const ROUNDS_PER_SESSION = 5;
 
 const JOBS = [
   {
-    id: 'logi', name: '物流センター', work: 'ピッキング', color: '#2f7d6d', category: '実務',
+    id: 'logi', area: '漁港', name: '物流センター', work: 'ピッキング', color: '#2f7d6d', category: '実務',
     intro: '注文票の しなものを たなから ひろって かごに 入れます。',
     defect: 'ちがう しなものを ひろう',
     round() {
@@ -171,11 +171,11 @@ const JOBS = [
       ];
       const n = 2 + Math.floor(Math.random() * 2);
       const need = sample(pool, n).map((p) => p.label);
-      return { title: '注文票：' + need.join('・'), shortTitle: '注文の しなものを ひろう', items: shuffle(pool), need, ordered: false };
+      return { title: '注文票：' + need.join('・'), shortTitle: '注文の しなものを ひろう', items: shuffle(pool), need, ordered: false, carryText: '注文票：' + need.join('・') };
     },
   },
   {
-    id: 'store', name: 'コンビニ', work: '品出し', color: '#3b6fb6', category: '実務',
+    id: 'store', area: '繁華街', name: 'コンビニ', work: '品出し', color: '#3b6fb6', category: '実務',
     intro: 'とどいた しなものを 正しい たなに ならべます。',
     defect: 'ちがう たなに 置く',
     round() {
@@ -190,7 +190,7 @@ const JOBS = [
     },
   },
   {
-    id: 'clean', name: '清掃', work: 'テーブルふき', color: '#4f8b9b', category: '実務',
+    id: 'clean', area: '海の家', name: '清掃', work: 'テーブルふき', color: '#4f8b9b', category: '実務',
     intro: 'テーブルの よごれを 見つけて ふきます。うすい もようは よごれでは ありません。',
     defect: 'ふき残し・もようを ふく',
     round() {
@@ -202,7 +202,7 @@ const JOBS = [
     },
   },
   {
-    id: 'cafe', name: 'カフェ', work: 'ドリンクづくり', color: '#8a5a3c', category: '実務',
+    id: 'cafe', area: '繁華街', name: 'カフェ', work: 'ドリンクづくり', color: '#8a5a3c', category: '実務',
     intro: '注文の ドリンクを 手順どおりに つくって わたします。',
     defect: '手順ちがい・ちがう カップ',
     round() {
@@ -222,7 +222,7 @@ const JOBS = [
     },
   },
   {
-    id: 'care', name: '介護施設', work: '配膳の手伝い', color: '#c4577a', category: '実務',
+    id: 'care', area: '住宅地', name: '介護施設', work: '配膳の手伝い', color: '#c4577a', category: '実務',
     intro: '名札と 食事の形を たしかめて、おぜんを 運びます。',
     defect: '食事の形・人の まちがい',
     round() {
@@ -233,11 +233,11 @@ const JOBS = [
         { label: '田中さん', shape: 'resident', color: '#f7c6a3' }, { label: '佐藤さん', shape: 'resident', color: '#bcd8f2' }, { label: '鈴木さん', shape: 'resident', color: '#d6c6ef' },
       ];
       const f = pick(forms).label; const p = pick(people).label;
-      return { title: p + '（' + f + '）の おぜんを 運ぶ', shortTitle: 'おぜんを 運ぶ', items: shuffle(forms).concat(shuffle(people)), need: [f, p], ordered: true };
+      return { title: p + '（' + f + '）の おぜんを 運ぶ', shortTitle: 'おぜんを 運ぶ', items: shuffle(forms).concat(shuffle(people)), need: [f, p], ordered: true, carryText: '名札：' + p + '（' + f + '）' };
     },
   },
   {
-    id: 'office', name: '事務所', work: '書類の仕分け', color: '#5a5f9e', category: '事務',
+    id: 'office', area: '首都', name: '事務所', work: '書類の仕分け', color: '#5a5f9e', category: '事務',
     intro: '書類の 種類を 見て、正しい トレーに 入れます。',
     defect: 'ちがう トレーに 入れる',
     round() {
@@ -250,7 +250,7 @@ const JOBS = [
     },
   },
   {
-    id: 'farm', name: '農園', work: 'トマトの収穫', color: '#5f8f3a', category: '実務',
+    id: 'farm', area: '農村', name: '農園', work: 'トマトの収穫', color: '#5f8f3a', category: '実務',
     intro: '赤く じゅくした トマトだけを とります。青い トマトは のこします。',
     defect: '青い トマトを とる',
     round() {
@@ -262,7 +262,7 @@ const JOBS = [
     },
   },
   {
-    id: 'craft', name: '作業所', work: 'お守りづくり', color: '#b0703a', category: '実務',
+    id: 'craft', area: '学校エリア', name: '作業所', work: 'お守りづくり', color: '#b0703a', category: '実務',
     intro: 'お守りを 手順どおりに つくって、検品かごに 入れます。',
     defect: '手順ちがい（ひもの前に 中紙 など）',
     round() {
@@ -272,6 +272,44 @@ const JOBS = [
         { label: 'ハサミ', shape: 'stick', color: '#8a8f96' }, { label: 'のり', shape: 'cyl', color: '#f1e9a8' },
       ];
       return { title: 'お守りを 1こ つくる', shortTitle: 'お守りを つくる', items: shuffle(items), need: ['ふくろ', '中紙', 'ひも', '検品かご'], ordered: true };
+    },
+  },
+  {
+    id: 'fish', area: '漁村', name: '漁協', work: '魚の仕分け', color: '#2d7fa3', category: '実務',
+    intro: 'とれた 魚を、種類と 大きさで 決まった 箱に 入れます。',
+    defect: 'ちがう 箱に 入れる',
+    round() {
+      const boxes = [];
+      ['アジ', 'サバ'].forEach((k) => ['大', '小'].forEach((z) => boxes.push({ label: k + '・' + z, shape: 'tray', color: k === 'アジ' ? '#9cc3d6' : '#6f8fb0' })));
+      const box = pick(boxes).label; const [kind, size] = box.split('・');
+      const fish = kind + '（' + (size === '大' ? '大きい' : '小さい') + '）';
+      return { title: '「' + fish + '」を 箱に 入れる', shortTitle: '魚を 箱に 分ける', items: shuffle(boxes), need: [box], ordered: false, carry: fish };
+    },
+  },
+  {
+    id: 'forest', area: '林業エリア', name: '森林組合', work: '苗木の植えつけ', color: '#3f7a3a', category: '実務',
+    intro: '苗木を 植えて、水を やります。山の しごとは 安全の 準備から。',
+    defect: '手順ちがい（ヘルメットを 後に する など）',
+    round() {
+      const items = [
+        { label: 'ヘルメット', shape: 'helmet', color: '#f2c230' }, { label: 'スコップ', shape: 'stick', color: '#8a8f96' },
+        { label: '苗木', shape: 'cyl', color: '#4f9a45' }, { label: '土', shape: 'box', color: '#7a5634' },
+        { label: 'じょうろ', shape: 'cyl', color: '#4f8fd1' }, { label: 'のこぎり', shape: 'stick', color: '#c9cdd2' },
+        { label: 'ロープ', shape: 'disc', color: '#c9a46a' },
+      ];
+      return { title: '苗木を 1本 植える', shortTitle: '苗木を 植える', items: shuffle(items), need: ['ヘルメット', 'スコップ', '苗木', '土', 'じょうろ'], ordered: true };
+    },
+  },
+  {
+    id: 'ski', area: '山の裏（北東）', name: 'スキー場', work: 'レンタル受付', color: '#3c7fc4', category: '実務',
+    intro: 'お客さまの 足の 大きさに あう ブーツと、はじめての 人には 短い 板、上級の 人には 長い 板を わたします。',
+    defect: 'サイズ・板の まちがい',
+    round() {
+      const items = [23, 25, 27].map((n) => ({ label: 'ブーツ ' + n, shape: 'boot', color: '#2f3b4a' }))
+        .concat([{ label: '短い板', shape: 'ski', color: '#e0662f' }, { label: '長い板', shape: 'ski', color: '#3c7fc4' }]);
+      const size = pick([23, 25, 27]); const level = pick(['はじめて', '上級']);
+      const card = 'うけつけ票：' + size + 'cm・' + level;
+      return { title: card + '（ブーツと 板）', shortTitle: 'レンタルの 道具を わたす', items: shuffle(items), need: ['ブーツ ' + size, level === 'はじめて' ? '短い板' : '長い板'], ordered: false, carryText: card };
     },
   },
 ];
@@ -293,32 +331,30 @@ stage.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color('#bfe0ec');
-scene.fog = new THREE.Fog('#bfe0ec', 28, 70);
+scene.fog = new THREE.Fog('#bfe0ec', 160, 420);
 
 const rig = new THREE.Group();
 scene.add(rig);
-const camera = new THREE.PerspectiveCamera(70, stage.clientWidth / stage.clientHeight, 0.05, 200);
+const camera = new THREE.PerspectiveCamera(70, stage.clientWidth / stage.clientHeight, 0.05, 600);
 camera.position.set(0, 1.6, 0);
 camera.rotation.order = 'YXZ';
 rig.add(camera);
 
-scene.add(new THREE.HemisphereLight('#ffffff', '#8aa07a', 1.05));
-const sun = new THREE.DirectionalLight('#fff4e0', 0.9);
+scene.add(new THREE.HemisphereLight('#ffffff', '#8aa07a', 0.62));
+const sun = new THREE.DirectionalLight('#fff4e0', 0.72);
 sun.position.set(8, 14, 6);
 scene.add(sun);
 
 const mat = (color, extra) => new THREE.MeshStandardMaterial(Object.assign({ color, roughness: 0.75, metalness: 0.02 }, extra || {}));
 
-// 地面と広場
-const ground = new THREE.Mesh(new THREE.CircleGeometry(60, 64), mat('#a9c98b'));
-ground.rotation.x = -Math.PI / 2;
-scene.add(ground);
-const plaza = new THREE.Mesh(new THREE.CircleGeometry(16, 64), mat('#e8dfcf'));
-plaza.rotation.x = -Math.PI / 2; plaza.position.y = 0.01;
-scene.add(plaza);
-const ring = new THREE.Mesh(new THREE.RingGeometry(3.2, 3.6, 64), mat('#d8cbb3'));
-ring.rotation.x = -Math.PI / 2; ring.position.y = 0.02;
-scene.add(ring);
+// 同じ色の材質は使いまわす（島の建物・木が多いので）
+const matCache = new Map();
+const cmat = (color) => { if (!matCache.has(color)) matCache.set(color, mat(color)); return matCache.get(color); };
+
+// 海
+const sea = new THREE.Mesh(new THREE.CircleGeometry(420, 64), mat('#4f9fc4', { roughness: 0.35 }));
+sea.rotation.x = -Math.PI / 2; sea.position.y = -0.35;
+scene.add(sea);
 
 // 文字を描く板
 function wrapLines(ctx, text, maxWidth) {
@@ -339,7 +375,9 @@ const FONT_BODY = '"BIZ UDPGothic", "Zen Maru Gothic", sans-serif';
 function labelSprite(text, opts) {
   const o = Object.assign({ size: 56, bg: 'rgba(255,255,255,0.92)', fg: '#1f2a33', h: 0.11 }, opts || {});
   const c = makeCanvas(512, 128); const ctx = c.getContext('2d');
-  ctx.font = '700 ' + o.size + 'px ' + FONT_BODY;
+  let size = o.size;
+  ctx.font = '700 ' + size + 'px ' + FONT_BODY;
+  while (size > 24 && ctx.measureText(text).width > 452) { size -= 4; ctx.font = '700 ' + size + 'px ' + FONT_BODY; } // 長い票は 字を 小さく
   const w = Math.min(500, ctx.measureText(text).width + 48);
   ctx.fillStyle = o.bg; roundRect(ctx, (512 - w) / 2, 14, w, 100, 50); ctx.fill();
   ctx.fillStyle = o.fg; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text, 256, 66);
@@ -376,34 +414,195 @@ function makeButton(text, color, w, h) {
 }
 
 // ===========================================================================
-// 町：中央の案内塔と、まわりに職業ブース
+// 島：手描きの地図「Work Island」を写して建てる
+//   地図は 960×830 の方眼（px）で持つ。上が北（-z）、x は東、y は南。1 px = 0.12 m。
+//   地域ごとに、その土地らしい仕事のお店を置く（SITES）。
 // ===========================================================================
-const BOOTH_RADIUS = 11;
-const booths = [];
-const plazaClickables = [];
+const MAP_SCALE = 0.12;
+const MAP_ORIGIN = [515, 450];
+const toWorld = (px, py) => new THREE.Vector3((px - MAP_ORIGIN[0]) * MAP_SCALE, 0, (py - MAP_ORIGIN[1]) * MAP_SCALE);
+const toMap = (x, z) => [x / MAP_SCALE + MAP_ORIGIN[0], z / MAP_SCALE + MAP_ORIGIN[1]];
 
-(function buildGuideTower() {
-  const tower = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.7, 3.6, 24), mat('#e0662f'));
-  tower.position.y = 1.8; scene.add(tower);
-  const sign = new Board(2.6, 1.0, 300);
-  sign.draw((ctx, W, H) => {
-    ctx.fillStyle = '#fffaf2'; roundRect(ctx, 0, 0, W, H, 40); ctx.fill();
-    ctx.fillStyle = '#e0662f'; ctx.font = '700 96px ' + FONT_DISPLAY; ctx.textAlign = 'center'; ctx.fillText('しごとタウン', W / 2, 120);
-    ctx.fillStyle = '#55626d'; ctx.font = '400 40px ' + FONT_BODY; ctx.fillText('やってみたい しごとを ゆびさして えらぶ', W / 2, 220);
-  });
-  for (let i = 0; i < 4; i++) {
-    const s = sign.mesh.clone(); const a = i * Math.PI / 2;
-    s.position.set(Math.sin(a) * 0.95, 3.0, Math.cos(a) * 0.95); s.rotation.y = a; scene.add(s);
+// 海岸線（北西のビーチから時計回り。北東の入り江が漁港）
+const ISLAND = [
+  [110, 320], [130, 270], [200, 210], [300, 150], [380, 115], [430, 110], [480, 130], [520, 170], [560, 190],
+  [620, 200], [700, 200], [665, 270], [670, 310], [710, 335], [870, 340], [880, 350], [890, 480], [940, 630],
+  [900, 650], [820, 750], [680, 790], [560, 770], [480, 730], [400, 720], [300, 700], [200, 700], [110, 680],
+  [90, 630], [100, 570], [140, 530], [160, 480], [155, 440], [120, 390],
+];
+
+// お店の場所。face はお店の正面（来た人が立つ側）の向き。
+const FACE = { s: 0, e: Math.PI / 2, n: Math.PI, w: -Math.PI / 2 };
+const SITES = {
+  office: { at: [262, 452], face: 's' },   // 首都：役所・会社の事務
+  store: { at: [142, 588], face: 'e' },    // 繁華街
+  cafe: { at: [178, 652], face: 'n' },     // 繁華街
+  care: { at: [196, 522], face: 'e' },     // 住宅地
+  clean: { at: [232, 335], face: 'n' },    // 海の家（ビーチを向く）
+  craft: { at: [352, 540], face: 'n' },    // 学校エリア：職業訓練校の作業室
+  forest: { at: [392, 252], face: 's' },   // 林業エリア
+  fish: { at: [592, 268], face: 's' },     // 漁村
+  ski: { at: [625, 350], face: 'n' },      // 山の裏（北東）。南向きの斜面は雪がとけやすいので、スキー場は北東側
+  logi: { at: [742, 392], face: 'n' },     // 漁港：港の物流センター
+  farm: { at: [702, 602], face: 'n' },     // 農村
+};
+
+// 道。漁港 → 山の南 → 学校 → 首都 → 繁華街 が島の目抜き通り。
+const ROAD_W = 2.4;
+const ROADS = [
+  [[742, 425], [640, 520], [470, 545], [400, 505], [330, 488], [262, 488], [232, 555], [190, 600], [150, 625]],
+  [[330, 488], [345, 395], [392, 290], [470, 300], [592, 300], [680, 330]],
+  [[262, 488], [232, 420], [232, 368]],
+  [[400, 505], [400, 560], [355, 625], [330, 668]],
+  [[640, 520], [702, 640], [820, 690]],
+  [[742, 425], [800, 470], [860, 560]],
+  [[241, 440], [206, 452]], // 首都 → フェリー乗り場
+];
+
+// 川。山のふもとの湧き水から、放射状に海へ（火山の島に多い形）。w は川はば（m）。
+const RIVERS = [
+  { w: 2.0, line: [[445, 444], [380, 455], [310, 500], [283, 560]] },               // 山 → 湖
+  { w: 2.0, line: [[258, 626], [238, 670], [228, 699]] },                           // 湖 → 西の海
+  { w: 1.4, line: [[584, 456], [610, 520], [600, 600], [620, 700], [640, 782]] },   // 山 → 農村 → 南の海
+  { w: 1.4, line: [[612, 402], [675, 408], [690, 360], [694, 326]] },               // 山 → 漁港の入り江
+  { w: 1.4, line: [[466, 318], [430, 240], [400, 170], [393, 115]] },               // 山 → ビーチ
+];
+
+// 島の上の場所が空いているか（建物・木を散らすときに使う）
+const blocked = []; // { x, z, r }（m）
+function insideIsland(px, py) {
+  let inside = false;
+  for (let i = 0, j = ISLAND.length - 1; i < ISLAND.length; j = i++) {
+    const [xi, yi] = ISLAND[i]; const [xj, yj] = ISLAND[j];
+    if ((yi > py) !== (yj > py) && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi) inside = !inside;
   }
+  return inside;
+}
+function segDist(px, pz, a, b) {
+  const dx = b.x - a.x; const dz = b.z - a.z; const len2 = dx * dx + dz * dz;
+  const t = len2 ? Math.max(0, Math.min(1, ((px - a.x) * dx + (pz - a.z) * dz) / len2)) : 0;
+  return Math.hypot(px - (a.x + dx * t), pz - (a.z + dz * t));
+}
+const roadSegs = [];
+ROADS.forEach((line) => { for (let i = 1; i < line.length; i++) roadSegs.push([toWorld(...line[i - 1]), toWorld(...line[i])]); });
+const riverSegs = []; // [a, b, w]
+RIVERS.forEach(({ w, line }) => { for (let i = 1; i < line.length; i++) riverSegs.push([toWorld(...line[i - 1]), toWorld(...line[i]), w]); });
+function isFree(x, z, r) {
+  const m = r / MAP_SCALE; const [px, py] = toMap(x, z);
+  if (![[0, 0], [m, 0], [-m, 0], [0, m], [0, -m]].every(([ox, oy]) => insideIsland(px + ox, py + oy))) return false;
+  if (blocked.some((b) => Math.hypot(b.x - x, b.z - z) < b.r + r)) return false;
+  if (riverSegs.some(([a, b, w]) => segDist(x, z, a, b) < w / 2 + r + 0.3)) return false;
+  return !roadSegs.some(([a, b]) => segDist(x, z, a, b) < ROAD_W / 2 + r);
+}
+// 2 本の線分が交わる点（なければ null）。川と道の交差＝橋の場所。
+function crossPoint(a, b, c, d) {
+  const r1x = b.x - a.x; const r1z = b.z - a.z; const r2x = d.x - c.x; const r2z = d.z - c.z;
+  const den = r1x * r2z - r1z * r2x; if (Math.abs(den) < 1e-9) return null;
+  const t = ((c.x - a.x) * r2z - (c.z - a.z) * r2x) / den; const u = ((c.x - a.x) * r1z - (c.z - a.z) * r1x) / den;
+  return t >= 0 && t <= 1 && u >= 0 && u <= 1 ? new THREE.Vector3(a.x + r1x * t, 0, a.z + r1z * t) : null;
+}
+function block(x, z, r) { blocked.push({ x, z, r }); }
+
+// 毎回同じ町になるよう、決まった順の乱数で散らす
+let seed = 20260616;
+const rand = () => { seed |= 0; seed = (seed + 0x6D2B79F5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+function scatter(cx, cy, rx, ry, count, r, make) {
+  let placed = 0;
+  for (let tries = 0; tries < count * 40 && placed < count; tries++) {
+    const a = rand() * Math.PI * 2; const d = Math.sqrt(rand());
+    const p = toWorld(cx + Math.cos(a) * rx * d, cy + Math.sin(a) * ry * d);
+    if (!isFree(p.x, p.z, r)) continue;
+    block(p.x, p.z, r); make(p.x, p.z, placed); placed++;
+  }
+}
+
+// 平らな地面の色分け（地図の px の多角形）
+function pxShape(points) {
+  const s = new THREE.Shape();
+  points.forEach(([x, y], i) => { const v = toWorld(x, y); if (i) s.lineTo(v.x, -v.z); else s.moveTo(v.x, -v.z); });
+  return s;
+}
+function ellipse(cx, cy, rx, ry, n) { const out = []; for (let i = 0; i < (n || 28); i++) { const a = (i / (n || 28)) * Math.PI * 2; out.push([cx + Math.cos(a) * rx, cy + Math.sin(a) * ry]); } return out; }
+function patch(points, color, y) {
+  const m = new THREE.Mesh(new THREE.ShapeGeometry(pxShape(points)), cmat(color));
+  m.rotation.x = -Math.PI / 2; m.position.y = y; scene.add(m); return m;
+}
+function addBox(x, y, z, w, h, d, color, ry) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), typeof color === 'string' ? cmat(color) : color);
+  m.position.set(x, y, z); if (ry) m.rotation.y = ry; scene.add(m); return m;
+}
+function addCyl(x, y, z, rt, rb, h, color, seg) {
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg || 14), cmat(color));
+  m.position.set(x, y, z); scene.add(m); return m;
+}
+
+// 島の土台（上は草、横は砂浜の色）
+(function buildIsland() {
+  const geo = new THREE.ExtrudeGeometry(pxShape(ISLAND), { depth: 1.2, bevelEnabled: false, curveSegments: 1 });
+  const island = new THREE.Mesh(geo, [cmat('#9cc47f'), cmat('#dcc893')]);
+  island.rotation.x = -Math.PI / 2; island.position.y = -1.2; scene.add(island);
+  // ビーチ（北西の海岸）
+  patch([[110, 320], [130, 270], [200, 210], [300, 150], [380, 115], [430, 110], [432, 150], [380, 162], [300, 196], [230, 250], [170, 300], [150, 350]], '#ecdcae', 0.04);
+  // 地域ごとの地面
+  patch(ellipse(255, 455, 70, 52), '#d9d4c7', 0.05);       // 首都
+  patch(ellipse(170, 600, 62, 72), '#cdc5b8', 0.05);       // 繁華街
+  patch(ellipse(392, 262, 100, 80), '#7fa865', 0.05);      // 林業エリア
+  patch(ellipse(372, 590, 52, 46), '#ddd3ad', 0.05);       // 学校エリア
+  patch([[670, 310], [710, 335], [870, 340], [880, 350], [884, 400], [700, 410], [662, 340]], '#c9c8c0', 0.05); // 漁港の岸壁
+  patch(ellipse(600, 240, 55, 38), '#d6cdb5', 0.05);       // 漁村
+  // 湖
+  patch(ellipse(265, 592, 46, 42), '#e3d9b5', 0.06);
+  patch(ellipse(265, 592, 40, 36), '#5aa7d1', 0.07);
+  block(...(() => { const p = toWorld(265, 592); return [p.x, p.z, 5.8]; })());
+  // 川（道より下に描き、交わるところは橋の欄干を立てる）
+  riverSegs.forEach(([a, b, w], k) => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, a.distanceTo(b)), cmat('#5aa7d1'));
+    m.rotation.x = -Math.PI / 2; m.rotation.z = Math.atan2(b.x - a.x, b.z - a.z);
+    m.position.set((a.x + b.x) / 2, 0.075, (a.z + b.z) / 2); scene.add(m);
+    [a, b].forEach((p) => { const j = new THREE.Mesh(new THREE.CircleGeometry(w / 2, 16), cmat('#5aa7d1')); j.rotation.x = -Math.PI / 2; j.position.set(p.x, 0.075, p.z); scene.add(j); });
+    roadSegs.forEach(([c, d]) => {
+      const x = crossPoint(a, b, c, d); if (!x) return;
+      const yaw = Math.atan2(d.x - c.x, d.z - c.z);
+      [-1, 1].forEach((side) => {
+        const rail = addBox(x.x + Math.cos(yaw) * side * (ROAD_W / 2 + 0.06), 0.3, x.z - Math.sin(yaw) * side * (ROAD_W / 2 + 0.06), 0.1, 0.42, w + 1.4, '#b5865a');
+        rail.rotation.y = yaw;
+      });
+    });
+  });
+  // 道
+  roadSegs.forEach(([a, b]) => {
+    const len = a.distanceTo(b);
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(ROAD_W, len), cmat('#a9a49a'));
+    m.rotation.x = -Math.PI / 2; m.rotation.z = Math.atan2(b.x - a.x, b.z - a.z);
+    m.position.set((a.x + b.x) / 2, 0.09, (a.z + b.z) / 2); scene.add(m);
+    const j = new THREE.Mesh(new THREE.CircleGeometry(ROAD_W / 2, 16), cmat('#a9a49a'));
+    j.rotation.x = -Math.PI / 2; j.position.set(b.x, 0.09, b.z); scene.add(j);
+  });
 })();
 
-// 木（町らしさ）
-for (let i = 0; i < 18; i++) {
-  const a = (i / 18) * Math.PI * 2 + 0.17; const r = 19 + (i % 3) * 2.5;
-  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 1.2, 8), mat('#7a5a3a'));
-  const crown = new THREE.Mesh(new THREE.IcosahedronGeometry(0.9, 0), mat(i % 2 ? '#5f9a52' : '#6fae5e', { flatShading: true }));
-  trunk.position.set(Math.sin(a) * r, 0.6, -Math.cos(a) * r); crown.position.set(trunk.position.x, 1.75, trunk.position.z);
-  scene.add(trunk, crown);
+// ===========================================================================
+// お店（ブース）。地域の場所に建て、正面に立って体験する。
+// ===========================================================================
+const booths = [];
+const plazaClickables = [];
+const overviewOnly = []; // 島ぜんたいを見ているときだけ出す（目印の旗・地域の名前）
+const OVERVIEW = { pos: new THREE.Vector3(0, 40, 60), yaw: 0, pitch: 0.62 };
+
+function overviewSign(text, sub, color, w) {
+  const b = new Board(w || 6, (w || 6) / 3, 120);
+  b.draw((ctx, W, H) => {
+    ctx.fillStyle = color || 'rgba(255,255,255,0.92)'; roundRect(ctx, 0, 0, W, H, H * 0.22); ctx.fill();
+    ctx.fillStyle = color ? '#ffffff' : '#1f2a33'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const fit = (weight, size, family, str, y) => { // はみ出す名前は 字を 小さく
+      let px = Math.round(H * size); ctx.font = weight + ' ' + px + 'px ' + family;
+      while (px > 12 && ctx.measureText(str).width > W * 0.9) { px -= 2; ctx.font = weight + ' ' + px + 'px ' + family; }
+      ctx.fillText(str, W / 2, y);
+    };
+    fit('700', sub ? 0.4 : 0.5, FONT_DISPLAY, text, H * (sub ? 0.36 : 0.52));
+    if (sub) fit('400', 0.26, FONT_BODY, sub, H * 0.74);
+  });
+  b.mesh.material.depthTest = false; b.mesh.renderOrder = 8;
+  return b.mesh;
 }
 
 // お店の 箱（床・横の壁・天井・入口の壁）。外から 見える 入口側の 部品を 返す（広場から えらぶ 当たり判定）。
@@ -412,8 +611,8 @@ const SHOP_DEPTH = 4.4;
 function buildShopShell(g, job) {
   const wallMat = () => mat(job.id === 'farm' ? '#dff0e4' : '#f4efe6', job.id === 'farm' ? { transparent: true, opacity: 0.35, roughness: 0.1 } : null);
   const add = (geo, m, x, y, z) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); g.add(o); return o; };
-  const floorColor = { logi: '#b9bcb8', store: '#e9e6dc', clean: '#d9cdb8', cafe: '#a87b55', care: '#d8c3a0', office: '#c9ccd3', farm: '#8f7a5a', craft: '#c4a27a' }[job.id] || '#d9cdb8';
-  const floor = add(new THREE.PlaneGeometry(SHOP_W, SHOP_DEPTH), mat(floorColor), 0, 0.03, SHOP_DEPTH / 2); floor.rotation.x = -Math.PI / 2;
+  const floorColor = { fish: '#cfd8dc', forest: '#9c7a54', ski: '#d9dde3', logi: '#b9bcb8', store: '#e9e6dc', clean: '#d9cdb8', cafe: '#a87b55', care: '#d8c3a0', office: '#c9ccd3', farm: '#8f7a5a', craft: '#c4a27a' }[job.id] || '#d9cdb8';
+  const floor = add(new THREE.PlaneGeometry(SHOP_W, SHOP_DEPTH), mat(floorColor), 0, 0.1, SHOP_DEPTH / 2); floor.rotation.x = -Math.PI / 2;
   [-1, 1].forEach((sd) => {
     add(new THREE.BoxGeometry(0.1, 3.0, SHOP_DEPTH), wallMat(), sd * (SHOP_W / 2 + 0.05), 1.5, SHOP_DEPTH / 2);
     add(new THREE.BoxGeometry(0.02, 0.12, SHOP_DEPTH), mat(job.color), sd * (SHOP_W / 2 - 0.01), 0.1, SHOP_DEPTH / 2); // 幅木
@@ -436,14 +635,18 @@ function buildShopShell(g, job) {
 }
 
 JOBS.forEach((job, i) => {
-  const angle = (i / JOBS.length) * Math.PI * 2;
-  const dir = new THREE.Vector3(Math.sin(angle), 0, -Math.cos(angle));
+  const site = SITES[job.id];
+  const yaw = FACE[site.face];
   const g = new THREE.Group();
-  g.position.copy(dir.clone().multiplyScalar(BOOTH_RADIUS));
-  g.rotation.y = -angle;
+  g.position.copy(toWorld(...site.at));
+  g.rotation.y = yaw;
   scene.add(g);
+  // 建物（奥の部屋〜入口）と、入口の前はふさいでおく
+  const front = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
+  block(g.position.x + front.x * 0.9, g.position.z + front.z * 0.9, 4.3);
+  block(g.position.x + front.x * (SHOP_DEPTH + 1.2), g.position.z + front.z * (SHOP_DEPTH + 1.2), 1.4);
 
-  // 建物（背中が外、正面が広場の中心）。ローカル +z が広場側。
+  // 建物（背中が外、正面がローカル +z）
   //   z = 0 が お店の奥の壁（掲示板）、z = SHOP_DEPTH が 入口の壁。作業台と 立つ位置は その間（お店の中）。
   const body = new THREE.Mesh(new THREE.BoxGeometry(4.2, 3.0, 2.6), mat('#f4efe6'));
   body.position.set(0, 1.5, -1.3); g.add(body);
@@ -456,7 +659,7 @@ JOBS.forEach((job, i) => {
     ctx.fillStyle = job.color; roundRect(ctx, 0, 0, W, H, 30); ctx.fill();
     ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.font = '700 88px ' + FONT_DISPLAY; ctx.fillText(job.name, W / 2, H * 0.42);
-    ctx.font = '400 40px ' + FONT_BODY; ctx.fillText(job.work, W / 2, H * 0.8);
+    ctx.font = '400 40px ' + FONT_BODY; ctx.fillText(job.area + '・' + job.work, W / 2, H * 0.8);
   });
   sign.mesh.position.set(0, 2.66, SHOP_DEPTH + 0.07); g.add(sign.mesh);
 
@@ -477,7 +680,13 @@ JOBS.forEach((job, i) => {
   // 作業する道具を置く場所
   const workArea = new THREE.Group(); g.add(workArea);
 
-  // ブースの入口の当たり判定（広場から選ぶ用）
+  // 島ぜんたいから見える目印の旗（お店をえらぶ）
+  const pin = overviewSign(job.area, job.name + '・' + job.work, job.color, 7);
+  pin.position.set(g.position.x, 10, g.position.z); pin.lookAt(OVERVIEW.pos);
+  scene.add(pin); overviewOnly.push(pin);
+
+  // ブースの入口の当たり判定（島ぜんたい・ほかのお店から選ぶ用）
+  pin.userData.boothIndex = i;
   [body, sign.mesh, roof].concat(facade).forEach((m) => { m.userData.boothIndex = i; plazaClickables.push(m); });
 
   // ブースのボタン（場所は固定。表示は状態ごとに切り替える）
@@ -485,7 +694,7 @@ JOBS.forEach((job, i) => {
     without: makeButton('はじめる：配慮なし', '#55626d', 0.78, 0.16),
     with: makeButton('はじめる：配慮あり', job.color, 0.78, 0.16),
     hint: makeButton('ヒント', '#e0a23a', 0.36, 0.14),
-    back: makeButton('広場へ もどる', '#3d4a54', 0.56, 0.14),
+    back: makeButton('島ぜんたいへ', '#3d4a54', 0.56, 0.14),
     again: makeButton('もう一度', job.color, 0.46, 0.14),
   };
   // 掲示板の左右に並べる（VR でも 目線を 大きく 下げずに 押せる高さ）
@@ -493,8 +702,222 @@ JOBS.forEach((job, i) => {
   btns.hint.position.set(-1.62, 1.95, 0.03); btns.again.position.set(1.62, 1.95, 0.03); btns.back.position.set(1.62, 1.55, 0.03);
   Object.values(btns).forEach((m) => { g.add(m); m.visible = false; });
 
-  booths.push({ job, group: g, angle, board, workArea, btns });
+  booths.push({ job, group: g, yaw, board, workArea, btns, pin });
 });
+
+// 地域の名前（お店のない地域・目じるし）
+[['ビーチ', [250, 205]], ['湖', [265, 592]], ['IT企業（準備中）', [300, 690]], ['表：夏山登山　裏：冬スキー', [520, 392]], ['ジップライン', [432, 318]],
+  ['風の丘', [165, 372]], ['フェリー乗り場（となりの国へ）', [125, 440]]].forEach(([text, at]) => {
+  const p = toWorld(...at);
+  const s = overviewSign(text, '', '', text.length > 10 ? 11 : text.length > 4 ? 7.5 : 4.5);
+  s.position.set(p.x, text.startsWith('表：') ? 19 : 7, p.z); s.lookAt(OVERVIEW.pos);
+  scene.add(s); overviewOnly.push(s);
+});
+// 山の表（南）の登山口。スキー場は裏にあって見えにくいので、看板で案内し、看板からも行けるようにする。
+(function buildTrailhead() {
+  const p = toWorld(522, 500);
+  const sign = new Board(2.6, 1.3, 300);
+  sign.draw((ctx, W, H) => {
+    ctx.fillStyle = '#6b4a2e'; roundRect(ctx, 0, 0, W, H, 30); ctx.fill();
+    ctx.fillStyle = '#fffaf0'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = '700 84px ' + FONT_DISPLAY; ctx.fillText('夏山 登山口', W / 2, H * 0.24);
+    ctx.font = '700 46px ' + FONT_BODY; ctx.fillText('冬は ここから 山の裏（北東）の', W / 2, H * 0.52);
+    ctx.fillText('スキー場へ 入れます', W / 2, H * 0.7);
+    ctx.font = '400 30px ' + FONT_BODY; ctx.fillStyle = '#f2d9b8'; ctx.fillText('この 看板を えらぶと スキー場へ 行きます', W / 2, H * 0.89);
+  });
+  sign.mesh.position.set(p.x, 1.9, p.z);
+  sign.mesh.userData.boothIndex = booths.findIndex((b) => b.job.id === 'ski');
+  plazaClickables.push(sign.mesh); scene.add(sign.mesh);
+  [-1.1, 1.1].forEach((dx) => addCyl(p.x + dx, 0.75, p.z - 0.05, 0.06, 0.06, 1.5, '#5a3f28', 6));
+  block(p.x, p.z, 1.6);
+})();
+// 見わたし台（VR で 足もとが 空中に ならないように）
+(function buildLookout() {
+  const deck = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.2, 0.15, 32), mat('#ffffff', { transparent: true, opacity: 0.35 }));
+  deck.position.set(OVERVIEW.pos.x, OVERVIEW.pos.y - 0.08, OVERVIEW.pos.z); scene.add(deck); overviewOnly.push(deck);
+})();
+
+// ===========================================================================
+// 地域の景色
+// ===========================================================================
+// ビルの窓（色は材質の色とかけあわせる）
+const windowTex = (() => {
+  const c = makeCanvas(64, 64); const ctx = c.getContext('2d');
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, 64, 64);
+  ctx.fillStyle = '#6d8296';
+  for (let y = 0; y < 2; y++) for (let x = 0; x < 2; x++) ctx.fillRect(6 + x * 32, 8 + y * 32, 20, 18);
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; return t;
+})();
+function building(x, z, w, d, h, color, extra) {
+  const tex = windowTex.clone(); tex.needsUpdate = true; tex.repeat.set(Math.max(1, Math.round(w / 1.6)), Math.max(1, Math.round(h / 1.6)));
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(color, Object.assign({ map: tex }, extra || {})));
+  m.position.set(x, h / 2, z); scene.add(m); return m;
+}
+const windRotors = []; // 風車の羽（ループで回す）
+const NEON = ['#ff5a7a', '#ffc53d', '#3ddcff', '#9b6bff', '#5cff9d', '#ff8a3d'];
+function neonSign(x, z, h, w) {
+  const s = new THREE.Mesh(new THREE.BoxGeometry(0.5, Math.min(4, h * 0.4), 0.5), new THREE.MeshBasicMaterial({ color: NEON[Math.floor(rand() * NEON.length)] }));
+  s.position.set(x + w / 2 + 0.2, h * 0.55, z); scene.add(s);
+}
+function house(x, z, color, roofColor) {
+  addBox(x, 0.9, z, 2.2, 1.8, 2.0, color, rand() * 0.6);
+  const r = new THREE.Mesh(new THREE.ConeGeometry(1.8, 1.2, 4), cmat(roofColor)); r.position.set(x, 2.4, z); r.rotation.y = Math.PI / 4; scene.add(r);
+}
+const treeTrunk = new THREE.CylinderGeometry(0.12, 0.16, 1.2, 6);
+const treeCrown = new THREE.IcosahedronGeometry(0.9, 0);
+const conifer = new THREE.ConeGeometry(1.0, 3.2, 7);
+function tree(x, z, kind) {
+  const s = 0.8 + rand() * 0.5;
+  const trunk = new THREE.Mesh(treeTrunk, cmat('#7a5a3a')); trunk.position.set(x, 0.6 * s, z); trunk.scale.setScalar(s); scene.add(trunk);
+  if (kind === 'conifer') {
+    const c = new THREE.Mesh(conifer, cmat(rand() < 0.5 ? '#3f7a3a' : '#4d8a45')); c.position.set(x, 2.2 * s, z); c.scale.setScalar(s); scene.add(c);
+  } else {
+    const c = new THREE.Mesh(treeCrown, mat(rand() < 0.5 ? '#5f9a52' : '#6fae5e', { flatShading: true })); c.position.set(x, 1.75 * s, z); c.scale.setScalar(s); scene.add(c);
+  }
+}
+
+(function buildScenery() {
+  // 山（夏は登山、冬はスキー）。頂上に雪。
+  const peak = toWorld(520, 392); const MR = 11; const MH = 15;
+  const mountain = new THREE.Mesh(new THREE.ConeGeometry(MR, MH, 24), mat('#7f9161', { flatShading: true }));
+  mountain.position.set(peak.x, MH / 2, peak.z); scene.add(mountain);
+  const snow = new THREE.Mesh(new THREE.ConeGeometry(MR * 0.37, MH * 0.36, 24), mat('#f7fbff', { flatShading: true }));
+  snow.position.set(peak.x, MH - MH * 0.18, peak.z); scene.add(snow);
+  block(peak.x, peak.z, MR + 0.5);
+  // 山の裏（北東）のスキー場：ゲレンデとリフト。向きはスキー場のお店から決める。
+  const skiAt = toWorld(...SITES.ski.at);
+  const toSki = new THREE.Vector3(skiAt.x - peak.x, 0, skiAt.z - peak.z).normalize();
+  const turn = (v, a) => new THREE.Vector3(v.x * Math.cos(a) - v.z * Math.sin(a), 0, v.x * Math.sin(a) + v.z * Math.cos(a));
+  const heightAt = (x, z) => Math.max(0, MH * (1 - Math.hypot(x - peak.x, z - peak.z) / MR));
+  function slopeStrip(dir, width) {
+    const side = new THREE.Vector3(-dir.z, 0, dir.x); const pos = []; const idx = []; const N = 16;
+    for (let i = 0; i <= N; i++) {
+      const r = MR * (0.3 + 0.8 * i / N);
+      [-1, 1].forEach((s) => {
+        const x = peak.x + dir.x * r + side.x * s * width / 2; const z = peak.z + dir.z * r + side.z * s * width / 2;
+        pos.push(x, heightAt(x, z) + 0.12, z);
+      });
+      if (i) { const k = i * 2; idx.push(k - 2, k - 1, k, k - 1, k + 1, k); }
+    }
+    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setIndex(idx); geo.computeVertexNormals();
+    scene.add(new THREE.Mesh(geo, mat('#f7fbff', { side: THREE.DoubleSide })));
+  }
+  slopeStrip(turn(toSki, -0.35), 2.6); slopeStrip(turn(toSki, -0.05), 1.8);
+  const liftDir = turn(toSki, 0.4);
+  const liftA = new THREE.Vector3(peak.x + liftDir.x * (MR + 1.2), 2.6, peak.z + liftDir.z * (MR + 1.2));
+  const liftB = new THREE.Vector3(peak.x + liftDir.x * MR * 0.36, MH * 0.64 + 2.2, peak.z + liftDir.z * MR * 0.36);
+  block(liftA.x, liftA.z, 0.8);
+  [liftA, liftB].forEach((p) => addCyl(p.x, p.y / 2, p.z, 0.12, 0.12, p.y, '#55626d', 6));
+  scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([liftA, liftB]), new THREE.LineBasicMaterial({ color: '#33404a' })));
+  // ジップライン（山の中腹 → 林業エリア）
+  const zipA = toWorld(470, 350); zipA.y = MH * (1 - Math.hypot(zipA.x - peak.x, zipA.z - peak.z) / MR) + 3;
+  const zipB = toWorld(415, 300); zipB.y = 4.5;
+  [zipA, zipB].forEach((p) => addCyl(p.x, p.y / 2, p.z, 0.15, 0.15, p.y, '#8a6a46', 6));
+  scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([zipA, zipB]), new THREE.LineBasicMaterial({ color: '#e0662f' })));
+  block(zipB.x, zipB.z, 1.2);
+
+  // 首都：議事堂（ドームと旗）
+  const capitol = toWorld(250, 392);
+  addBox(capitol.x, 2.2, capitol.z, 10, 4.4, 5, '#f1ece2');
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(2.2, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), cmat('#7fa7a0'));
+  dome.position.set(capitol.x, 4.4, capitol.z); scene.add(dome);
+  addCyl(capitol.x, 7.6, capitol.z, 0.05, 0.05, 2.4, '#55626d', 6);
+  addBox(capitol.x + 0.5, 8.4, capitol.z, 1.0, 0.6, 0.04, '#e0662f');
+  block(capitol.x, capitol.z, 6);
+  // フェリー乗り場：むかし栄えた港のなごり。となりの国が首都の側（西）にあるので、玄関口として残った。
+  const terminal = toWorld(185, 452);
+  addBox(terminal.x, 1.4, terminal.z, 5, 2.8, 3, '#f4f6f8'); addBox(terminal.x, 2.95, terminal.z, 5.4, 0.3, 3.4, '#2d6fa3');
+  block(terminal.x, terminal.z, 3.2);
+  const pierW = toWorld(122, 452); addBox(pierW.x, -0.05, pierW.z, 7.6, 0.4, 2, '#b8b3a8');
+  const ferry = toWorld(118, 474);
+  addBox(ferry.x, -0.05, ferry.z, 9, 1.0, 2.6, '#f4f4f0'); addBox(ferry.x + 0.8, 0.9, ferry.z, 5, 0.9, 2.2, '#2d6fa3');
+  addCyl(ferry.x - 0.8, 1.8, ferry.z, 0.3, 0.3, 1.0, '#d0453a', 12);
+  // 風の丘：北西の季節風がいちばん強く当たる丘に、風車
+  const hill = toWorld(165, 395); const HR = 3.6; const HH = 1.6;
+  const mound = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 10, 0, Math.PI * 2, 0, Math.PI / 2), cmat('#8fbc6e'));
+  mound.scale.set(HR, HH, HR); mound.position.set(hill.x, 0, hill.z); scene.add(mound); block(hill.x, hill.z, HR + 0.3);
+  [[0, 0], [-1.9, -1.5], [1.6, 1.9]].forEach(([dx, dz], k) => {
+    const x = hill.x + dx; const z = hill.z + dz; const base = HH * Math.sqrt(Math.max(0, 1 - (dx * dx + dz * dz) / (HR * HR)));
+    const H = 6 + (k === 0 ? 1 : 0);
+    addCyl(x, base + H / 2, z, 0.1, 0.18, H, '#f4f6f8', 10);
+    const head = new THREE.Group(); head.position.set(x, base + H, z); head.rotation.y = -Math.PI * 0.75; scene.add(head); // 北西の風に向く
+    head.add(new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.34, 0.8), cmat('#f4f6f8')));
+    const rotor = new THREE.Group(); rotor.position.z = 0.48; head.add(rotor);
+    const blade = new THREE.BoxGeometry(0.16, 2.4, 0.04); blade.translate(0, 1.2, 0);
+    for (let n = 0; n < 3; n++) { const b = new THREE.Mesh(blade, cmat('#f4f6f8')); b.rotation.z = n * Math.PI * 2 / 3; rotor.add(b); }
+    rotor.userData.phase = k * 0.7; windRotors.push(rotor);
+  });
+  // 首都のオフィス街
+  scatter(255, 455, 75, 55, 9, 2.4, (x, z) => building(x, z, 3.4, 3.4, 5 + rand() * 6, pick(['#e6e2da', '#d6dbe0', '#ece4d4'])));
+
+  // 繁華街：首都から湖までの目抜き通りぞいに、高いビルと看板を集める
+  const downtown = toWorld(205, 575);
+  scatter(178, 600, 70, 80, 22, 2.2, (x, z) => {
+    const near = Math.hypot(x - downtown.x, z - downtown.z); // 通りの中心に近いほど高い
+    const h = 7 + Math.max(0, 14 - near * 0.9) + rand() * 5; const w = 3 + rand() * 1.4;
+    building(x, z, w, w, h, pick(['#c9ced6', '#e3d6c5', '#b9c4cf', '#d8c9d6', '#cfd9cc']));
+    if (rand() < 0.7) neonSign(x, z, h, w);
+  });
+  // 住宅地
+  scatter(190, 520, 48, 48, 12, 1.8, (x, z) => house(x, z, pick(['#f6efe2', '#f1e4d0', '#e8eef2']), pick(['#b9573f', '#5a6f8a', '#7a8a4f'])));
+  scatter(330, 455, 40, 30, 6, 1.8, (x, z) => house(x, z, pick(['#f6efe2', '#f1e4d0']), pick(['#b9573f', '#5a6f8a'])));
+
+  // 学校エリア：校舎と校庭
+  const school = toWorld(352, 610); addBox(school.x, 1.8, school.z, 8, 3.6, 3.2, '#f4ecd8'); block(school.x, school.z, 4.4);
+  addCyl(school.x, 4.2, school.z + 1.62, 0.6, 0.6, 0.08, '#ffffff', 20).rotation.x = Math.PI / 2;
+  const field = toWorld(408, 585); patch(ellipse(408, 585, 26, 20), '#d6a874', 0.07); block(field.x, field.z, 3.2);
+
+  // IT 企業：ガラスのビル
+  [[288, 676, 13], [312, 662, 10], [318, 700, 16]].forEach(([px, py, h]) => {
+    const p = toWorld(px, py); if (!isFree(p.x, p.z, 1.8)) return;
+    block(p.x, p.z, 1.8); building(p.x, p.z, 3.2, 3.2, h, '#9fc3e0', { metalness: 0.35, roughness: 0.25 });
+  });
+
+  // 漁村：家と、沖の漁船
+  scatter(600, 240, 60, 35, 9, 1.7, (x, z) => house(x, z, pick(['#f2ece0', '#e4ecef']), pick(['#3d6f9e', '#4f7f7a', '#9e4f3d'])));
+  function boat(px, py, ry) {
+    const p = toWorld(px, py);
+    addBox(p.x, -0.15, p.z, 1.4, 0.5, 3.6, '#f4f4f0', ry); addBox(p.x, 0.45, p.z, 1.0, 0.7, 1.2, '#2d7fa3', ry);
+  }
+  boat(560, 172, 0.3); boat(625, 178, -0.2); boat(690, 182, 0.5);
+  // 漁港：桟橋・コンテナ・クレーン・灯台
+  const pier = toWorld(770, 300); addBox(pier.x, -0.05, pier.z, 2.6, 0.4, 9, '#b8b3a8');
+  boat(790, 300, 0.05); boat(752, 292, -0.05);
+  [['#d0453a', 812, 380], ['#3b6fb6', 836, 380], ['#e3a33c', 824, 368]].forEach(([c, px, py], k) => {
+    const p = toWorld(px, py); addBox(p.x, k === 2 ? 3.9 : 1.3, p.z, 2.4, 2.6, 5.8, c, Math.PI / 2);
+  });
+  block(...(() => { const p = toWorld(824, 378); return [p.x, p.z, 4]; })());
+  const crane = toWorld(862, 362);
+  addBox(crane.x, 4, crane.z, 0.5, 8, 0.5, '#e0a23a'); addBox(crane.x - 2, 8, crane.z, 5, 0.4, 0.4, '#e0a23a'); block(crane.x, crane.z, 1.5);
+  const bw = toWorld(880, 312); addBox(bw.x, -0.05, bw.z, 1.6, 0.5, 6, '#b8b3a8');
+  addCyl(bw.x, 2.4, bw.z - 2.2, 0.55, 0.75, 4.8, '#ffffff', 16); addCyl(bw.x, 5.1, bw.z - 2.2, 0.6, 0.6, 0.6, '#d0453a', 16);
+
+  // 農村：畑と赤い納屋
+  for (let py = 545; py < 760; py += 30) {
+    for (let px = 620; px < 900; px += 42) {
+      const p = toWorld(px + 21, py + 15); if (!isFree(p.x, p.z, 2.1)) continue;
+      block(p.x, p.z, 2.1);
+      patch([[px + 2, py + 2], [px + 40, py + 2], [px + 40, py + 28], [px + 2, py + 28]], pick(['#c9b36a', '#88b25a', '#a7c46a', '#b98f5a']), 0.06);
+    }
+  }
+  const barn = toWorld(800, 520);
+  if (isFree(barn.x, barn.z, 2.8)) {
+    block(barn.x, barn.z, 2.8); addBox(barn.x, 1.5, barn.z, 4, 3, 3, '#b8453a');
+    const r = new THREE.Mesh(new THREE.ConeGeometry(3, 1.4, 4), cmat('#5a3a2e')); r.position.set(barn.x, 3.7, barn.z); r.rotation.y = Math.PI / 4; scene.add(r);
+    addCyl(barn.x + 3, 2.5, barn.z, 0.9, 0.9, 5, '#d8d8d0', 16);
+  }
+
+  // ビーチ：パラソル
+  [[175, 290], [215, 255], [262, 222], [315, 190], [362, 160], [405, 138]].forEach(([px, py], k) => {
+    const p = toWorld(px, py); if (!isFree(p.x, p.z, 1)) return;
+    addCyl(p.x, 1.1, p.z, 0.04, 0.04, 2.2, '#f4f4f0', 6);
+    const u = new THREE.Mesh(new THREE.ConeGeometry(1.3, 0.6, 12), cmat(['#e0662f', '#3b6fb6', '#f2c230'][k % 3])); u.position.set(p.x, 2.3, p.z); scene.add(u);
+  });
+
+  // 林業エリア：針葉樹の森。島のあちこちにも木。
+  scatter(392, 262, 105, 82, 75, 0.9, (x, z) => tree(x, z, 'conifer'));
+  scatter(515, 450, 430, 340, 70, 0.9, (x, z) => tree(x, z));
+})();
 
 // ===========================================================================
 // 道具（作業で選ぶもの）の形
@@ -848,6 +1271,9 @@ function makeItemMesh(spec) {
     case 'shelf': geo = new THREE.BoxGeometry(0.42, 0.5, 0.18); y = 0.25; break;
     case 'person': geo = new THREE.CylinderGeometry(0.07, 0.07, 0.34, 14); y = 0.17; break;
     case 'blob': geo = new THREE.CircleGeometry(0.11, 18); break;
+    case 'helmet': geo = new THREE.SphereGeometry(0.085, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2); break;
+    case 'boot': geo = new THREE.BoxGeometry(0.09, 0.14, 0.18); y = 0.07; break;
+    case 'ski': geo = new THREE.BoxGeometry(0.07, 0.02, 0.4); y = 0.01; break;
     default: geo = new THREE.BoxGeometry(0.12, 0.14, 0.1); y = 0.07;
   }
   const mesh = new THREE.Mesh(geo, m);
@@ -960,6 +1386,37 @@ function decorateInterior(b) {
   } else if (id === 'farm') {
     tomatoRow(g, -1); tomatoRow(g, 1);
     part(g, box(0.4, 0.3, 0.3), '#e3b23c', 1.4, 0.15, 2.9); // 収穫かご
+  } else if (id === 'fish') {
+    // 発泡スチロールの 魚箱と、氷の 入った 作業台
+    [0.0, 0.32, 0.64].forEach((y, row) => [0.9, 1.5].forEach((z, k) => {
+      if (row === 2 && k) return;
+      part(g, box(0.5, 0.3, 0.55), '#f4f6f6', -DECO_X + 0.05, y + 0.15, z);
+      part(g, box(0.4, 0.02, 0.45), '#2d7fa3', -DECO_X + 0.05, y + 0.31, z);
+    }));
+    part(g, box(0.5, 0.75, 1.4), '#b8c4cc', DECO_X - 0.05, 0.375, 1.5, { metalness: 0.4, roughness: 0.35 });
+    part(g, box(0.44, 0.04, 1.3), '#e8f7fd', DECO_X - 0.05, 0.77, 1.5, { transparent: true, opacity: 0.85 });
+    [1.1, 1.4, 1.7, 2.0].forEach((z, k) => { const f = part(g, ball(0.09, 14, 8), k % 2 ? '#8fa7b8' : '#b8c8d4', DECO_X - 0.05, 0.81, z, { metalness: 0.5, roughness: 0.3 }); f.scale.set(0.45, 0.3, 1.6); });
+  } else if (id === 'forest') {
+    // 道具の かべと 丸太
+    part(g, box(0.04, 1.2, 1.6), '#8a6a46', -(SHOP_W / 2 - 0.03), 0.9, 1.45);
+    part(g, box(0.3, 0.03, 1.6), '#8a6a46', -(SHOP_W / 2 - 0.17), 1.1, 1.45); // ヘルメットの たな
+    [0.95, 1.45, 1.95].forEach((z) => part(g, new THREE.SphereGeometry(0.13, 16, 8, 0, TAU, 0, Math.PI / 2), '#f2c230', -(SHOP_W / 2 - 0.17), 1.115, z));
+    [1.2, 1.7].forEach((z) => part(g, cyl(0.02, 0.02, 1.0, 8), '#8a8f96', -(SHOP_W / 2 - 0.1), 0.7, z));
+    for (let k = 0; k < 3; k++) for (let n = 0; n < 3 - k; n++) {
+      const log = part(g, cyl(0.12, 0.12, 1.2, 14), '#8a6a46', DECO_X - 0.05 - (n - (2 - k) / 2) * 0.25, 0.12 + k * 0.21, 1.45); log.rotation.x = Math.PI / 2;
+      part(g, cyl(0.11, 0.11, 0.005, 14), '#d9b98a', log.position.x, log.position.y, 2.051).rotation.x = Math.PI / 2;
+    }
+    [0.8, 2.1].forEach((z) => { part(g, cyl(0.12, 0.09, 0.2, 12), '#b9573f', -1.6, 0.2, z + 0.9); part(g, new THREE.ConeGeometry(0.12, 0.4, 8), '#4f9a45', -1.6, 0.5, z + 0.9); }); // 苗木の 鉢
+  } else if (id === 'ski') {
+    // レンタルの ブーツだなと 板たて
+    [0.3, 0.75, 1.2].forEach((y) => {
+      part(g, box(0.36, 0.03, 1.6), '#c9ced6', -DECO_X, y, 1.45);
+      [0.85, 1.25, 1.65, 2.05].forEach((z) => part(g, box(0.16, 0.2, 0.12), '#2f3b4a', -DECO_X, y + 0.115, z));
+    });
+    part(g, box(0.3, 0.06, 1.6), '#8a6a46', DECO_X, 0.05, 1.45);
+    ['#e0662f', '#3c7fc4', '#f2c230', '#d0453a', '#4f9a45', '#3c7fc4'].forEach((c, k) => {
+      const ski = part(g, box(0.07, 1.45, 0.02), c, DECO_X + 0.05, 0.8, 0.85 + k * 0.24); ski.rotation.z = -0.08;
+    });
   } else if (id === 'craft') {
     wallShelf(g, -1, ['のり', 'ハサミ', 'ひも', '#e7d6b8'], '#b0703a');
     tableSet(g, 1, 1.5, '#e8d9bf', '#b0703a');
@@ -1001,7 +1458,9 @@ function moveRig(pos, yaw, pitch, dur) {
   // 回転は近い向きへ
   let d = to.yaw - from.yaw; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; to.yaw = from.yaw + d;
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  tween = { from, to, t0: performance.now(), dur: reduce ? 1 : (dur || 700) };
+  // 島は広いので、遠いほど ゆっくり（それでも 2 秒まで）
+  const auto = Math.min(2000, 700 + from.p.distanceTo(to.p) * 14);
+  tween = { from, to, t0: performance.now(), dur: reduce ? 1 : (dur || auto) };
   look.yaw = 0; look.pitch = pitch || 0;
 }
 
@@ -1010,8 +1469,8 @@ function goPlaza() {
   clearWork();
   if (state.booth) Object.values(state.booth.btns).forEach((m) => { m.visible = false; });
   state.where = 'plaza'; state.booth = null; state.phase = 'choose'; state.session = null; state.round = null;
-  const lastAngle = rig.rotation.y;
-  moveRig(new THREE.Vector3(0, 0, 0), lastAngle, 0);
+  moveRig(OVERVIEW.pos, OVERVIEW.yaw, OVERVIEW.pitch);
+  overviewOnly.forEach((m) => { m.visible = true; });
   renderHud();
 }
 
@@ -1021,7 +1480,8 @@ function goBooth(i) {
   const b = booths[i];
   state.where = 'booth'; state.booth = b; state.phase = 'choose'; state.session = null; state.round = null; state.feedback = { text: '', kind: '' };
   const stand = b.group.localToWorld(new THREE.Vector3(0, 0, 3.2));
-  moveRig(stand, -b.angle, 0.15); // 少し下を向いて、台と掲示板が両方見えるように
+  moveRig(stand, b.yaw, 0.15); // 少し下を向いて、台と掲示板が両方見えるように
+  overviewOnly.forEach((m) => { m.visible = false; });
   showChoose();
   renderHud();
 }
@@ -1102,10 +1562,10 @@ function nextRound() {
     slots.push({ spec, key: itemKey(spec), mesh, ring: ringMesh, holder, done: false });
   });
   // 運ぶもの（品出し・仕分け）は手もとに見せる
-  if (def.carry) {
-    const carry = labelSprite('もっている：' + def.carry, { bg: 'rgba(255,240,200,0.95)', h: 0.12 });
+  if (def.carry || def.carryText) {
+    const carry = labelSprite(def.carryText || 'もっている：' + def.carry, { bg: 'rgba(255,240,200,0.95)', h: 0.12 });
     carry.position.set(0, 1.25, 2.0); b.workArea.add(carry);
-    if (ITEM_MODELS[def.carry]) {
+    if (def.carry && ITEM_MODELS[def.carry]) {
       const held = fitInto(ITEM_MODELS[def.carry]({ color: '#ffffff' }), 0.16, 0.16, 0.16);
       held.position.set(0, 1.08, 2.45); held.rotation.y = -0.3; b.workArea.add(held); // 手もと（台より 手前）
     }
@@ -1305,10 +1765,10 @@ renderer.domElement.addEventListener('pointerup', (e) => {
 });
 
 function currentClickables() {
-  if (state.where === 'plaza') return plazaClickables;
+  if (state.where === 'plaza') return booths.map((b) => b.pin).concat(plazaClickables);
   const b = state.booth; const list = Object.values(b.btns).filter((m) => m.visible);
   if (state.phase === 'work' && state.round) state.round.slots.forEach((s) => { if (!s.done) s.mesh.traverse((o) => { if (o.isMesh) list.push(o); }); });
-  return list; // お店の中では 壁ごしに ほかの お店を えらばない（もどるのは「広場へ もどる」）
+  return list; // お店の中では 壁ごしに ほかの お店を えらばない（もどるのは「島ぜんたいへ」）
 }
 
 function handleRay(ray) {
@@ -1366,14 +1826,14 @@ const chipsEl = $('chips');
 function renderChips() {
   chipsEl.innerHTML = '';
   const plazaChip = document.createElement('button');
-  plazaChip.type = 'button'; plazaChip.className = 'chip'; plazaChip.innerHTML = '<i style="background:#e0662f"></i>広場';
+  plazaChip.type = 'button'; plazaChip.className = 'chip'; plazaChip.innerHTML = '<i style="background:#e0662f"></i>島ぜんたい';
   plazaChip.setAttribute('aria-current', String(state.where === 'plaza'));
   plazaChip.addEventListener('click', goPlaza);
   chipsEl.appendChild(plazaChip);
   booths.forEach((b, i) => {
     const el = document.createElement('button');
     el.type = 'button'; el.className = 'chip';
-    el.innerHTML = '<i style="background:' + b.job.color + '"></i>' + b.job.name + '<span>' + b.job.work + '</span>';
+    el.innerHTML = '<i style="background:' + b.job.color + '"></i>' + b.job.name + '<span>' + b.job.area + '・' + b.job.work + '</span>';
     el.setAttribute('aria-current', String(state.booth === b));
     el.addEventListener('click', () => goBooth(i));
     chipsEl.appendChild(el);
@@ -1383,12 +1843,12 @@ function renderChips() {
 function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 
 function renderHud() {
-  $('place').textContent = state.where === 'plaza' ? '広場' : state.booth.job.name + '・' + state.booth.job.work;
+  $('place').textContent = state.where === 'plaza' ? '島ぜんたい' : state.booth.job.area + '　' + state.booth.job.name + '・' + state.booth.job.work;
   chipsEl.querySelectorAll('.chip').forEach((el, i) => el.setAttribute('aria-current', String(i === 0 ? state.where === 'plaza' : state.booth === booths[i - 1])));
   const el = $('instr');
   if (state.where === 'plaza') {
-    el.innerHTML = '<span class="tag">広場</span><h2>やってみたい しごとを えらぶ</h2>' +
-      '<div>まわりの お店を タップ（VR では ゆびさして トリガー）すると、その お店の前に 移動します。ドラッグで 見回せます。</div>';
+    el.innerHTML = '<span class="tag">Work Island</span><h2>やってみたい しごとを えらぶ</h2>' +
+      '<div>島の 地域ごとに、その土地の しごとが あります。旗や お店を タップ（VR では ゆびさして トリガー）すると、その お店の前に 移動します。ドラッグで 見回せます。</div>';
     return;
   }
   const job = state.booth.job;
@@ -1414,10 +1874,11 @@ function renderHud() {
     steps = '<div>のこり ' + remainingKeys().length + ' こ</div>';
   }
   el.innerHTML = '<span class="tag">' + esc(job.name) + '・' + (state.withSupport ? '配慮あり' : '配慮なし') + '</span>' +
-    '<h2>' + esc(state.withSupport ? r.def.title : r.def.shortTitle) + '</h2>' + steps +
+    '<h2>' + esc(state.withSupport ? r.def.title : r.def.shortTitle) + '</h2>' +
+    (r.def.carryText ? '<div>' + esc(r.def.carryText) + '</div>' : '') + steps +
     '<div class="feedback ' + state.feedback.kind + '">' + esc(state.feedback.text) + '</div>' +
     '<div class="meta"><span>できた ' + s.completed + (state.withSupport ? ' / ' + ROUNDS_PER_SESSION : '') + '</span><span>ミス ' + s.defects + '</span><span>ヒント ' + s.questionCount + '</span></div>' +
-    '<div class="row"><button type="button" id="h-hint">ヒント</button><button type="button" id="h-back">広場へ もどる</button></div>';
+    '<div class="row"><button type="button" id="h-hint">ヒント</button><button type="button" id="h-back">島ぜんたいへ</button></div>';
   $('h-hint').onclick = () => useHint(false); $('h-back').onclick = goPlaza;
 }
 function showChoose_() { showChoose(); renderHud(); }
@@ -1463,6 +1924,7 @@ function onResize() {
 window.addEventListener('resize', onResize);
 onResize();
 
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 renderer.setAnimationLoop((now) => {
   if (tween) {
     const t = Math.min(1, (now - tween.t0) / tween.dur); const e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
@@ -1474,6 +1936,7 @@ renderer.setAnimationLoop((now) => {
   const r = state.round;
   if (r && state.phase === 'work' && state.withSupport && !r.hintShown && (now - r.lastActionAt) / 1000 > AUTO_HINT_SEC) useHint(true);
   if (r) r.slots.forEach((s) => { if (s.ring.visible) { const k = 1 + Math.sin(now / 180) * 0.12; s.ring.scale.set(k, k, k); } });
+  if (!reduceMotion) windRotors.forEach((r) => { r.rotation.z = -(now / 1000) * 1.4 - r.userData.phase; });
   stepAnims(now);
   renderer.render(scene, camera);
 });
@@ -1483,8 +1946,8 @@ renderHud();
 renderLog();
 // 動作確認用（テストから 作業を 進めるため）
 window.hopeTown = { state, goBooth, startSession, select: onSelectItem, nextTargetKey };
-// 最初は「物流センター」の方を向いておく
-rig.rotation.y = 0;
+// 最初は 島ぜんたいを 見わたす
+rig.position.copy(OVERVIEW.pos); rig.rotation.y = OVERVIEW.yaw; look.pitch = OVERVIEW.pitch;
 if (document.fonts && document.fonts.ready) {
   // フォントが届いてから看板・掲示板を描きなおす
   document.fonts.ready.then(() => { if (state.where === 'booth') { if (state.phase === 'choose') showChoose(); else if (state.phase === 'work') drawWorkBoard(); } });
