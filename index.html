@@ -1738,8 +1738,56 @@ function setButtons(visibleKeys) {
   for (const [k, m] of Object.entries(b.btns)) m.visible = keys.includes(k);
 }
 
+// ---- 冬の 雪 -----------------------------------------------------------------
+//   地面・畑・砂浜・家の 屋根・針葉樹を 白く し、空を くもりに する。道と 町の 広場は 雪かき ずみ。
+//   降る 雪は 2 つ：島ぜんたい（見わたし用・大つぶ）と、自分の まわり（歩く ときの 近くの 雪）。
+const SNOW_TINT = {
+  '#9cc47f': '#eef3f5', '#8fbc6e': '#eef3f5', '#7fa865': '#e2ebe4', '#7fa7a0': '#eef3f5', // 草地・丘・林・ドーム
+  '#c9b36a': '#e8edf0', '#88b25a': '#e8edf0', '#a7c46a': '#e8edf0', '#b98f5a': '#e8edf0', '#d6a874': '#e8edf0', // 畑・校庭
+  '#ecdcae': '#f2f0e8', // 砂浜
+  '#b9573f': '#f4f7f9', '#5a6f8a': '#f4f7f9', '#7a8a4f': '#f4f7f9', '#3d6f9e': '#f4f7f9', '#4f7f7a': '#f4f7f9', '#9e4f3d': '#f4f7f9', '#5a3a2e': '#f4f7f9', // 屋根
+  '#3f7a3a': '#cfe0d4', '#4d8a45': '#d6e6da', // 針葉樹に 雪
+};
+const SKY = { summer: '#bfe0ec', winter: '#d6e0e8' };
+const flakeTex = (() => {
+  const c = makeCanvas(32, 32); const x = c.getContext('2d');
+  const g = x.createRadialGradient(16, 16, 0, 16, 16, 16); g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.5, 'rgba(255,255,255,0.8)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+  x.fillStyle = g; x.fillRect(0, 0, 32, 32); return new THREE.CanvasTexture(c);
+})();
+function makeSnowfall(n, sx, sy, sz, size) {
+  const pos = new Float32Array(n * 3); const drift = new Float32Array(n);
+  for (let k = 0; k < n; k++) { pos[k * 3] = (Math.random() - 0.5) * sx; pos[k * 3 + 1] = Math.random() * sy; pos[k * 3 + 2] = (Math.random() - 0.5) * sz; drift[k] = Math.random() * Math.PI * 2; }
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const pts = new THREE.Points(geo, new THREE.PointsMaterial({ size, map: flakeTex, transparent: true, depthWrite: false, opacity: 0.95, fog: true }));
+  pts.frustumCulled = false; pts.visible = false; scene.add(pts);
+  return { pts, pos, drift, n, sx, sy, sz };
+}
+const snowWide = makeSnowfall(5000, 110, 40, 90, 0.45);  // 島ぜんたい
+const snowNear = makeSnowfall(1800, 26, 12, 26, 0.07);   // 自分の まわり
+const snowHead = new THREE.Vector3();
+function updateSnow(dt, now) {
+  const winter = season === 'winter';
+  const inside = state.where === 'booth'; // お店の 中には 降らせない
+  snowWide.pts.visible = winter && !inside; snowNear.pts.visible = winter && state.where === 'walk';
+  if (!winter || inside || reduceMotion) return;
+  camera.getWorldPosition(snowHead);
+  snowNear.pts.position.set(snowHead.x, snowHead.y - 6, snowHead.z);
+  [[snowWide, 1.1], [snowNear, 0.9]].forEach(([f, fall]) => {
+    if (!f.pts.visible) return;
+    const p = f.pos;
+    for (let k = 0; k < f.n; k++) {
+      const i = k * 3; p[i + 1] -= fall * dt; p[i] += Math.sin(now / 900 + f.drift[k]) * 0.25 * dt;
+      if (p[i + 1] < 0) { p[i + 1] += f.sy; p[i] = (Math.random() - 0.5) * f.sx; p[i + 2] = (Math.random() - 0.5) * f.sz; }
+    }
+    f.pts.geometry.attributes.position.needsUpdate = true;
+  });
+}
+
 function applySeason() {
   const winter = season === 'winter';
+  matCache.forEach((m, color) => { if (SNOW_TINT[color]) m.color.set(winter ? SNOW_TINT[color] : color); });
+  scene.background.set(SKY[season]); scene.fog.color.set(SKY[season]);
+  mmBase = null; // 右上の 地図も 冬の 色に
   // 冬は 雪が ふもと近くまで（頂上の 位置は そのまま）
   const k = winter ? 1.6 : 1; const cap = seasonal.snowCap;
   cap.scale.setScalar(k); cap.position.y = seasonal.peakH - (seasonal.capH * k) / 2;
@@ -2148,7 +2196,7 @@ function buildMinimapBase() {
   const c = document.createElement('canvas'); c.width = mmCanvas.width; c.height = mmCanvas.height; const x = c.getContext('2d');
   x.fillStyle = '#4f9fc4'; x.fillRect(0, 0, c.width, c.height);
   const path = (pts) => { x.beginPath(); pts.forEach(([px, py], i) => { const [u, v] = mmPos(px, py); if (i) x.lineTo(u, v); else x.moveTo(u, v); }); };
-  path(ISLAND); x.closePath(); x.fillStyle = '#9cc47f'; x.fill();
+  path(ISLAND); x.closePath(); x.fillStyle = season === 'winter' ? SNOW_TINT['#9cc47f'] : '#9cc47f'; x.fill();
   // 山
   const [mx, my] = mmPos(520, 392); x.beginPath(); x.arc(mx, my, (11 / MAP_SCALE) * mmScale, 0, Math.PI * 2); x.fillStyle = '#7f9161'; x.fill();
   x.beginPath(); x.arc(mx, my, (11 * 0.37 / MAP_SCALE) * mmScale, 0, Math.PI * 2); x.fillStyle = '#f7fbff'; x.fill();
@@ -2368,6 +2416,7 @@ renderer.setAnimationLoop((now) => {
   }
   if (!renderer.xr.isPresenting) { camera.rotation.y = look.yaw; camera.rotation.x = -look.pitch; }
   walkStep(dt);
+  updateSnow(dt, now);
   // 配慮あり：しばらく手が止まったら、つぎに選ぶものを光らせる（声かけ 1 回として数える）
   const r = state.round;
   if (r && state.phase === 'work' && state.withSupport && !r.hintShown && (now - r.lastActionAt) / 1000 > AUTO_HINT_SEC) useHint(true);
