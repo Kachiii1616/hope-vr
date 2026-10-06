@@ -132,6 +132,17 @@ button.primary { background: var(--accent); color: var(--accent-ink); border-col
 .pad .left { grid-column: 1; grid-row: 2; }
 .pad .down { grid-column: 2; grid-row: 2; }
 .pad .right { grid-column: 3; grid-row: 2; }
+/* 右上の 島の 地図（いまの 場所と 向き・お店を タップで 移動） */
+.minimap {
+  position: fixed; z-index: 2; right: 12px; top: 64px; width: 210px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 4px;
+  box-shadow: 0 6px 20px rgba(0,0,0,.14);
+}
+.minimap-head { width: 100%; display: flex; justify-content: space-between; align-items: center; border: 0; background: none; padding: 2px 6px 4px; font-size: 12px; }
+.minimap canvas { display: block; width: 100%; aspect-ratio: 850 / 680; border-radius: 8px; cursor: pointer; touch-action: manipulation; }
+.minimap.closed { width: auto; }
+.minimap.closed canvas { display: none; }
+@media (max-width: 560px) { .minimap { width: 150px; right: 8px; } }
 .toast { position: fixed; z-index: 4; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 72px); transform: translateX(-50%);
   background: var(--ink); color: var(--paper); padding: 6px 14px; border-radius: 999px; font-size: 13px; }
 
@@ -170,6 +181,10 @@ button.primary { background: var(--accent); color: var(--accent-ink); border-col
 </aside>
 
 <nav class="hud bottom" id="chips" aria-label="職業をえらぶ"></nav>
+<div class="minimap" id="minimap">
+  <button type="button" class="minimap-head" id="minimap-toggle" aria-expanded="true">島の 地図 <span aria-hidden="true">−</span></button>
+  <canvas id="minimap-canvas" role="img" aria-label="島ぜんたいの 地図。お店の 点を タップすると その お店へ 行きます"></canvas>
+</div>
 <button type="button" class="chip-nav" id="chips-prev" aria-label="前の お店へ 送る" hidden>‹</button>
 <button type="button" class="chip-nav" id="chips-next" aria-label="つぎの お店へ 送る" hidden>›</button>
 <div class="pad" id="pad" hidden aria-label="歩くボタン">
@@ -2117,6 +2132,79 @@ vrBtn.addEventListener('click', async () => {
 // ===========================================================================
 const $ = (id) => document.getElementById(id);
 const chipsEl = $('chips');
+
+// ---- 右上の 島の 地図 --------------------------------------------------------
+//   地図 px（x 90〜940・y 110〜790）を そのまま 縮めて 描く。島・道・川は 1 回だけ 描いて おき、
+//   いまの 場所と 向き・いる お店は 毎回 上に 重ねる。
+const MM = { x0: 90, y0: 110, w: 850, h: 680 };
+const mmWrap = $('minimap'); const mmCanvas = $('minimap-canvas'); const mmCtx = mmCanvas.getContext('2d');
+let mmBase = null; let mmScale = 1;
+function mmPos(px, py) { return [(px - MM.x0) * mmScale, (py - MM.y0) * mmScale]; }
+function buildMinimapBase() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const cssW = mmCanvas.clientWidth || 200;
+  mmCanvas.width = Math.round(cssW * dpr); mmCanvas.height = Math.round(cssW * MM.h / MM.w * dpr);
+  mmScale = mmCanvas.width / MM.w;
+  const c = document.createElement('canvas'); c.width = mmCanvas.width; c.height = mmCanvas.height; const x = c.getContext('2d');
+  x.fillStyle = '#4f9fc4'; x.fillRect(0, 0, c.width, c.height);
+  const path = (pts) => { x.beginPath(); pts.forEach(([px, py], i) => { const [u, v] = mmPos(px, py); if (i) x.lineTo(u, v); else x.moveTo(u, v); }); };
+  path(ISLAND); x.closePath(); x.fillStyle = '#9cc47f'; x.fill();
+  // 山
+  const [mx, my] = mmPos(520, 392); x.beginPath(); x.arc(mx, my, (11 / MAP_SCALE) * mmScale, 0, Math.PI * 2); x.fillStyle = '#7f9161'; x.fill();
+  x.beginPath(); x.arc(mx, my, (11 * 0.37 / MAP_SCALE) * mmScale, 0, Math.PI * 2); x.fillStyle = '#f7fbff'; x.fill();
+  // 湖・川・道
+  const [lx, ly] = mmPos(265, 592); x.beginPath(); x.ellipse(lx, ly, 40 * mmScale, 36 * mmScale, 0, 0, Math.PI * 2); x.fillStyle = '#5aa7d1'; x.fill();
+  x.lineCap = 'round'; x.lineJoin = 'round';
+  RIVERS.forEach(({ w, line }) => { path(line); x.strokeStyle = '#5aa7d1'; x.lineWidth = Math.max(1.5, (w / MAP_SCALE) * mmScale); x.stroke(); });
+  ROADS.forEach((line) => { path(line); x.strokeStyle = '#e9e4d8'; x.lineWidth = Math.max(2, (ROAD_W / MAP_SCALE) * mmScale); x.stroke(); });
+  mmBase = c;
+}
+const mmHead = new THREE.Vector3(); const mmDir = new THREE.Vector3();
+function drawMinimap() {
+  if (mmWrap.classList.contains('closed')) return;
+  if (!mmBase || mmBase.width !== Math.round((mmCanvas.clientWidth || 200) * Math.min(window.devicePixelRatio || 1, 2))) buildMinimapBase();
+  const x = mmCtx; x.drawImage(mmBase, 0, 0);
+  const px = mmCanvas.width / (mmCanvas.clientWidth || 200); // 画面の 1px が 何ドットか
+  const dot = 3.6 * px;
+  booths.forEach((b) => {
+    const [u, v] = mmPos(...SITES[b.job.id].at);
+    x.globalAlpha = isOpen(b.job) ? 1 : 0.4;
+    x.beginPath(); x.arc(u, v, dot, 0, Math.PI * 2); x.fillStyle = b.job.color; x.fill();
+    x.lineWidth = Math.max(1.5, dot * 0.3); x.strokeStyle = state.booth === b ? '#ffd23f' : '#ffffff'; x.stroke();
+    if (state.booth === b) { x.beginPath(); x.arc(u, v, dot * 1.9, 0, Math.PI * 2); x.strokeStyle = '#ffd23f'; x.lineWidth = Math.max(2, dot * 0.4); x.stroke(); }
+    x.globalAlpha = 1;
+  });
+  if (state.where === 'plaza') return; // 見わたし中は 場所の 矢印を 出さない
+  camera.getWorldPosition(mmHead); camera.getWorldDirection(mmDir);
+  const [u, v] = mmPos(...toMap(mmHead.x, mmHead.z));
+  const a = Math.atan2(mmDir.z, mmDir.x); const R = 9 * px;
+  x.beginPath(); x.arc(u, v, R * 1.5, 0, Math.PI * 2); x.fillStyle = 'rgba(255, 210, 63, 0.45)'; x.fill(); // まわりを うすく 光らせて 目立たせる
+  x.save(); x.translate(u, v); x.rotate(a);
+  x.beginPath(); x.moveTo(R, 0); x.lineTo(-R * 0.7, R * 0.7); x.lineTo(-R * 0.35, 0); x.lineTo(-R * 0.7, -R * 0.7); x.closePath();
+  x.fillStyle = '#e0662f'; x.fill(); x.lineWidth = Math.max(1.5, dot * 0.3); x.strokeStyle = '#ffffff'; x.stroke();
+  x.restore();
+}
+// お店の 点の 近くを タップしたら その お店へ
+mmCanvas.addEventListener('click', (e) => {
+  const rect = mmCanvas.getBoundingClientRect();
+  const px = (e.clientX - rect.left) / rect.width * MM.w + MM.x0; const py = (e.clientY - rect.top) / rect.height * MM.h + MM.y0;
+  let best = -1; let bestD = 40;
+  booths.forEach((b, i) => { const [sx, sy] = SITES[b.job.id].at; const d = Math.hypot(sx - px, sy - py); if (d < bestD) { bestD = d; best = i; } });
+  if (best < 0) return;
+  if (state.phase === 'work' || state.phase === 'between') { toast('体験が おわってから 移動できます'); return; }
+  goBooth(best);
+});
+$('minimap-toggle').addEventListener('click', () => {
+  const closed = mmWrap.classList.toggle('closed');
+  $('minimap-toggle').setAttribute('aria-expanded', String(!closed));
+  $('minimap-toggle').querySelector('span').textContent = closed ? '＋' : '−';
+  try { localStorage.setItem('hope-vr-minimap', closed ? 'closed' : 'open'); } catch (err) { /* 覚えられなくても 続ける */ }
+  placeMinimap(); drawMinimap();
+});
+try { if (localStorage.getItem('hope-vr-minimap') === 'closed') { mmWrap.classList.add('closed'); $('minimap-toggle').setAttribute('aria-expanded', 'false'); $('minimap-toggle').querySelector('span').textContent = '＋'; } } catch (err) { /* noop */ }
+// 上の 帯（ボタンが 2 段に なる スマホも ある）の すぐ下に 置く
+function placeMinimap() { const hb = document.querySelector('header.hud.top').getBoundingClientRect(); mmWrap.style.top = Math.round(hb.bottom + 4) + 'px'; }
+window.addEventListener('resize', () => { placeMinimap(); mmBase = null; drawMinimap(); });
 // マウスの ホイール（縦）でも 横に 送る
 chipsEl.addEventListener('wheel', (e) => {
   if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
@@ -2286,10 +2374,12 @@ renderer.setAnimationLoop((now) => {
   if (r) r.slots.forEach((s) => { if (s.ring.visible) { const k = 1 + Math.sin(now / 180) * 0.12; s.ring.scale.set(k, k, k); } });
   if (!reduceMotion) windRotors.forEach((r) => { r.rotation.z = -(now / 1000) * 1.4 - r.userData.phase; });
   stepAnims(now);
+  if (now - (drawMinimap.last || 0) > 100) { drawMinimap.last = now; drawMinimap(); } // 地図は 1 秒に 10 回で じゅうぶん
   renderer.render(scene, camera);
 });
 
 renderChips();
+placeMinimap();
 renderHud();
 renderLog();
 updateChipNav();
