@@ -301,7 +301,7 @@ const JOBS = [
     },
   },
   {
-    id: 'ski', area: '山', name: 'スキー場', work: 'レンタル受付', color: '#3c7fc4', category: '実務',
+    id: 'ski', area: '山の裏（北東）', name: 'スキー場', work: 'レンタル受付', color: '#3c7fc4', category: '実務',
     intro: 'お客さまの 足の 大きさに あう ブーツと、はじめての 人には 短い 板、上級の 人には 長い 板を わたします。',
     defect: 'サイズ・板の まちがい',
     round() {
@@ -442,7 +442,7 @@ const SITES = {
   craft: { at: [352, 540], face: 'n' },    // 学校エリア：職業訓練校の作業室
   forest: { at: [392, 252], face: 's' },   // 林業エリア
   fish: { at: [592, 268], face: 's' },     // 漁村
-  ski: { at: [522, 508], face: 's' },      // 山のふもと
+  ski: { at: [625, 350], face: 'n' },      // 山の裏（北東）。南向きの斜面は雪がとけやすいので、スキー場は北東側
   logi: { at: [742, 392], face: 'n' },     // 漁港：港の物流センター
   farm: { at: [702, 602], face: 'n' },     // 農村
 };
@@ -456,6 +456,16 @@ const ROADS = [
   [[400, 505], [400, 560], [355, 625], [330, 668]],
   [[640, 520], [702, 640], [820, 690]],
   [[742, 425], [800, 470], [860, 560]],
+  [[241, 440], [206, 452]], // 首都 → フェリー乗り場
+];
+
+// 川。山のふもとの湧き水から、放射状に海へ（火山の島に多い形）。w は川はば（m）。
+const RIVERS = [
+  { w: 2.0, line: [[445, 444], [380, 455], [310, 500], [283, 560]] },               // 山 → 湖
+  { w: 2.0, line: [[258, 626], [238, 670], [228, 699]] },                           // 湖 → 西の海
+  { w: 1.4, line: [[584, 456], [610, 520], [600, 600], [620, 700], [640, 782]] },   // 山 → 農村 → 南の海
+  { w: 1.4, line: [[612, 402], [675, 408], [690, 360], [694, 326]] },               // 山 → 漁港の入り江
+  { w: 1.4, line: [[466, 318], [430, 240], [400, 170], [393, 115]] },               // 山 → ビーチ
 ];
 
 // 島の上の場所が空いているか（建物・木を散らすときに使う）
@@ -475,11 +485,21 @@ function segDist(px, pz, a, b) {
 }
 const roadSegs = [];
 ROADS.forEach((line) => { for (let i = 1; i < line.length; i++) roadSegs.push([toWorld(...line[i - 1]), toWorld(...line[i])]); });
+const riverSegs = []; // [a, b, w]
+RIVERS.forEach(({ w, line }) => { for (let i = 1; i < line.length; i++) riverSegs.push([toWorld(...line[i - 1]), toWorld(...line[i]), w]); });
 function isFree(x, z, r) {
   const m = r / MAP_SCALE; const [px, py] = toMap(x, z);
   if (![[0, 0], [m, 0], [-m, 0], [0, m], [0, -m]].every(([ox, oy]) => insideIsland(px + ox, py + oy))) return false;
   if (blocked.some((b) => Math.hypot(b.x - x, b.z - z) < b.r + r)) return false;
+  if (riverSegs.some(([a, b, w]) => segDist(x, z, a, b) < w / 2 + r + 0.3)) return false;
   return !roadSegs.some(([a, b]) => segDist(x, z, a, b) < ROAD_W / 2 + r);
+}
+// 2 本の線分が交わる点（なければ null）。川と道の交差＝橋の場所。
+function crossPoint(a, b, c, d) {
+  const r1x = b.x - a.x; const r1z = b.z - a.z; const r2x = d.x - c.x; const r2z = d.z - c.z;
+  const den = r1x * r2z - r1z * r2x; if (Math.abs(den) < 1e-9) return null;
+  const t = ((c.x - a.x) * r2z - (c.z - a.z) * r2x) / den; const u = ((c.x - a.x) * r1z - (c.z - a.z) * r1x) / den;
+  return t >= 0 && t <= 1 && u >= 0 && u <= 1 ? new THREE.Vector3(a.x + r1x * t, 0, a.z + r1z * t) : null;
 }
 function block(x, z, r) { blocked.push({ x, z, r }); }
 
@@ -534,6 +554,21 @@ function addCyl(x, y, z, rt, rb, h, color, seg) {
   patch(ellipse(265, 592, 46, 42), '#e3d9b5', 0.06);
   patch(ellipse(265, 592, 40, 36), '#5aa7d1', 0.07);
   block(...(() => { const p = toWorld(265, 592); return [p.x, p.z, 5.8]; })());
+  // 川（道より下に描き、交わるところは橋の欄干を立てる）
+  riverSegs.forEach(([a, b, w], k) => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, a.distanceTo(b)), cmat('#5aa7d1'));
+    m.rotation.x = -Math.PI / 2; m.rotation.z = Math.atan2(b.x - a.x, b.z - a.z);
+    m.position.set((a.x + b.x) / 2, 0.075, (a.z + b.z) / 2); scene.add(m);
+    [a, b].forEach((p) => { const j = new THREE.Mesh(new THREE.CircleGeometry(w / 2, 16), cmat('#5aa7d1')); j.rotation.x = -Math.PI / 2; j.position.set(p.x, 0.075, p.z); scene.add(j); });
+    roadSegs.forEach(([c, d]) => {
+      const x = crossPoint(a, b, c, d); if (!x) return;
+      const yaw = Math.atan2(d.x - c.x, d.z - c.z);
+      [-1, 1].forEach((side) => {
+        const rail = addBox(x.x + Math.cos(yaw) * side * (ROAD_W / 2 + 0.06), 0.3, x.z - Math.sin(yaw) * side * (ROAD_W / 2 + 0.06), 0.1, 0.42, w + 1.4, '#b5865a');
+        rail.rotation.y = yaw;
+      });
+    });
+  });
   // 道
   roadSegs.forEach(([a, b]) => {
     const len = a.distanceTo(b);
@@ -642,12 +677,31 @@ JOBS.forEach((job, i) => {
 });
 
 // 地域の名前（お店のない地域・目じるし）
-[['ビーチ', [250, 205]], ['湖', [265, 592]], ['IT企業（準備中）', [300, 690]], ['夏山登山・冬スキー', [520, 392]], ['ジップライン', [432, 318]]].forEach(([text, at]) => {
+[['ビーチ', [250, 205]], ['湖', [265, 592]], ['IT企業（準備中）', [300, 690]], ['表：夏山登山　裏：冬スキー', [520, 392]], ['ジップライン', [432, 318]],
+  ['風の丘', [165, 372]], ['フェリー乗り場（となりの国へ）', [125, 440]]].forEach(([text, at]) => {
   const p = toWorld(...at);
-  const s = overviewSign(text, '', '', text.length > 4 ? 7 : 4.5);
-  s.position.set(p.x, text.startsWith('夏山') ? 19 : 7, p.z); s.lookAt(OVERVIEW.pos);
+  const s = overviewSign(text, '', '', text.length > 10 ? 11 : text.length > 4 ? 7.5 : 4.5);
+  s.position.set(p.x, text.startsWith('表：') ? 19 : 7, p.z); s.lookAt(OVERVIEW.pos);
   scene.add(s); overviewOnly.push(s);
 });
+// 山の表（南）の登山口。スキー場は裏にあって見えにくいので、看板で案内し、看板からも行けるようにする。
+(function buildTrailhead() {
+  const p = toWorld(522, 500);
+  const sign = new Board(2.6, 1.3, 300);
+  sign.draw((ctx, W, H) => {
+    ctx.fillStyle = '#6b4a2e'; roundRect(ctx, 0, 0, W, H, 30); ctx.fill();
+    ctx.fillStyle = '#fffaf0'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = '700 84px ' + FONT_DISPLAY; ctx.fillText('夏山 登山口', W / 2, H * 0.24);
+    ctx.font = '700 46px ' + FONT_BODY; ctx.fillText('冬は ここから 山の裏（北東）の', W / 2, H * 0.52);
+    ctx.fillText('スキー場へ 入れます', W / 2, H * 0.7);
+    ctx.font = '400 30px ' + FONT_BODY; ctx.fillStyle = '#f2d9b8'; ctx.fillText('この 看板を えらぶと スキー場へ 行きます', W / 2, H * 0.89);
+  });
+  sign.mesh.position.set(p.x, 1.9, p.z);
+  sign.mesh.userData.boothIndex = booths.findIndex((b) => b.job.id === 'ski');
+  plazaClickables.push(sign.mesh); scene.add(sign.mesh);
+  [-1.1, 1.1].forEach((dx) => addCyl(p.x + dx, 0.75, p.z - 0.05, 0.06, 0.06, 1.5, '#5a3f28', 6));
+  block(p.x, p.z, 1.6);
+})();
 // 見わたし台（VR で 足もとが 空中に ならないように）
 (function buildLookout() {
   const deck = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.2, 0.15, 32), mat('#ffffff', { transparent: true, opacity: 0.35 }));
@@ -670,6 +724,7 @@ function building(x, z, w, d, h, color, extra) {
   const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(color, Object.assign({ map: tex }, extra || {})));
   m.position.set(x, h / 2, z); scene.add(m); return m;
 }
+const windRotors = []; // 風車の羽（ループで回す）
 const NEON = ['#ff5a7a', '#ffc53d', '#3ddcff', '#9b6bff', '#5cff9d', '#ff8a3d'];
 function neonSign(x, z, h, w) {
   const s = new THREE.Mesh(new THREE.BoxGeometry(0.5, Math.min(4, h * 0.4), 0.5), new THREE.MeshBasicMaterial({ color: NEON[Math.floor(rand() * NEON.length)] }));
@@ -695,13 +750,34 @@ function tree(x, z, kind) {
 (function buildScenery() {
   // 山（夏は登山、冬はスキー）。頂上に雪。
   const peak = toWorld(520, 392); const MR = 11; const MH = 15;
-  const mountain = new THREE.Mesh(new THREE.ConeGeometry(MR, MH, 10), mat('#7f9161', { flatShading: true }));
+  const mountain = new THREE.Mesh(new THREE.ConeGeometry(MR, MH, 24), mat('#7f9161', { flatShading: true }));
   mountain.position.set(peak.x, MH / 2, peak.z); scene.add(mountain);
-  const snow = new THREE.Mesh(new THREE.ConeGeometry(MR * 0.37, MH * 0.36, 10), mat('#f7fbff', { flatShading: true }));
+  const snow = new THREE.Mesh(new THREE.ConeGeometry(MR * 0.37, MH * 0.36, 24), mat('#f7fbff', { flatShading: true }));
   snow.position.set(peak.x, MH - MH * 0.18, peak.z); scene.add(snow);
   block(peak.x, peak.z, MR + 0.5);
-  // リフト（南のふもとから中腹へ）
-  const liftA = new THREE.Vector3(peak.x + 1.2, 2.6, peak.z + MR + 1.6); const liftB = new THREE.Vector3(peak.x + 1.2, MH * 0.62 + 2.2, peak.z + MR * 0.36);
+  // 山の裏（北東）のスキー場：ゲレンデとリフト。向きはスキー場のお店から決める。
+  const skiAt = toWorld(...SITES.ski.at);
+  const toSki = new THREE.Vector3(skiAt.x - peak.x, 0, skiAt.z - peak.z).normalize();
+  const turn = (v, a) => new THREE.Vector3(v.x * Math.cos(a) - v.z * Math.sin(a), 0, v.x * Math.sin(a) + v.z * Math.cos(a));
+  const heightAt = (x, z) => Math.max(0, MH * (1 - Math.hypot(x - peak.x, z - peak.z) / MR));
+  function slopeStrip(dir, width) {
+    const side = new THREE.Vector3(-dir.z, 0, dir.x); const pos = []; const idx = []; const N = 16;
+    for (let i = 0; i <= N; i++) {
+      const r = MR * (0.3 + 0.8 * i / N);
+      [-1, 1].forEach((s) => {
+        const x = peak.x + dir.x * r + side.x * s * width / 2; const z = peak.z + dir.z * r + side.z * s * width / 2;
+        pos.push(x, heightAt(x, z) + 0.12, z);
+      });
+      if (i) { const k = i * 2; idx.push(k - 2, k - 1, k, k - 1, k + 1, k); }
+    }
+    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setIndex(idx); geo.computeVertexNormals();
+    scene.add(new THREE.Mesh(geo, mat('#f7fbff', { side: THREE.DoubleSide })));
+  }
+  slopeStrip(turn(toSki, -0.35), 2.6); slopeStrip(turn(toSki, -0.05), 1.8);
+  const liftDir = turn(toSki, 0.4);
+  const liftA = new THREE.Vector3(peak.x + liftDir.x * (MR + 1.2), 2.6, peak.z + liftDir.z * (MR + 1.2));
+  const liftB = new THREE.Vector3(peak.x + liftDir.x * MR * 0.36, MH * 0.64 + 2.2, peak.z + liftDir.z * MR * 0.36);
+  block(liftA.x, liftA.z, 0.8);
   [liftA, liftB].forEach((p) => addCyl(p.x, p.y / 2, p.z, 0.12, 0.12, p.y, '#55626d', 6));
   scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([liftA, liftB]), new THREE.LineBasicMaterial({ color: '#33404a' })));
   // ジップライン（山の中腹 → 林業エリア）
@@ -719,6 +795,29 @@ function tree(x, z, kind) {
   addCyl(capitol.x, 7.6, capitol.z, 0.05, 0.05, 2.4, '#55626d', 6);
   addBox(capitol.x + 0.5, 8.4, capitol.z, 1.0, 0.6, 0.04, '#e0662f');
   block(capitol.x, capitol.z, 6);
+  // フェリー乗り場：むかし栄えた港のなごり。となりの国が首都の側（西）にあるので、玄関口として残った。
+  const terminal = toWorld(185, 452);
+  addBox(terminal.x, 1.4, terminal.z, 5, 2.8, 3, '#f4f6f8'); addBox(terminal.x, 2.95, terminal.z, 5.4, 0.3, 3.4, '#2d6fa3');
+  block(terminal.x, terminal.z, 3.2);
+  const pierW = toWorld(122, 452); addBox(pierW.x, -0.05, pierW.z, 7.6, 0.4, 2, '#b8b3a8');
+  const ferry = toWorld(118, 474);
+  addBox(ferry.x, -0.05, ferry.z, 9, 1.0, 2.6, '#f4f4f0'); addBox(ferry.x + 0.8, 0.9, ferry.z, 5, 0.9, 2.2, '#2d6fa3');
+  addCyl(ferry.x - 0.8, 1.8, ferry.z, 0.3, 0.3, 1.0, '#d0453a', 12);
+  // 風の丘：北西の季節風がいちばん強く当たる丘に、風車
+  const hill = toWorld(165, 395); const HR = 3.6; const HH = 1.6;
+  const mound = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 10, 0, Math.PI * 2, 0, Math.PI / 2), cmat('#8fbc6e'));
+  mound.scale.set(HR, HH, HR); mound.position.set(hill.x, 0, hill.z); scene.add(mound); block(hill.x, hill.z, HR + 0.3);
+  [[0, 0], [-1.9, -1.5], [1.6, 1.9]].forEach(([dx, dz], k) => {
+    const x = hill.x + dx; const z = hill.z + dz; const base = HH * Math.sqrt(Math.max(0, 1 - (dx * dx + dz * dz) / (HR * HR)));
+    const H = 6 + (k === 0 ? 1 : 0);
+    addCyl(x, base + H / 2, z, 0.1, 0.18, H, '#f4f6f8', 10);
+    const head = new THREE.Group(); head.position.set(x, base + H, z); head.rotation.y = -Math.PI * 0.75; scene.add(head); // 北西の風に向く
+    head.add(new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.34, 0.8), cmat('#f4f6f8')));
+    const rotor = new THREE.Group(); rotor.position.z = 0.48; head.add(rotor);
+    const blade = new THREE.BoxGeometry(0.16, 2.4, 0.04); blade.translate(0, 1.2, 0);
+    for (let n = 0; n < 3; n++) { const b = new THREE.Mesh(blade, cmat('#f4f6f8')); b.rotation.z = n * Math.PI * 2 / 3; rotor.add(b); }
+    rotor.userData.phase = k * 0.7; windRotors.push(rotor);
+  });
   // 首都のオフィス街
   scatter(255, 455, 75, 55, 9, 2.4, (x, z) => building(x, z, 3.4, 3.4, 5 + rand() * 6, pick(['#e6e2da', '#d6dbe0', '#ece4d4'])));
 
@@ -781,7 +880,7 @@ function tree(x, z, kind) {
 
   // ビーチ：パラソル
   [[175, 290], [215, 255], [262, 222], [315, 190], [362, 160], [405, 138]].forEach(([px, py], k) => {
-    const p = toWorld(px, py);
+    const p = toWorld(px, py); if (!isFree(p.x, p.z, 1)) return;
     addCyl(p.x, 1.1, p.z, 0.04, 0.04, 2.2, '#f4f4f0', 6);
     const u = new THREE.Mesh(new THREE.ConeGeometry(1.3, 0.6, 12), cmat(['#e0662f', '#3b6fb6', '#f2c230'][k % 3])); u.position.set(p.x, 2.3, p.z); scene.add(u);
   });
@@ -1314,6 +1413,7 @@ function onResize() {
 window.addEventListener('resize', onResize);
 onResize();
 
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 renderer.setAnimationLoop((now) => {
   if (tween) {
     const t = Math.min(1, (now - tween.t0) / tween.dur); const e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
@@ -1325,6 +1425,7 @@ renderer.setAnimationLoop((now) => {
   const r = state.round;
   if (r && state.phase === 'work' && state.withSupport && !r.hintShown && (now - r.lastActionAt) / 1000 > AUTO_HINT_SEC) useHint(true);
   if (r) r.slots.forEach((s) => { if (s.ring.visible) { const k = 1 + Math.sin(now / 180) * 0.12; s.ring.scale.set(k, k, k); } });
+  if (!reduceMotion) windRotors.forEach((r) => { r.rotation.z = -(now / 1000) * 1.4 - r.userData.phase; });
   stepAnims(now);
   renderer.render(scene, camera);
 });
