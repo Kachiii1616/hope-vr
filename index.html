@@ -120,6 +120,18 @@ button.primary { background: var(--accent); color: var(--accent-ink); border-col
 .log .actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
 .log textarea { width: 100%; box-sizing: border-box; min-height: 120px; margin-top: 8px; font: 12px/1.4 ui-monospace, Menlo, monospace; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: 8px; }
 
+.pad {
+  position: fixed; z-index: 3; right: 16px; bottom: calc(env(safe-area-inset-bottom, 0px) + 68px);
+  display: grid; grid-template-columns: repeat(3, 52px); grid-template-rows: repeat(2, 52px); gap: 6px;
+  touch-action: none; user-select: none; -webkit-user-select: none;
+}
+.pad[hidden] { display: none; }
+.pad button { padding: 0; font-size: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,.12); }
+.pad button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.pad .up { grid-column: 2; grid-row: 1; }
+.pad .left { grid-column: 1; grid-row: 2; }
+.pad .down { grid-column: 2; grid-row: 2; }
+.pad .right { grid-column: 3; grid-row: 2; }
 .toast { position: fixed; z-index: 4; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 72px); transform: translateX(-50%);
   background: var(--ink); color: var(--paper); padding: 6px 14px; border-radius: 999px; font-size: 13px; }
 
@@ -137,6 +149,8 @@ button.primary { background: var(--accent); color: var(--accent-ink); border-col
   <div class="brand">HOPE しごとタウン<small>職業体験 VR 下書き</small></div>
   <div class="place" id="place">島ぜんたい</div>
   <div class="spacer"></div>
+  <button id="btn-walk" type="button">島を歩く</button>
+  <button id="btn-season" type="button">季節：夏</button>
   <button id="btn-log" type="button">きろく</button>
   <button id="btn-vr" type="button" class="primary" hidden>VR で入る</button>
 </header>
@@ -158,6 +172,12 @@ button.primary { background: var(--accent); color: var(--accent-ink); border-col
 <nav class="hud bottom" id="chips" aria-label="職業をえらぶ"></nav>
 <button type="button" class="chip-nav" id="chips-prev" aria-label="前の お店へ 送る" hidden>‹</button>
 <button type="button" class="chip-nav" id="chips-next" aria-label="つぎの お店へ 送る" hidden>›</button>
+<div class="pad" id="pad" hidden aria-label="歩くボタン">
+  <button type="button" class="up" data-key="fwd" aria-label="前へ">▲</button>
+  <button type="button" class="left" data-key="left" aria-label="左を向く">◀</button>
+  <button type="button" class="down" data-key="back" aria-label="うしろへ">▼</button>
+  <button type="button" class="right" data-key="right" aria-label="右を向く">▶</button>
+</div>
 <div class="toast" id="toast" hidden></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -320,7 +340,7 @@ const JOBS = [
     },
   },
   {
-    id: 'ski', area: '山の裏（北東）', name: 'スキー場', work: 'レンタル受付', color: '#3c7fc4', category: '実務',
+    id: 'ski', area: '山の裏（北東）', season: 'winter', name: 'スキー場', work: 'レンタル受付', color: '#3c7fc4', category: '実務',
     intro: 'お客さまの 足の 大きさに あう ブーツと、はじめての 人には 短い 板、上級の 人には 長い 板を わたします。',
     defect: 'サイズ・板の まちがい',
     round() {
@@ -329,6 +349,57 @@ const JOBS = [
       const size = pick([23, 25, 27]); const level = pick(['はじめて', '上級']);
       const card = 'うけつけ票：' + size + 'cm・' + level;
       return { title: card + '（ブーツと 板）', shortTitle: 'レンタルの 道具を わたす', items: shuffle(items), need: ['ブーツ ' + size, level === 'はじめて' ? '短い板' : '長い板'], ordered: false, carryText: card };
+    },
+  },
+  {
+    id: 'hut', area: '山の表（南）', season: 'summer', name: '山小屋', work: '登山の受付', color: '#8a6a3c', category: '実務',
+    intro: '登山届に 書かれた 持ち物を たしかめて、たりない ものを そろえて わたします。山に 合わない ものは わたしません。',
+    defect: 'ちがう 持ち物・山に 合わない もの',
+    round() {
+      const gear = [
+        { label: '雨具', shape: 'pouch', color: '#3c7fc4' }, { label: 'ライト', shape: 'cyl', color: '#f2c230' },
+        { label: '水筒', shape: 'cyl', color: '#c9cdd2' }, { label: '地図', shape: 'card', color: '#e8f0d8' },
+        { label: '救急セット', shape: 'box', color: '#d0453a' }, { label: '帽子', shape: 'helmet', color: '#d9c49a' },
+      ];
+      const wrong = [{ label: 'サンダル', shape: 'disc', color: '#e07fa4' }, { label: '浮き輪', shape: 'disc', color: '#f39a2b' }];
+      const need = sample(gear, 3).map((g) => g.label);
+      const card = '登山届：' + need.join('・');
+      return { title: card + ' を そろえる', shortTitle: '登山の 持ち物を そろえる', items: shuffle(gear.concat(wrong)), need, ordered: false, carryText: card };
+    },
+  },
+  {
+    id: 'wind', area: '風の丘', name: '風力発電所', work: '風車の点検', color: '#4f8fa8', category: '実務',
+    intro: '風車を 止めて 安全を たしかめてから 点検し、点検表に 記録します。羽の キズは ライト、ボルトの ゆるみは スパナ、オイルの 量は オイルゲージで 見ます。',
+    defect: '手順ちがい（止める前に 点検する など）・ちがう 道具',
+    round() {
+      const targets = [{ what: '羽の キズ', tool: 'ライト' }, { what: 'ボルトの ゆるみ', tool: 'スパナ' }, { what: 'オイルの 量', tool: 'オイルゲージ' }];
+      const t = pick(targets);
+      const items = [
+        { label: 'ヘルメット', shape: 'helmet', color: '#f2c230' }, { label: '安全帯', shape: 'stick', color: '#e0662f' },
+        { label: '停止スイッチ', shape: 'box', color: '#d0453a' }, { label: 'ライト', shape: 'cyl', color: '#f6e27a' },
+        { label: 'スパナ', shape: 'stick', color: '#8a8f96' }, { label: 'オイルゲージ', shape: 'cyl', color: '#5a5f66' },
+        { label: '点検表', shape: 'card', color: '#ffffff' }, { label: 'ペンキ', shape: 'cyl', color: '#7fb3d9' },
+      ];
+      return { title: '点検：' + t.what + '（安全 → 点検 → 記録）', shortTitle: '風車を 点検する', items: shuffle(items), need: ['ヘルメット', '安全帯', '停止スイッチ', t.tool, '点検表'], ordered: true, carryText: '点検票：' + t.what };
+    },
+  },
+  {
+    id: 'it', area: 'IT企業', name: 'IT企業', work: 'データのチェック', color: '#3f6fa8', category: '事務',
+    intro: '伝票と、パソコンに 入力された 表を くらべて、入力ミスの 行を ぜんぶ 見つけます。',
+    defect: '見落とし・合っている 行を ミスに する',
+    round() {
+      const rows = sample(['りんご', 'みかん', 'ぶどう', 'もも', 'なし', 'バナナ'], 4).map((f) => ({ f, n: 1 + Math.floor(Math.random() * 8) }));
+      const wrong = sample([0, 1, 2, 3], 1 + Math.floor(Math.random() * 2));
+      const items = rows.map((r, i) => {
+        let shown = r.n;
+        if (wrong.includes(i)) { shown = r.n + pick([-2, -1, 1, 2]); if (shown < 1) shown = r.n + 1; }
+        return { id: 'row' + i, label: r.f + ' ' + shown + 'こ', shape: 'sheet', color: '#ffffff' };
+      });
+      return {
+        title: '入力ミスを ぜんぶ 見つける（' + wrong.length + 'か所）', shortTitle: '入力ミスを 見つける',
+        items, need: wrong.sort().map((i) => 'row' + i), ordered: false,
+        carryText: '伝票：' + rows.map((r) => r.f + ' ' + r.n).join('・'),
+      };
     },
   },
 ];
@@ -464,6 +535,9 @@ const SITES = {
   ski: { at: [625, 350], face: 'n' },      // 山の裏（北東）。南向きの斜面は雪がとけやすいので、スキー場は北東側
   logi: { at: [742, 392], face: 'n' },     // 漁港：港の物流センター
   farm: { at: [702, 602], face: 'n' },     // 農村
+  hut: { at: [478, 505], face: 's' },      // 山の表（南）の登山口
+  wind: { at: [198, 405], face: 's' },     // 風の丘のふもと
+  it: { at: [285, 660], face: 'e' },       // IT企業
 };
 
 // 道。漁港 → 山の南 → 学校 → 首都 → 繁華街 が島の目抜き通り。
@@ -471,11 +545,11 @@ const ROAD_W = 2.4;
 const ROADS = [
   [[742, 425], [640, 520], [470, 545], [400, 505], [330, 488], [262, 488], [232, 555], [190, 600], [150, 625]],
   [[330, 488], [345, 395], [392, 290], [470, 300], [592, 300], [680, 330]],
-  [[262, 488], [232, 420], [232, 368]],
+  [[262, 488], [230, 430], [222, 368]],
   [[400, 505], [400, 560], [355, 625], [330, 668]],
   [[640, 520], [702, 640], [820, 690]],
   [[742, 425], [800, 470], [860, 560]],
-  [[241, 440], [206, 452]], // 首都 → フェリー乗り場
+  [[244, 455], [202, 468]], // 首都 → フェリー乗り場
 ];
 
 // 川。山のふもとの湧き水から、放射状に海へ（火山の島に多い形）。w は川はば（m）。
@@ -520,18 +594,28 @@ function crossPoint(a, b, c, d) {
   const t = ((c.x - a.x) * r2z - (c.z - a.z) * r2x) / den; const u = ((c.x - a.x) * r1z - (c.z - a.z) * r1x) / den;
   return t >= 0 && t <= 1 && u >= 0 && u <= 1 ? new THREE.Vector3(a.x + r1x * t, 0, a.z + r1z * t) : null;
 }
-function block(x, z, r) { blocked.push({ x, z, r }); }
+// w は 歩くときの ぶつかる大きさ（0 は 歩いて 通れる＝畑・校庭・入口の前など。省くと r と同じ）
+function block(x, z, r, w) { blocked.push({ x, z, r, w: w === undefined ? r : w }); }
+// 歩いて 行けるか（島の中・建物や 木に ぶつからない・川は 橋の 上だけ）
+const WALKER_R = 0.3;
+function walkable(x, z) {
+  const m = WALKER_R / MAP_SCALE; const [px, py] = toMap(x, z);
+  if (![[0, 0], [m, 0], [-m, 0], [0, m], [0, -m]].every(([ox, oy]) => insideIsland(px + ox, py + oy))) return false;
+  if (blocked.some((b) => b.w > 0 && Math.hypot(b.x - x, b.z - z) < b.w + WALKER_R)) return false;
+  const onRoad = roadSegs.some(([a, b]) => segDist(x, z, a, b) < ROAD_W / 2);
+  return onRoad || !riverSegs.some(([a, b, w]) => segDist(x, z, a, b) < w / 2 + 0.1);
+}
 
 // 毎回同じ町になるよう、決まった順の乱数で散らす
 let seed = 20260616;
 const rand = () => { seed |= 0; seed = (seed + 0x6D2B79F5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
-function scatter(cx, cy, rx, ry, count, r, make) {
+function scatter(cx, cy, rx, ry, count, r, make, walkR) {
   let placed = 0;
   for (let tries = 0; tries < count * 40 && placed < count; tries++) {
     const a = rand() * Math.PI * 2; const d = Math.sqrt(rand());
     const p = toWorld(cx + Math.cos(a) * rx * d, cy + Math.sin(a) * ry * d);
     if (!isFree(p.x, p.z, r)) continue;
-    block(p.x, p.z, r); make(p.x, p.z, placed); placed++;
+    block(p.x, p.z, r, walkR); make(p.x, p.z, placed); placed++;
   }
 }
 
@@ -630,7 +714,7 @@ const SHOP_DEPTH = 4.4;
 function buildShopShell(g, job) {
   const wallMat = () => mat(job.id === 'farm' ? '#dff0e4' : '#f4efe6', job.id === 'farm' ? { transparent: true, opacity: 0.35, roughness: 0.1 } : null);
   const add = (geo, m, x, y, z) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); g.add(o); return o; };
-  const floorColor = { fish: '#cfd8dc', forest: '#9c7a54', ski: '#d9dde3', logi: '#b9bcb8', store: '#e9e6dc', clean: '#d9cdb8', cafe: '#a87b55', care: '#d8c3a0', office: '#c9ccd3', farm: '#8f7a5a', craft: '#c4a27a' }[job.id] || '#d9cdb8';
+  const floorColor = { fish: '#cfd8dc', forest: '#9c7a54', ski: '#d9dde3', logi: '#b9bcb8', store: '#e9e6dc', clean: '#d9cdb8', cafe: '#a87b55', care: '#d8c3a0', office: '#c9ccd3', farm: '#8f7a5a', craft: '#c4a27a', hut: '#9c7a54', wind: '#c9ccd3', it: '#c9ccd3' }[job.id] || '#d9cdb8';
   const floor = add(new THREE.PlaneGeometry(SHOP_W, SHOP_DEPTH), mat(floorColor), 0, 0.1, SHOP_DEPTH / 2); floor.rotation.x = -Math.PI / 2;
   [-1, 1].forEach((sd) => {
     add(new THREE.BoxGeometry(0.1, 3.0, SHOP_DEPTH), wallMat(), sd * (SHOP_W / 2 + 0.05), 1.5, SHOP_DEPTH / 2);
@@ -663,7 +747,8 @@ JOBS.forEach((job, i) => {
   // 建物（奥の部屋〜入口）と、入口の前はふさいでおく
   const front = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
   block(g.position.x + front.x * 0.9, g.position.z + front.z * 0.9, 4.3);
-  block(g.position.x + front.x * (SHOP_DEPTH + 1.2), g.position.z + front.z * (SHOP_DEPTH + 1.2), 1.4);
+  block(g.position.x + front.x * (SHOP_DEPTH + 1.2), g.position.z + front.z * (SHOP_DEPTH + 1.2), 1.4, 0);
+  const door = new THREE.Vector3(g.position.x + front.x * (SHOP_DEPTH + 1.2), 0, g.position.z + front.z * (SHOP_DEPTH + 1.2)); // 入口の前（歩いて ここに 来ると 中に 入る）
 
   // 建物（背中が外、正面がローカル +z）
   //   z = 0 が お店の奥の壁（掲示板）、z = SHOP_DEPTH が 入口の壁。作業台と 立つ位置は その間（お店の中）。
@@ -715,37 +800,36 @@ JOBS.forEach((job, i) => {
     hint: makeButton('ヒント', '#e0a23a', 0.36, 0.14),
     back: makeButton('島ぜんたいへ', '#3d4a54', 0.56, 0.14),
     again: makeButton('もう一度', job.color, 0.46, 0.14),
+    exit: makeButton('外に出る', '#2f7d4f', 0.56, 0.14),
   };
   // 掲示板の左右に並べる（VR でも 目線を 大きく 下げずに 押せる高さ）
   btns.with.position.set(-1.62, 2.2, 0.03); btns.without.position.set(-1.62, 1.95, 0.03);
-  btns.hint.position.set(-1.62, 1.95, 0.03); btns.again.position.set(1.62, 1.95, 0.03); btns.back.position.set(1.62, 1.55, 0.03);
+  btns.hint.position.set(-1.62, 1.95, 0.03); btns.again.position.set(1.62, 1.95, 0.03); btns.back.position.set(1.62, 1.55, 0.03); btns.exit.position.set(1.62, 1.35, 0.03);
   Object.values(btns).forEach((m) => { g.add(m); m.visible = false; });
 
-  booths.push({ job, group: g, yaw, board, workArea, btns, pin });
+  booths.push({ job, group: g, yaw, front, door, board, workArea, btns, pin });
 });
 
 // 地域の名前（お店のない地域・目じるし）
-[['ビーチ', [250, 205]], ['湖', [265, 592]], ['IT企業（準備中）', [300, 690]], ['表：夏山登山　裏：冬スキー', [520, 392]], ['ジップライン', [432, 318]],
-  ['風の丘', [165, 372]], ['フェリー乗り場（となりの国へ）', [125, 440]]].forEach(([text, at]) => {
+[['ビーチ', [250, 205]], ['湖', [265, 592]], ['表：夏山登山　裏：冬スキー', [520, 392]], ['ジップライン', [432, 318]],
+  ['フェリー乗り場（となりの国へ）', [125, 458]]].forEach(([text, at]) => {
   const p = toWorld(...at);
   const s = overviewSign(text, '', '', text.length > 10 ? 11 : text.length > 4 ? 7.5 : 4.5);
   s.position.set(p.x, text.startsWith('表：') ? 19 : 7, p.z); s.lookAt(OVERVIEW.pos);
   scene.add(s); overviewOnly.push(s);
 });
+// 季節。山は 夏は 山小屋（表）、冬は スキー場（裏）が ひらく。見た目（雪・ゲレンデ・看板）も 季節で かわる。
+let season = (() => { const m = new Date().getMonth() + 1; return m === 12 || m <= 3 ? 'winter' : 'summer'; })();
+const SEASON_NAME = { summer: '夏', winter: '冬' };
+const isOpen = (job) => !job.season || job.season === season;
+const seasonal = { snowCap: null, capH: 0, peakH: 0, runs: [], trail: null };
+
 // 山の表（南）の登山口。スキー場は裏にあって見えにくいので、看板で案内し、看板からも行けるようにする。
 (function buildTrailhead() {
-  const p = toWorld(522, 500);
+  const p = toWorld(532, 503);
   const sign = new Board(2.6, 1.3, 300);
-  sign.draw((ctx, W, H) => {
-    ctx.fillStyle = '#6b4a2e'; roundRect(ctx, 0, 0, W, H, 30); ctx.fill();
-    ctx.fillStyle = '#fffaf0'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.font = '700 84px ' + FONT_DISPLAY; ctx.fillText('夏山 登山口', W / 2, H * 0.24);
-    ctx.font = '700 46px ' + FONT_BODY; ctx.fillText('冬は ここから 山の裏（北東）の', W / 2, H * 0.52);
-    ctx.fillText('スキー場へ 入れます', W / 2, H * 0.7);
-    ctx.font = '400 30px ' + FONT_BODY; ctx.fillStyle = '#f2d9b8'; ctx.fillText('この 看板を えらぶと スキー場へ 行きます', W / 2, H * 0.89);
-  });
+  seasonal.trail = sign;
   sign.mesh.position.set(p.x, 1.9, p.z);
-  sign.mesh.userData.boothIndex = booths.findIndex((b) => b.job.id === 'ski');
   plazaClickables.push(sign.mesh); scene.add(sign.mesh);
   [-1.1, 1.1].forEach((dx) => addCyl(p.x + dx, 0.75, p.z - 0.05, 0.06, 0.06, 1.5, '#5a3f28', 6));
   block(p.x, p.z, 1.6);
@@ -802,6 +886,7 @@ function tree(x, z, kind) {
   mountain.position.set(peak.x, MH / 2, peak.z); scene.add(mountain);
   const snow = new THREE.Mesh(new THREE.ConeGeometry(MR * 0.37, MH * 0.36, 24), mat('#f7fbff', { flatShading: true }));
   snow.position.set(peak.x, MH - MH * 0.18, peak.z); scene.add(snow);
+  Object.assign(seasonal, { snowCap: snow, capH: MH * 0.36, peakH: MH });
   block(peak.x, peak.z, MR + 0.5);
   // 山の裏（北東）のスキー場：ゲレンデとリフト。向きはスキー場のお店から決める。
   const skiAt = toWorld(...SITES.ski.at);
@@ -819,7 +904,7 @@ function tree(x, z, kind) {
       if (i) { const k = i * 2; idx.push(k - 2, k - 1, k, k - 1, k + 1, k); }
     }
     const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setIndex(idx); geo.computeVertexNormals();
-    scene.add(new THREE.Mesh(geo, mat('#f7fbff', { side: THREE.DoubleSide })));
+    const run = new THREE.Mesh(geo, mat('#f7fbff', { side: THREE.DoubleSide })); scene.add(run); seasonal.runs.push(run);
   }
   slopeStrip(turn(toSki, -0.35), 2.6); slopeStrip(turn(toSki, -0.05), 1.8);
   const liftDir = turn(toSki, 0.4);
@@ -836,7 +921,7 @@ function tree(x, z, kind) {
   block(zipB.x, zipB.z, 1.2);
 
   // 首都：議事堂（ドームと旗）
-  const capitol = toWorld(250, 392);
+  const capitol = toWorld(282, 392);
   addBox(capitol.x, 2.2, capitol.z, 10, 4.4, 5, '#f1ece2');
   const dome = new THREE.Mesh(new THREE.SphereGeometry(2.2, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), cmat('#7fa7a0'));
   dome.position.set(capitol.x, 4.4, capitol.z); scene.add(dome);
@@ -844,15 +929,15 @@ function tree(x, z, kind) {
   addBox(capitol.x + 0.5, 8.4, capitol.z, 1.0, 0.6, 0.04, '#e0662f');
   block(capitol.x, capitol.z, 6);
   // フェリー乗り場：むかし栄えた港のなごり。となりの国が首都の側（西）にあるので、玄関口として残った。
-  const terminal = toWorld(185, 452);
+  const terminal = toWorld(180, 470);
   addBox(terminal.x, 1.4, terminal.z, 5, 2.8, 3, '#f4f6f8'); addBox(terminal.x, 2.95, terminal.z, 5.4, 0.3, 3.4, '#2d6fa3');
   block(terminal.x, terminal.z, 3.2);
-  const pierW = toWorld(122, 452); addBox(pierW.x, -0.05, pierW.z, 7.6, 0.4, 2, '#b8b3a8');
-  const ferry = toWorld(118, 474);
+  const pierW = toWorld(122, 470); addBox(pierW.x, -0.05, pierW.z, 7.6, 0.4, 2, '#b8b3a8');
+  const ferry = toWorld(116, 492);
   addBox(ferry.x, -0.05, ferry.z, 9, 1.0, 2.6, '#f4f4f0'); addBox(ferry.x + 0.8, 0.9, ferry.z, 5, 0.9, 2.2, '#2d6fa3');
   addCyl(ferry.x - 0.8, 1.8, ferry.z, 0.3, 0.3, 1.0, '#d0453a', 12);
   // 風の丘：北西の季節風がいちばん強く当たる丘に、風車
-  const hill = toWorld(165, 395); const HR = 3.6; const HH = 1.6;
+  const hill = toWorld(150, 368); const HR = 3.6; const HH = 1.6;
   const mound = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 10, 0, Math.PI * 2, 0, Math.PI / 2), cmat('#8fbc6e'));
   mound.scale.set(HR, HH, HR); mound.position.set(hill.x, 0, hill.z); scene.add(mound); block(hill.x, hill.z, HR + 0.3);
   [[0, 0], [-1.9, -1.5], [1.6, 1.9]].forEach(([dx, dz], k) => {
@@ -878,22 +963,19 @@ function tree(x, z, kind) {
     if (rand() < 0.7) neonSign(x, z, h, w);
   });
   // 住宅地
-  scatter(190, 520, 48, 48, 12, 1.8, (x, z) => house(x, z, pick(['#f6efe2', '#f1e4d0', '#e8eef2']), pick(['#b9573f', '#5a6f8a', '#7a8a4f'])));
-  scatter(330, 455, 40, 30, 6, 1.8, (x, z) => house(x, z, pick(['#f6efe2', '#f1e4d0']), pick(['#b9573f', '#5a6f8a'])));
+  scatter(190, 520, 48, 48, 12, 1.8, (x, z) => house(x, z, pick(['#f6efe2', '#f1e4d0', '#e8eef2']), pick(['#b9573f', '#5a6f8a', '#7a8a4f'])), 1.4);
+  scatter(330, 455, 40, 30, 6, 1.8, (x, z) => house(x, z, pick(['#f6efe2', '#f1e4d0']), pick(['#b9573f', '#5a6f8a'])), 1.4);
 
   // 学校エリア：校舎と校庭
   const school = toWorld(352, 610); addBox(school.x, 1.8, school.z, 8, 3.6, 3.2, '#f4ecd8'); block(school.x, school.z, 4.4);
   addCyl(school.x, 4.2, school.z + 1.62, 0.6, 0.6, 0.08, '#ffffff', 20).rotation.x = Math.PI / 2;
-  const field = toWorld(408, 585); patch(ellipse(408, 585, 26, 20), '#d6a874', 0.07); block(field.x, field.z, 3.2);
+  const field = toWorld(408, 585); patch(ellipse(408, 585, 26, 20), '#d6a874', 0.07); block(field.x, field.z, 3.2, 0);
 
   // IT 企業：ガラスのビル
-  [[288, 676, 13], [312, 662, 10], [318, 700, 16]].forEach(([px, py, h]) => {
-    const p = toWorld(px, py); if (!isFree(p.x, p.z, 1.8)) return;
-    block(p.x, p.z, 1.8); building(p.x, p.z, 3.2, 3.2, h, '#9fc3e0', { metalness: 0.35, roughness: 0.25 });
-  });
+  scatter(315, 670, 45, 26, 3, 1.8, (x, z, k) => building(x, z, 3.2, 3.2, [13, 10, 16][k], '#9fc3e0', { metalness: 0.35, roughness: 0.25 }));
 
   // 漁村：家と、沖の漁船
-  scatter(600, 240, 60, 35, 9, 1.7, (x, z) => house(x, z, pick(['#f2ece0', '#e4ecef']), pick(['#3d6f9e', '#4f7f7a', '#9e4f3d'])));
+  scatter(600, 240, 60, 35, 9, 1.7, (x, z) => house(x, z, pick(['#f2ece0', '#e4ecef']), pick(['#3d6f9e', '#4f7f7a', '#9e4f3d'])), 1.4);
   function boat(px, py, ry) {
     const p = toWorld(px, py);
     addBox(p.x, -0.15, p.z, 1.4, 0.5, 3.6, '#f4f4f0', ry); addBox(p.x, 0.45, p.z, 1.0, 0.7, 1.2, '#2d7fa3', ry);
@@ -915,7 +997,7 @@ function tree(x, z, kind) {
   for (let py = 545; py < 760; py += 30) {
     for (let px = 620; px < 900; px += 42) {
       const p = toWorld(px + 21, py + 15); if (!isFree(p.x, p.z, 2.1)) continue;
-      block(p.x, p.z, 2.1);
+      block(p.x, p.z, 2.1, 0);
       patch([[px + 2, py + 2], [px + 40, py + 2], [px + 40, py + 28], [px + 2, py + 28]], pick(['#c9b36a', '#88b25a', '#a7c46a', '#b98f5a']), 0.06);
     }
   }
@@ -934,8 +1016,8 @@ function tree(x, z, kind) {
   });
 
   // 林業エリア：針葉樹の森。島のあちこちにも木。
-  scatter(392, 262, 105, 82, 75, 0.9, (x, z) => tree(x, z, 'conifer'));
-  scatter(515, 450, 430, 340, 70, 0.9, (x, z) => tree(x, z));
+  scatter(392, 262, 105, 82, 75, 0.9, (x, z) => tree(x, z, 'conifer'), 0.35);
+  scatter(515, 450, 430, 340, 70, 0.9, (x, z) => tree(x, z), 0.35);
 })();
 
 // ===========================================================================
@@ -1293,6 +1375,7 @@ function makeItemMesh(spec) {
     case 'helmet': geo = new THREE.SphereGeometry(0.085, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2); break;
     case 'boot': geo = new THREE.BoxGeometry(0.09, 0.14, 0.18); y = 0.07; break;
     case 'ski': geo = new THREE.BoxGeometry(0.07, 0.02, 0.4); y = 0.01; break;
+    case 'sheet': geo = new THREE.BoxGeometry(0.28, 0.012, 0.14); y = 0.006; break;
     default: geo = new THREE.BoxGeometry(0.12, 0.14, 0.1); y = 0.07;
   }
   const mesh = new THREE.Mesh(geo, m);
@@ -1436,6 +1519,19 @@ function decorateInterior(b) {
     ['#e0662f', '#3c7fc4', '#f2c230', '#d0453a', '#4f9a45', '#3c7fc4'].forEach((c, k) => {
       const ski = part(g, box(0.07, 1.45, 0.02), c, DECO_X + 0.05, 0.8, 0.85 + k * 0.24); ski.rotation.z = -0.08;
     });
+  } else if (id === 'hut') {
+    // 登山の 持ち物の たなと、ベンチ
+    wallShelf(g, -1, ['#3c7fc4', '#f2c230', '#c9cdd2', '#d0453a'], '#8a6a46');
+    part(g, box(0.45, 0.06, 1.6), '#8a6a46', DECO_X - 0.05, 0.45, 1.45);
+    [0.8, 2.1].forEach((z) => part(g, box(0.4, 0.42, 0.06), '#7a5a3a', DECO_X - 0.05, 0.21, z));
+  } else if (id === 'wind') {
+    // ヘルメットの たなと、点検の 道具かべ
+    part(g, box(0.3, 0.03, 1.6), '#8a8f96', -(SHOP_W / 2 - 0.17), 1.1, 1.45);
+    [0.95, 1.45, 1.95].forEach((z) => part(g, new THREE.SphereGeometry(0.13, 16, 8, 0, TAU, 0, Math.PI / 2), '#f2c230', -(SHOP_W / 2 - 0.17), 1.115, z));
+    part(g, box(0.04, 1.2, 1.6), '#5a5f66', SHOP_W / 2 - 0.03, 0.9, 1.45);
+    [[1.0, '#8a8f96'], [1.4, '#e0662f'], [1.8, '#f6e27a']].forEach(([z, c]) => part(g, box(0.05, 0.5, 0.06), c, SHOP_W / 2 - 0.08, 0.95, z));
+  } else if (id === 'it') {
+    deskSet(g, -1, 1.7); deskSet(g, 1, 1.7);
   } else if (id === 'craft') {
     wallShelf(g, -1, ['のり', 'ハサミ', 'ひも', '#e7d6b8'], '#b0703a');
     tableSet(g, 1, 1.5, '#e8d9bf', '#b0703a');
@@ -1487,6 +1583,7 @@ function goPlaza() {
   stopSpeech();
   clearWork();
   if (state.booth) Object.values(state.booth.btns).forEach((m) => { m.visible = false; });
+  state.cameFromWalk = false;
   state.where = 'plaza'; state.booth = null; state.phase = 'choose'; state.session = null; state.round = null;
   moveRig(OVERVIEW.pos, OVERVIEW.yaw, OVERVIEW.pitch);
   overviewOnly.forEach((m) => { m.visible = true; });
@@ -1494,6 +1591,7 @@ function goPlaza() {
 }
 
 function goBooth(i) {
+  state.cameFromWalk = state.where === 'walk' || (state.where === 'booth' && state.cameFromWalk);
   if (state.booth && state.booth !== booths[i]) { clearWork(); Object.values(state.booth.btns).forEach((m) => { m.visible = false; }); }
   stopSpeech();
   const b = booths[i];
@@ -1505,17 +1603,124 @@ function goBooth(i) {
   renderHud();
 }
 
+// 島を 歩く（地面の 高さで、道や 広場を 歩いて お店の 入口から 入る）
+const WALK_START = { at: [400, 505], yaw: -0.8 }; // 学校の 東の 交差点。北東（山）を 向く
+function startWalk(pos, yaw) {
+  stopSpeech();
+  clearWork();
+  if (state.booth) Object.values(state.booth.btns).forEach((m) => { m.visible = false; });
+  state.where = 'walk'; state.booth = null; state.phase = 'choose'; state.session = null; state.round = null; state.cameFromWalk = false;
+  overviewOnly.forEach((m) => { m.visible = false; });
+  moveRig(pos || toWorld(...WALK_START.at), yaw === undefined ? WALK_START.yaw : yaw, 0);
+  renderHud();
+}
+// お店から 外へ（入口の 前に 出て、お店に 背中を 向ける）
+function exitToWalk() {
+  const b = state.booth; if (!b) return;
+  let p = null;
+  for (const d of [SHOP_DEPTH + 3.0, SHOP_DEPTH + 2.2]) { const c = b.group.position.clone().addScaledVector(b.front, d); if (walkable(c.x, c.z)) { p = c; break; } }
+  startWalk(p || b.group.position.clone().addScaledVector(b.front, SHOP_DEPTH + 3.0), b.yaw + Math.PI);
+}
+const walkKeys = { fwd: false, back: false, left: false, right: false, run: false };
+const KEYMAP = { KeyW: 'fwd', ArrowUp: 'fwd', KeyS: 'back', ArrowDown: 'back', KeyA: 'left', ArrowLeft: 'left', KeyD: 'right', ArrowRight: 'right', ShiftLeft: 'run', ShiftRight: 'run' };
+const tmpDir = new THREE.Vector3(); const tmpHead = new THREE.Vector3();
+let snapReady = true;
+function walkStep(dt) {
+  if (state.where !== 'walk' || tween) return;
+  let fwd = (walkKeys.fwd ? 1 : 0) - (walkKeys.back ? 1 : 0); let strafe = 0; let turn = (walkKeys.right ? 1 : 0) - (walkKeys.left ? 1 : 0);
+  // VR：左スティックで 歩く、右スティックで 30 度ずつ 向きを かえる（酔いにくい）
+  const xr = renderer.xr.isPresenting && renderer.xr.getSession();
+  if (xr) {
+    for (const src of xr.inputSources) {
+      const gp = src.gamepad; if (!gp || gp.axes.length < 4) continue;
+      const ax = gp.axes[2]; const ay = gp.axes[3];
+      if (src.handedness === 'left') { if (Math.hypot(ax, ay) > 0.2) { fwd = -ay; strafe = ax; } } else if (src.handedness === 'right') {
+        if (Math.abs(ax) > 0.7 && snapReady) { snapTurn(ax > 0 ? -Math.PI / 6 : Math.PI / 6); snapReady = false; }
+        if (Math.abs(ax) < 0.3) snapReady = true;
+      }
+    }
+    turn = 0;
+  }
+  if (turn) look.yaw -= turn * 1.8 * dt; // パソコン・スマホは なめらかに 向きを かえる
+  if (!fwd && !strafe) return;
+  camera.getWorldDirection(tmpDir); tmpDir.y = 0; if (tmpDir.lengthSq() < 1e-6) return; tmpDir.normalize();
+  const speed = (walkKeys.run ? 5 : 2.6) * dt;
+  const dx = (tmpDir.x * fwd - tmpDir.z * strafe) * speed; const dz = (tmpDir.z * fwd + tmpDir.x * strafe) * speed;
+  const p = rig.position;
+  if (walkable(p.x + dx, p.z + dz)) { p.x += dx; p.z += dz; } else if (walkable(p.x + dx, p.z)) p.x += dx; else if (walkable(p.x, p.z + dz)) p.z += dz; // 壁ぞいに すべる
+  // お店の 入口に 来たら 中へ
+  const near = booths.findIndex((b) => Math.hypot(b.door.x - p.x, b.door.z - p.z) < 1.3);
+  if (near >= 0) { Object.keys(walkKeys).forEach((k) => { walkKeys[k] = false; }); syncPad(); goBooth(near); }
+}
+function snapTurn(a) {
+  camera.getWorldPosition(tmpHead); const before = tmpHead.clone();
+  rig.rotation.y += a; rig.updateMatrixWorld(true);
+  camera.getWorldPosition(tmpHead);
+  rig.position.x += before.x - tmpHead.x; rig.position.z += before.z - tmpHead.z;
+}
+function syncPad() { document.querySelectorAll('#pad button').forEach((b) => b.setAttribute('aria-pressed', String(!!walkKeys[b.dataset.key]))); }
+window.addEventListener('keydown', (e) => {
+  if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || !(e.code in KEYMAP)) return;
+  if (state.where === 'walk' && e.code.startsWith('Arrow')) e.preventDefault();
+  walkKeys[KEYMAP[e.code]] = true;
+});
+window.addEventListener('keyup', (e) => { if (e.code in KEYMAP) walkKeys[KEYMAP[e.code]] = false; });
+window.addEventListener('blur', () => { Object.keys(walkKeys).forEach((k) => { walkKeys[k] = false; }); syncPad(); });
+
 // ===========================================================================
 // ブースの流れ：えらぶ → 作業 → 結果
 // ===========================================================================
 function setButtons(visibleKeys) {
   const b = state.booth; if (!b) return;
-  for (const [k, m] of Object.entries(b.btns)) m.visible = visibleKeys.includes(k);
+  const keys = state.cameFromWalk && visibleKeys.includes('back') ? visibleKeys.concat('exit') : visibleKeys;
+  for (const [k, m] of Object.entries(b.btns)) m.visible = keys.includes(k);
+}
+
+function applySeason() {
+  const winter = season === 'winter';
+  // 冬は 雪が ふもと近くまで（頂上の 位置は そのまま）
+  const k = winter ? 1.6 : 1; const cap = seasonal.snowCap;
+  cap.scale.setScalar(k); cap.position.y = seasonal.peakH - (seasonal.capH * k) / 2;
+  seasonal.runs.forEach((m) => { m.visible = winter; });
+  const target = winter ? 'ski' : 'hut';
+  seasonal.trail.mesh.userData.boothIndex = booths.findIndex((b) => b.job.id === target);
+  seasonal.trail.draw((ctx, W, H) => {
+    ctx.fillStyle = '#6b4a2e'; roundRect(ctx, 0, 0, W, H, 30); ctx.fill();
+    ctx.fillStyle = '#fffaf0'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = '700 84px ' + FONT_DISPLAY; ctx.fillText(winter ? '冬の 登山口' : '夏山 登山口', W / 2, H * 0.24);
+    ctx.font = '700 46px ' + FONT_BODY;
+    ctx.fillText(winter ? '冬は ここから 山の裏（北東）の' : '山小屋で 登山の 受付を しています', W / 2, H * 0.52);
+    ctx.fillText(winter ? 'スキー場へ 入れます' : '冬は 山の裏（北東）の スキー場が ひらきます', W / 2, H * 0.7);
+    ctx.font = '400 30px ' + FONT_BODY; ctx.fillStyle = '#f2d9b8';
+    ctx.fillText('この 看板を えらぶと ' + (winter ? 'スキー場' : '山小屋') + 'へ 行きます', W / 2, H * 0.89);
+  });
+  booths.forEach((b) => { if (b.job.season) { b.pin.material.opacity = isOpen(b.job) ? 1 : 0.4; } });
+  $('btn-season').textContent = '季節：' + SEASON_NAME[season];
+}
+
+function setSeason(next) {
+  if (state.phase === 'work' || state.phase === 'between') { toast('体験が おわってから 季節を かえられます'); return; }
+  season = next; applySeason();
+  if (state.where === 'booth' && state.phase === 'choose') showChoose();
+  renderHud();
+  toast(SEASON_NAME[season] + 'に しました');
 }
 
 function showChoose() {
   const { job, board } = state.booth;
   state.phase = 'choose';
+  if (!isOpen(job)) {
+    // 季節の ちがう お店は 閉まっている（島ぜんたいへ もどるだけ）
+    setButtons(['back']);
+    board.draw((ctx, W, H) => {
+      paintBoardBase(ctx, W, H, job);
+      ctx.fillStyle = '#1f2a33'; ctx.font = '700 64px ' + FONT_DISPLAY; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+      ctx.fillText('いまは ' + SEASON_NAME[season] + '。お休みです', 48, 120);
+      ctx.font = '400 40px ' + FONT_BODY; ctx.fillStyle = '#33404a';
+      wrapLines(ctx, job.name + 'は ' + SEASON_NAME[job.season] + 'に ひらきます。画面の 上の「季節」で ' + SEASON_NAME[job.season] + 'に すると 体験できます。', W - 96).forEach((l, n) => ctx.fillText(l, 48, 210 + n * 54));
+    });
+    return;
+  }
   setButtons(['without', 'with', 'back']);
   board.draw((ctx, W, H) => {
     paintBoardBase(ctx, W, H, job);
@@ -1536,6 +1741,7 @@ function paintBoardBase(ctx, W, H, job) {
 }
 
 function startSession(withSupport) {
+  if (!isOpen(state.booth.job)) return;
   state.withSupport = withSupport;
   state.session = { started: performance.now(), completed: 0, inspected: 0, defects: 0, promptCount: 0, questionCount: 0, roundIndex: 0 };
   setButtons(['hint', 'back']);
@@ -1556,6 +1762,7 @@ function nextRound() {
   const n = def.items.length;
   const cols = Math.min(n, 4);
   const rows = Math.ceil(n / cols);
+  const labels = [];
   def.items.forEach((spec, idx) => {
     const col = idx % cols; const row = Math.floor(idx / cols);
     const holder = new THREE.Group();
@@ -1567,6 +1774,7 @@ function nextRound() {
       baseY = 0.905;
     } else {
       const spanX = 2.4; x = -spanX / 2 + (col + 0.5) * (spanX / cols);
+      if (rows > 1 && row % 2) x += spanX / cols / 2 - 0.15; // 奥の列は 半分ずらして、名札が 手前の 名札と 重ならないように
       z = rows > 1 ? 1.64 - row * 0.32 : 1.5; // 0 行目が手前
       baseY = 0.9;
     }
@@ -1576,14 +1784,20 @@ function nextRound() {
     mesh.traverse((o) => { o.userData.slotIndex = idx; });
     holder.add(mesh);
     const ringMesh = makeGlowRing(); ringMesh.position.y = 0.005; holder.add(ringMesh);
-    if (spec.label) { const s = labelSprite(spec.label); s.position.y = Math.max(0.3, top + 0.12) + row * 0.14; holder.add(s); }
+    if (spec.label) { const s = labelSprite(spec.label); s.userData.row = row; s.userData.want = Math.max(0.3, top + 0.12); holder.add(s); labels.push(s); }
     b.workArea.add(holder);
     slots.push({ spec, key: itemKey(spec), mesh, ring: ringMesh, holder, done: false });
   });
+  // 名札は 列ごとに 高さを そろえ、奥の列は 手前の列より 必ず 上に（重ならないように）
+  const rowY = [];
+  labels.forEach((l) => { rowY[l.userData.row] = Math.max(rowY[l.userData.row] || 0, l.userData.want); });
+  for (let k = 1; k < rowY.length; k++) if (rowY[k] !== undefined) rowY[k] = Math.max(rowY[k], (rowY[k - 1] || 0) + 0.17);
+  labels.forEach((l) => { l.position.y = rowY[l.userData.row]; });
   // 運ぶもの（品出し・仕分け）は手もとに見せる
   if (def.carry || def.carryText) {
     const carry = labelSprite(def.carryText || 'もっている：' + def.carry, { bg: 'rgba(255,240,200,0.95)', h: 0.12 });
-    carry.position.set(0, 1.25, 2.0); b.workArea.add(carry);
+    // 手もとの票は 道具の 名札より 手前・下に（品物の モデルが あるときは 右に よける）
+    carry.position.set(def.carry && ITEM_MODELS[def.carry] ? 0.42 : 0, 1.16, 2.3); b.workArea.add(carry);
     if (def.carry && ITEM_MODELS[def.carry]) {
       const held = fitInto(ITEM_MODELS[def.carry]({ color: '#ffffff' }), 0.16, 0.16, 0.16);
       held.position.set(0, 1.08, 2.45); held.rotation.y = -0.3; b.workArea.add(held); // 手もと（台より 手前）
@@ -1616,8 +1830,16 @@ function drawWorkBoard() {
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
     ctx.fillStyle = '#1f2a33'; ctx.font = '700 52px ' + FONT_DISPLAY;
     const title = state.withSupport ? r.def.title : r.def.shortTitle;
-    wrapLines(ctx, title, W - 96).slice(0, 2).forEach((l, n) => ctx.fillText(l, 48, 116 + n * 62));
+    const titleLines = wrapLines(ctx, title, W - 96).slice(0, 2);
+    titleLines.forEach((l, n) => ctx.fillText(l, 48, 116 + n * 62));
     let y = 250;
+    if (r.def.carryText) {
+      // 伝票・票は VR でも 読めるように 掲示板にも 書く（配慮の あり・なしに かかわらず）
+      ctx.font = '700 36px ' + FONT_BODY; ctx.fillStyle = '#7a4a12';
+      y = 116 + titleLines.length * 62 + 6;
+      wrapLines(ctx, r.def.carryText, W - 96).slice(0, 2).forEach((l) => { ctx.fillText(l, 48, y); y += 46; });
+      y += 8;
+    }
     if (state.withSupport && r.def.ordered) {
       ctx.font = '400 36px ' + FONT_BODY;
       r.def.need.forEach((k, n) => {
@@ -1785,6 +2007,7 @@ renderer.domElement.addEventListener('pointerup', (e) => {
 
 function currentClickables() {
   if (state.where === 'plaza') return booths.map((b) => b.pin).concat(plazaClickables);
+  if (state.where === 'walk') return plazaClickables;
   const b = state.booth; const list = Object.values(b.btns).filter((m) => m.visible);
   if (state.phase === 'work' && state.round) state.round.slots.forEach((s) => { if (!s.done) s.mesh.traverse((o) => { if (o.isMesh) list.push(o); }); });
   return list; // お店の中では 壁ごしに ほかの お店を えらばない（もどるのは「島ぜんたいへ」）
@@ -1802,6 +2025,7 @@ function handleRay(ray) {
   else if (obj === b.btns.again) showChoose();
   else if (obj === b.btns.hint) useHint(false);
   else if (obj === b.btns.back) goPlaza();
+  else if (obj === b.btns.exit) exitToWalk();
   renderHud();
 }
 
@@ -1869,7 +2093,7 @@ function renderChips() {
   booths.forEach((b, i) => {
     const el = document.createElement('button');
     el.type = 'button'; el.className = 'chip';
-    el.innerHTML = '<i style="background:' + b.job.color + '"></i>' + b.job.name + '<span>' + b.job.area + '・' + b.job.work + '</span>';
+    el.innerHTML = '<i style="background:' + b.job.color + '"></i>' + b.job.name + '<span>' + b.job.area + '・' + b.job.work + (b.job.season ? '（' + SEASON_NAME[b.job.season] + '）' : '') + '</span>';
     el.setAttribute('aria-current', String(state.booth === b));
     el.addEventListener('click', () => goBooth(i));
     chipsEl.appendChild(el);
@@ -1879,7 +2103,9 @@ function renderChips() {
 function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 
 function renderHud() {
-  $('place').textContent = state.where === 'plaza' ? '島ぜんたい' : state.booth.job.area + '　' + state.booth.job.name + '・' + state.booth.job.work;
+  $('place').textContent = state.where === 'plaza' ? '島ぜんたい' : state.where === 'walk' ? '島を 歩いています' : state.booth.job.area + '　' + state.booth.job.name + '・' + state.booth.job.work;
+  $('pad').hidden = state.where !== 'walk';
+  $('btn-walk').textContent = state.where === 'walk' ? '見わたす' : '島を歩く';
   chipsEl.querySelectorAll('.chip').forEach((el, i) => el.setAttribute('aria-current', String(i === 0 ? state.where === 'plaza' : state.booth === booths[i - 1])));
   // いまの 場所の チップが 画面の外なら 見える ところまで 送る
   const cur = state.where === 'plaza' ? 0 : booths.indexOf(state.booth) + 1;
@@ -1895,22 +2121,43 @@ function renderHud() {
   const el = $('instr');
   if (state.where === 'plaza') {
     el.innerHTML = '<span class="tag">Work Island</span><h2>やってみたい しごとを えらぶ</h2>' +
-      '<div>島の 地域ごとに、その土地の しごとが あります。旗や お店を タップ（VR では ゆびさして トリガー）すると、その お店の前に 移動します。ドラッグで 見回せます。</div>';
+      '<div>島の 地域ごとに、その土地の しごとが あります。旗や お店を タップ（VR では ゆびさして トリガー）すると、その お店の前に 移動します。ドラッグで 見回せます。</div>' +
+      '<div class="row"><button type="button" class="primary" id="h-walk">島を 歩いてみる</button></div>';
+    $('h-walk').onclick = () => startWalk();
     return;
   }
+  if (state.where === 'walk') {
+    el.innerHTML = '<span class="tag">島を歩く</span><h2>歩いて お店を さがす</h2>' +
+      '<div>お店の 入口まで 歩くと、中に 入れます。お店を タップしても 入れます。</div>' +
+      '<div class="meta"><span>パソコン：W A S D・矢印キー（Shift で 走る）・ドラッグで 見回す</span><span>スマホ：右下の ボタン</span><span>VR：左スティックで 歩く・右スティックで 向きを かえる</span></div>' +
+      '<div class="row"><button type="button" id="h-plaza">島ぜんたいへ</button></div>';
+    $('h-plaza').onclick = goPlaza;
+    return;
+  }
+  const exitBtn = state.cameFromWalk ? '<button type="button" id="h-exit">外に出る</button>' : '';
   const job = state.booth.job;
+  if (state.phase === 'choose' && !isOpen(job)) {
+    const want = SEASON_NAME[job.season];
+    el.innerHTML = '<span class="tag">' + esc(job.name) + '</span><h2>いまは ' + SEASON_NAME[season] + '。お休みです</h2><div>' + esc(job.name) + 'は ' + want + 'に ひらきます。</div>' +
+      '<div class="row"><button type="button" class="primary" id="h-season">' + want + 'に する</button>' + exitBtn + '</div>';
+    $('h-season').onclick = () => setSeason(job.season);
+    if ($('h-exit')) $('h-exit').onclick = exitToWalk;
+    return;
+  }
   if (state.phase === 'choose') {
     el.innerHTML = '<span class="tag">' + esc(job.name) + '</span><h2>' + esc(job.work) + '</h2><div>' + esc(job.intro) + '</div>' +
-      '<div class="row"><button type="button" id="h-without">はじめる：配慮なし</button><button type="button" class="primary" id="h-with">はじめる：配慮あり</button></div>';
+      '<div class="row"><button type="button" id="h-without">はじめる：配慮なし</button><button type="button" class="primary" id="h-with">はじめる：配慮あり</button>' + exitBtn + '</div>';
     $('h-without').onclick = () => startSession(false); $('h-with').onclick = () => startSession(true);
+    if ($('h-exit')) $('h-exit').onclick = exitToWalk;
     return;
   }
   if (state.phase === 'result') {
     const last = logEntries[0];
     el.innerHTML = '<span class="tag">' + esc(job.name) + '</span><h2>おつかれさまでした</h2>' +
       (last ? '<div class="meta"><span>できた ' + last.phase.completed + ' こ</span><span>ミス ' + last.phase.defects + '</span><span>ヒント ' + last.phase.questionCount + '</span><span>ガイド ' + last.phase.promptCount + '</span><span>' + fmtDuration(last.phase.durationSec) + '</span></div>' : '') +
-      '<div class="row"><button type="button" id="h-again">もう一度</button><button type="button" id="h-log">きろくを見る</button></div>';
+      '<div class="row"><button type="button" id="h-again">もう一度</button><button type="button" id="h-log">きろくを見る</button>' + exitBtn + '</div>';
     $('h-again').onclick = showChoose_; $('h-log').onclick = () => toggleLog(true);
+    if ($('h-exit')) $('h-exit').onclick = exitToWalk;
     return;
   }
   const r = state.round; const s = state.session; if (!r || !s) return;
@@ -1972,13 +2219,16 @@ window.addEventListener('resize', onResize);
 onResize();
 
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+let lastFrame = performance.now();
 renderer.setAnimationLoop((now) => {
+  const dt = Math.min(0.1, (now - lastFrame) / 1000); lastFrame = now;
   if (tween) {
     const t = Math.min(1, (now - tween.t0) / tween.dur); const e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
     rig.position.lerpVectors(tween.from.p, tween.to.p, e); rig.rotation.y = tween.from.yaw + (tween.to.yaw - tween.from.yaw) * e;
     if (t >= 1) tween = null;
   }
   if (!renderer.xr.isPresenting) { camera.rotation.y = look.yaw; camera.rotation.x = -look.pitch; }
+  walkStep(dt);
   // 配慮あり：しばらく手が止まったら、つぎに選ぶものを光らせる（声かけ 1 回として数える）
   const r = state.round;
   if (r && state.phase === 'work' && state.withSupport && !r.hintShown && (now - r.lastActionAt) / 1000 > AUTO_HINT_SEC) useHint(true);
@@ -1992,8 +2242,17 @@ renderChips();
 renderHud();
 renderLog();
 updateChipNav();
+// スマホの 歩くボタン（押している 間だけ 歩く）
+document.querySelectorAll('#pad button').forEach((btn) => {
+  const set = (v) => (e) => { e.preventDefault(); walkKeys[btn.dataset.key] = v; syncPad(); };
+  btn.addEventListener('pointerdown', set(true));
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach((t) => btn.addEventListener(t, set(false)));
+});
+$('btn-walk').addEventListener('click', () => { if (state.where === 'walk') goPlaza(); else startWalk(); });
+applySeason();
+$('btn-season').addEventListener('click', () => setSeason(season === 'winter' ? 'summer' : 'winter'));
 // 動作確認用（テストから 作業を 進めるため）
-window.hopeTown = { state, goBooth, startSession, select: onSelectItem, nextTargetKey };
+window.hopeTown = { state, goBooth, startSession, select: onSelectItem, nextTargetKey, setSeason, startWalk, exitToWalk, walkKeys, rig, booths };
 // 最初は 島ぜんたいを 見わたす
 rig.position.copy(OVERVIEW.pos); rig.rotation.y = OVERVIEW.yaw; look.pitch = OVERVIEW.pitch;
 if (document.fonts && document.fonts.ready) {
