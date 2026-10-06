@@ -227,10 +227,10 @@ const JOBS = [
     defect: '食事の形・人の まちがい',
     round() {
       const forms = [
-        { label: '普通食', shape: 'tray', color: '#f0d9a8' }, { label: 'きざみ食', shape: 'tray', color: '#cfe0a8' }, { label: 'おかゆ', shape: 'tray', color: '#f6f1e3' },
+        { label: '普通食', shape: 'mealTray', color: '#f0d9a8' }, { label: 'きざみ食', shape: 'mealTray', color: '#cfe0a8' }, { label: 'おかゆ', shape: 'mealTray', color: '#f6f1e3' },
       ];
       const people = [
-        { label: '田中さん', shape: 'plate', color: '#f7c6a3' }, { label: '佐藤さん', shape: 'plate', color: '#bcd8f2' }, { label: '鈴木さん', shape: 'plate', color: '#d6c6ef' },
+        { label: '田中さん', shape: 'resident', color: '#f7c6a3' }, { label: '佐藤さん', shape: 'resident', color: '#bcd8f2' }, { label: '鈴木さん', shape: 'resident', color: '#d6c6ef' },
       ];
       const f = pick(forms).label; const p = pick(people).label;
       return { title: p + '（' + f + '）の おぜんを 運ぶ', shortTitle: 'おぜんを 運ぶ', items: shuffle(forms).concat(shuffle(people)), need: [f, p], ordered: true, carryText: '名札：' + p + '（' + f + '）' };
@@ -242,8 +242,8 @@ const JOBS = [
     defect: 'ちがう トレーに 入れる',
     round() {
       const trays = [
-        { label: '請求書', shape: 'tray', color: '#6f9be0' }, { label: '納品書', shape: 'tray', color: '#7fc29b' },
-        { label: '申込書', shape: 'tray', color: '#f0b85a' }, { label: '見積書', shape: 'tray', color: '#d98aa6' },
+        { label: '請求書', shape: 'docTray', color: '#6f9be0' }, { label: '納品書', shape: 'docTray', color: '#7fc29b' },
+        { label: '申込書', shape: 'docTray', color: '#f0b85a' }, { label: '見積書', shape: 'docTray', color: '#d98aa6' },
       ];
       const t = pick(trays).label;
       return { title: '「' + t + '」を トレーに 入れる', shortTitle: '書類を 仕分ける', items: trays, need: [t], ordered: false, carry: t };
@@ -256,8 +256,8 @@ const JOBS = [
     round() {
       const n = 3 + Math.floor(Math.random() * 2);
       const items = [];
-      for (let i = 0; i < n; i++) items.push({ label: '', id: 'red' + i, shape: 'sphere', color: '#d63c2f' });
-      for (let i = 0; i < 3; i++) items.push({ label: '', id: 'green' + i, shape: 'sphere', color: '#7fae4a' });
+      for (let i = 0; i < n; i++) items.push({ label: '', id: 'red' + i, shape: 'tomato', color: '#d63c2f' });
+      for (let i = 0; i < 3; i++) items.push({ label: '', id: 'green' + i, shape: 'tomato', color: '#7fae4a' });
       return { title: '赤い トマトを ぜんぶ とる（' + n + 'こ）', shortTitle: '赤い トマトを とる', items: shuffle(items), need: items.filter((i) => i.id.startsWith('red')).map((i) => i.id), ordered: false };
     },
   },
@@ -892,8 +892,340 @@ function tree(x, z, kind) {
 
 // ===========================================================================
 // 道具（作業で選ぶもの）の形
+//   見ただけで「お茶」「パン」と わかるように、品物ごとに 部品を 組み立てる。
+//   どの モデルも 底が y = 0。SHAPE_MODELS（形）→ ITEM_MODELS（品名）→ 基本の形 の順に さがす。
 // ===========================================================================
+const TAU = Math.PI * 2;
+// 部品を 1 つ足す。x, y, z は部品の中心。
+function part(g, geo, color, x, y, z, extra) {
+  const m = new THREE.Mesh(geo, mat(color, extra)); m.position.set(x, y, z); g.add(m); return m;
+}
+const cyl = (rt, rb, h, seg) => new THREE.CylinderGeometry(rt, rb, h, seg || 20);
+const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
+const ball = (r, ws, hs) => new THREE.SphereGeometry(r, ws || 18, hs || 12);
+// 大きさを w × h × d に おさめる（たなに 小さく 並べるとき・手に 持つとき）
+function fitInto(obj, w, h, d) {
+  const size = new THREE.Box3().setFromObject(obj).getSize(new THREE.Vector3());
+  const s = Math.min(w / size.x, h / size.y, (d || w) / size.z, 1);
+  obj.scale.multiplyScalar(s);
+  return obj;
+}
+
+// ペットボトル（お茶・水・ジュース）
+function bottle(liquid, label, cap, clear) {
+  const g = new THREE.Group();
+  const glass = clear ? { transparent: true, opacity: 0.55, roughness: 0.15 } : { roughness: 0.3 };
+  part(g, cyl(0.04, 0.04, 0.15), liquid, 0, 0.075, 0, glass);
+  part(g, cyl(0.0415, 0.0415, 0.075), label, 0, 0.085, 0);
+  part(g, cyl(0.0418, 0.0418, 0.012), '#ffffff', 0, 0.1, 0);
+  part(g, cyl(0.017, 0.04, 0.04), liquid, 0, 0.17, 0, glass);
+  part(g, cyl(0.016, 0.016, 0.014), '#e9eef0', 0, 0.197, 0, { transparent: true, opacity: 0.7 });
+  part(g, cyl(0.019, 0.019, 0.024, 16), cap, 0, 0.214, 0);
+  return g;
+}
+
+const ITEM_MODELS = {
+  // --- 物流センター ---------------------------------------------------------
+  'りんご'(s) {
+    const g = new THREE.Group();
+    part(g, ball(0.068, 22, 16), s.color, 0, 0.062, 0).scale.set(1, 0.9, 1);
+    part(g, cyl(0.004, 0.005, 0.035, 6), '#6b4a2a', 0.004, 0.13, 0).rotation.z = -0.25;
+    const leaf = part(g, ball(0.022, 10, 6), '#4f9a3a', 0.02, 0.135, 0); leaf.scale.set(1, 0.25, 0.5); leaf.rotation.z = 0.4;
+    return g;
+  },
+  '牛乳'(s) {
+    const g = new THREE.Group();
+    part(g, box(0.08, 0.15, 0.08), '#f6f6f2', 0, 0.075, 0);
+    part(g, box(0.082, 0.05, 0.082), '#3b78c4', 0, 0.07, 0);
+    part(g, ball(0.016, 12, 8), '#ffffff', 0, 0.07, 0.041).scale.set(1, 1, 0.2); // 牛の白い まる
+    const roof = part(g, box(0.08, 0.0566, 0.0566), '#f6f6f2', 0, 0.15, 0); roof.rotation.x = Math.PI / 4; // 三角の屋根
+    part(g, box(0.08, 0.016, 0.008), '#f6f6f2', 0, 0.193, 0);
+    return g;
+  },
+  'パン'() { return ITEM_MODELS['食パン'](); },
+  'お茶'() { return bottle('#9c9a3c', '#3f8a3a', '#2f6b2a'); },
+  'せっけん'(s) {
+    const g = new THREE.Group();
+    part(g, ball(0.06, 22, 14), s.color, 0, 0.026, 0, { roughness: 0.4 }).scale.set(1.2, 0.45, 0.8);
+    [[-0.03, 0.02], [0.02, -0.01], [0.045, 0.025]].forEach(([x, z], i) => part(g, ball(0.012 + i * 0.003, 10, 8), '#ffffff', x, 0.055, z, { transparent: true, opacity: 0.85 }));
+    return g;
+  },
+  'ティッシュ'(s) {
+    const g = new THREE.Group();
+    part(g, box(0.17, 0.07, 0.1), s.color, 0, 0.035, 0);
+    part(g, box(0.1, 0.002, 0.025), '#ffffff', 0, 0.0705, 0);
+    const t1 = part(g, box(0.07, 0.05, 0.002), '#fbfbfb', -0.005, 0.09, 0); t1.rotation.set(0.25, 0, 0.12);
+    const t2 = part(g, box(0.05, 0.035, 0.002), '#f2f2f2', 0.015, 0.085, 0.004); t2.rotation.set(-0.3, 0, -0.2);
+    return g;
+  },
+
+  // --- コンビニ（手に 持つ品物・たなの 中身） --------------------------------
+  '水'() { return bottle('#d7ecf7', '#4a8fd0', '#3a6fb0', true); },
+  'ジュース'() { return bottle('#f39a2b', '#f6d24a', '#e0662f'); },
+  '食パン'() {
+    // 山型の食パン。白い 断面を 手前（体験する人の 側）に 向ける
+    const g = new THREE.Group();
+    part(g, box(0.11, 0.07, 0.16), '#c98a3e', 0, 0.035, 0);
+    const top = part(g, cyl(0.055, 0.055, 0.16, 24), '#b8742f', 0, 0.07, 0); top.rotation.x = Math.PI / 2;
+    part(g, box(0.098, 0.066, 0.004), '#fbefd2', 0, 0.037, 0.0805);
+    part(g, new THREE.CircleGeometry(0.048, 24), '#fbefd2', 0, 0.072, 0.0825);
+    return g;
+  },
+  'メロンパン'() {
+    const g = new THREE.Group();
+    part(g, ball(0.06, 24, 12), '#ecc46c', 0, 0, 0).scale.set(1, 0.6, 1);
+    for (let i = -1; i <= 1; i++) {
+      part(g, box(0.1, 0.004, 0.006), '#cf9f45', 0, 0.034 - Math.abs(i) * 0.004, i * 0.025);
+      part(g, box(0.006, 0.004, 0.1), '#cf9f45', i * 0.025, 0.034 - Math.abs(i) * 0.004, 0);
+    }
+    return g;
+  },
+  'ポテトチップス'() {
+    const g = new THREE.Group();
+    part(g, ball(0.06, 18, 12), '#f2c230', 0, 0.07, 0).scale.set(0.9, 1.15, 0.35);
+    part(g, box(0.1, 0.014, 0.012), '#d63c2f', 0, 0.138, 0);
+    part(g, box(0.1, 0.014, 0.012), '#d63c2f', 0, 0.006, 0);
+    part(g, ball(0.022, 12, 8), '#f7e2a0', 0, 0.065, 0.02).scale.set(1.2, 0.8, 0.3); // チップの 絵
+    return g;
+  },
+  'チョコ'() {
+    const g = new THREE.Group();
+    part(g, box(0.13, 0.012, 0.07), '#5a3220', 0, 0.006, 0);
+    for (let i = 0; i < 4; i++) for (let j = 0; j < 2; j++) part(g, box(0.026, 0.008, 0.026), '#6b3c26', -0.045 + i * 0.03 + 0.02, 0.016, -0.016 + j * 0.032);
+    part(g, box(0.05, 0.026, 0.074), '#c8323b', -0.045, 0.013, 0); // 赤い 包み紙
+    return g;
+  },
+  'あめ'() {
+    const g = new THREE.Group();
+    part(g, ball(0.03, 16, 12), '#f07fa4', 0, 0.03, 0).scale.set(1.2, 1, 1);
+    [-1, 1].forEach((sd) => { const c = part(g, cyl(0.022, 0.004, 0.035, 10), '#f6b3c9', sd * 0.05, 0.03, 0); c.rotation.z = sd * Math.PI / 2; });
+    return g;
+  },
+  '歯ブラシ'() {
+    const g = new THREE.Group();
+    part(g, box(0.17, 0.012, 0.016), '#3aa0d8', -0.02, 0.006, 0);
+    part(g, box(0.035, 0.008, 0.018), '#3aa0d8', 0.075, 0.008, 0);
+    part(g, box(0.032, 0.02, 0.016), '#ffffff', 0.075, 0.022, 0);
+    return g;
+  },
+  '電池'() {
+    const g = new THREE.Group();
+    [-0.017, 0.017].forEach((x) => {
+      part(g, cyl(0.014, 0.014, 0.075), '#2b2b2b', x, 0.0375, 0);
+      part(g, cyl(0.0142, 0.0142, 0.03), '#d9a42c', x, 0.06, 0);
+      part(g, cyl(0.005, 0.005, 0.005, 10), '#c9c9c9', x, 0.0775, 0);
+    });
+    return g;
+  },
+  'マスク'() {
+    const g = new THREE.Group();
+    const face = new THREE.Group(); g.add(face);
+    part(face, box(0.12, 0.07, 0.008), '#ffffff', 0, 0, 0);
+    [-0.018, 0, 0.018].forEach((y) => part(face, box(0.12, 0.003, 0.01), '#dfe6ea', 0, y, 0));
+    [-1, 1].forEach((sd) => { const loop = part(face, new THREE.TorusGeometry(0.025, 0.002, 6, 20), '#e6eaee', sd * 0.075, 0, 0); loop.scale.x = 0.7; });
+    face.rotation.x = -0.5; face.position.y = 0.035;
+    return g;
+  },
+
+  // --- カフェ ---------------------------------------------------------------
+  'ホット用カップ'(s) {
+    const g = new THREE.Group();
+    part(g, cyl(0.05, 0.038, 0.12), s.color, 0, 0.06, 0);
+    part(g, cyl(0.048, 0.0425, 0.045), '#b98b5a', 0, 0.065, 0); // 紙の スリーブ
+    part(g, new THREE.TorusGeometry(0.05, 0.003, 6, 24), s.color, 0, 0.12, 0).rotation.x = Math.PI / 2;
+    return g;
+  },
+  'アイス用カップ'() {
+    const g = new THREE.Group();
+    part(g, new THREE.CylinderGeometry(0.052, 0.038, 0.14, 24, 1, true), '#d8eef8', 0, 0.07, 0, { transparent: true, opacity: 0.45, roughness: 0.1, side: THREE.DoubleSide });
+    part(g, cyl(0.038, 0.038, 0.003), '#d8eef8', 0, 0.0015, 0, { transparent: true, opacity: 0.5 });
+    part(g, new THREE.TorusGeometry(0.052, 0.003, 6, 24), '#eef8fc', 0, 0.14, 0).rotation.x = Math.PI / 2;
+    return g;
+  },
+  'コーヒーマシン'(s) {
+    const g = new THREE.Group();
+    part(g, box(0.16, 0.025, 0.14), '#55504c', 0, 0.0125, 0.01);            // 台
+    part(g, box(0.1, 0.006, 0.08), '#9aa1a6', 0, 0.028, 0.03);              // 水受け
+    part(g, box(0.16, 0.24, 0.06), s.color, 0, 0.12, -0.04);                // 背
+    part(g, box(0.16, 0.06, 0.14), s.color, 0, 0.23, 0.01);                 // 頭
+    part(g, cyl(0.012, 0.008, 0.03, 12), '#c8c8c8', 0, 0.185, 0.03);        // 注ぎ口
+    part(g, box(0.06, 0.02, 0.004), '#7fd1ff', 0, 0.235, 0.081, { emissive: '#2a6c8f' }); // 表示
+    [-0.05, 0.05].forEach((x) => part(g, cyl(0.008, 0.008, 0.006, 12), '#e0662f', x, 0.235, 0.081).rotation.x = Math.PI / 2);
+    return g;
+  },
+  '紅茶'(s) {
+    // ガラスの ピッチャーに 入った 紅茶
+    const g = new THREE.Group();
+    part(g, new THREE.CylinderGeometry(0.045, 0.048, 0.17, 24, 1, true), '#eef6f8', 0, 0.085, 0, { transparent: true, opacity: 0.35, roughness: 0.1, side: THREE.DoubleSide });
+    part(g, cyl(0.043, 0.046, 0.12), s.color, 0, 0.062, 0, { transparent: true, opacity: 0.85, roughness: 0.2 });
+    const handle = part(g, new THREE.TorusGeometry(0.035, 0.006, 8, 20, Math.PI), '#eef6f8', 0.048, 0.09, 0, { transparent: true, opacity: 0.6 });
+    handle.rotation.z = -Math.PI / 2;
+    part(g, ball(0.01, 8, 6), '#e9d36a', -0.015, 0.125, 0.02); // レモン
+    return g;
+  },
+  '氷'() {
+    const g = new THREE.Group();
+    part(g, box(0.17, 0.06, 0.12), '#b8c4cc', 0, 0.03, 0, { metalness: 0.4, roughness: 0.35 });
+    for (let i = 0; i < 8; i++) {
+      const c = part(g, box(0.03, 0.03, 0.03), '#e8f7fd', -0.06 + (i % 4) * 0.04, 0.07 + Math.floor(i / 4) * 0.012, -0.025 + Math.floor(i / 4) * 0.045, { transparent: true, opacity: 0.8, roughness: 0.1 });
+      c.rotation.set(i * 0.7, i * 1.3, i * 0.4);
+    }
+    return g;
+  },
+  'ふた'() {
+    const g = new THREE.Group();
+    part(g, cyl(0.055, 0.055, 0.012, 24), '#ffffff', 0, 0.006, 0);
+    part(g, new THREE.SphereGeometry(0.045, 24, 8, 0, TAU, 0, Math.PI / 2), '#f4f4f4', 0, 0.012, 0).scale.y = 0.35;
+    part(g, box(0.014, 0.004, 0.006), '#555555', 0, 0.028, 0.025); // 飲み口
+    return g;
+  },
+  'ストロー'(s) {
+    // ストロー立て
+    const g = new THREE.Group();
+    part(g, cyl(0.03, 0.03, 0.09, 18), '#e6eef1', 0, 0.045, 0, { transparent: true, opacity: 0.5 });
+    [[-0.012, 0, 0.12], [0.012, 0.01, -0.1], [0, -0.012, 0.04], [0.006, 0.014, -0.02]].forEach(([x, z, tilt]) => {
+      const st = part(g, cyl(0.004, 0.004, 0.2, 8), s.color, x, 0.1, z); st.rotation.z = tilt;
+    });
+    return g;
+  },
+  'お客さま'(s) { return person(s.color, '#3f4a7a'); },
+
+  // --- 作業所（お守り） ------------------------------------------------------
+  'ふくろ'(s) {
+    const g = new THREE.Group();
+    part(g, box(0.09, 0.11, 0.022), s.color, 0, 0.055, 0);
+    part(g, box(0.07, 0.02, 0.022), s.color, 0, 0.12, 0);         // 角を 落とした 上
+    part(g, box(0.05, 0.07, 0.004), '#e3b23c', 0, 0.06, 0.012);    // 金の ししゅう
+    part(g, box(0.034, 0.05, 0.002), '#c8463d', 0, 0.06, 0.0145);
+    return g;
+  },
+  '中紙'(s) {
+    const g = new THREE.Group();
+    part(g, box(0.12, 0.004, 0.16), s.color, 0, 0.002, 0);
+    [-0.04, 0, 0.04].forEach((x) => part(g, box(0.008, 0.002, 0.1), '#2b2b2b', x, 0.005, -0.01));
+    part(g, box(0.03, 0.002, 0.03), '#d0453a', 0.03, 0.005, 0.055); // 朱い はんこ
+    return g;
+  },
+  'ひも'(s) {
+    const g = new THREE.Group();
+    for (let i = 0; i < 3; i++) part(g, new THREE.TorusGeometry(0.045 - i * 0.004, 0.005, 8, 28), s.color, 0, 0.005 + i * 0.008, 0).rotation.x = Math.PI / 2;
+    const tail = part(g, cyl(0.005, 0.005, 0.07, 8), s.color, 0.06, 0.005, 0.02); tail.rotation.set(Math.PI / 2, 0, 0.6);
+    return g;
+  },
+  '検品かご'(s) {
+    const g = new THREE.Group();
+    part(g, new THREE.CylinderGeometry(0.13, 0.1, 0.1, 24, 1, true), s.color, 0, 0.05, 0, { side: THREE.DoubleSide });
+    part(g, cyl(0.1, 0.1, 0.004, 24), '#8f704a', 0, 0.002, 0);
+    part(g, new THREE.TorusGeometry(0.13, 0.008, 8, 32), '#8f704a', 0, 0.1, 0).rotation.x = Math.PI / 2;
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * TAU; const st = part(g, box(0.006, 0.1, 0.004), '#8f704a', Math.cos(a) * 0.116, 0.05, Math.sin(a) * 0.116);
+      st.rotation.y = -a;
+    }
+    return g;
+  },
+  'ハサミ'(s) {
+    const g = new THREE.Group();
+    [-1, 1].forEach((sd) => {
+      const half = new THREE.Group(); half.rotation.y = sd * 0.22; g.add(half);
+      part(half, box(0.11, 0.004, 0.012), s.color, 0.055, 0.006, 0, { metalness: 0.6, roughness: 0.3 });
+      part(half, new THREE.TorusGeometry(0.022, 0.006, 8, 20), '#e0662f', -0.03, 0.006, sd * 0.022).rotation.x = Math.PI / 2;
+    });
+    part(g, cyl(0.006, 0.006, 0.012, 10), '#555555', 0, 0.008, 0);
+    return g;
+  },
+  'のり'(s) {
+    const g = new THREE.Group();
+    part(g, cyl(0.02, 0.02, 0.09), s.color, 0, 0.045, 0);
+    part(g, cyl(0.0205, 0.0205, 0.04), '#3a6fb0', 0, 0.05, 0);  // ラベル
+    part(g, cyl(0.022, 0.022, 0.045), '#3a6fb0', 0, 0.112, 0);  // キャップ
+    return g;
+  },
+};
+
+// 人（カフェの お客さま・介護施設の 利用者）
+function person(bodyColor, legColor, nameTag) {
+  const g = new THREE.Group();
+  part(g, cyl(0.05, 0.055, 0.11, 16), legColor, 0, 0.055, 0);
+  part(g, cyl(0.055, 0.065, 0.14, 16), bodyColor, 0, 0.18, 0);
+  part(g, ball(0.05, 18, 14), '#f1c9a5', 0, 0.3, 0);
+  part(g, new THREE.SphereGeometry(0.053, 18, 10, 0, TAU, 0, Math.PI / 2), nameTag ? '#d8d8d8' : '#3b2a20', 0, 0.305, -0.004);
+  [-1, 1].forEach((sd) => { const arm = part(g, cyl(0.016, 0.016, 0.12, 10), bodyColor, sd * 0.07, 0.18, 0.005); arm.rotation.z = sd * 0.15; });
+  if (nameTag) part(g, box(0.06, 0.03, 0.004), '#ffffff', 0, 0.2, 0.062);
+  return g;
+}
+
+// 器（介護施設の おぜん用）
+function bowl(g, x, z, r, h, color, food) {
+  part(g, cyl(r, r * 0.65, h, 18), color, x, 0.024 + h / 2, z);
+  part(g, cyl(r * 0.9, r * 0.9, 0.004, 18), food, x, 0.026 + h, z);
+}
+
+const SHAPE_MODELS = {
+  // コンビニの たな。上に 何の たなか わかる 品物を 並べる
+  shelf(s) {
+    const g = new THREE.Group(); const W = 0.42; const H = 0.5; const D = 0.18;
+    part(g, box(W, H, 0.01), '#e9e6df', 0, H / 2, -D / 2 + 0.005);
+    [-1, 1].forEach((sd) => part(g, box(0.015, H, D), '#d5d0c6', sd * (W / 2 - 0.0075), H / 2, 0));
+    [0.01, 0.19, 0.37].forEach((y) => part(g, box(W, 0.015, D), '#d5d0c6', 0, y, 0));
+    part(g, box(W, 0.05, 0.012), s.color, 0, H - 0.04, -D / 2 + 0.02); // 色の 看板
+    const goods = { '飲み物': ['お茶', '水', 'ジュース'], 'お菓子': ['ポテトチップス', 'チョコ', 'あめ'], 'パン': ['食パン', 'メロンパン', '食パン'], '日用品': ['歯ブラシ', '電池', 'マスク'] }[s.label] || [];
+    [0.0175, 0.1975].forEach((y) => goods.forEach((name, i) => {
+      const it = fitInto(ITEM_MODELS[name]({ color: '#ffffff' }), 0.11, 0.15, 0.14);
+      it.position.set(-0.13 + i * 0.13, y, 0.01); g.add(it);
+    }));
+    return g;
+  },
+  // 介護施設の おぜん（食事の形で 中身を 変える）
+  mealTray(s) {
+    const g = new THREE.Group();
+    part(g, box(0.3, 0.02, 0.22), s.color, 0, 0.01, 0);
+    part(g, box(0.31, 0.01, 0.23), '#9a6b44', 0, 0.005, 0);
+    if (s.label === 'おかゆ') {
+      bowl(g, -0.05, 0.02, 0.06, 0.05, '#ffffff', '#fbf8ee');
+      part(g, ball(0.012, 10, 8), '#c8323b', -0.05, 0.078, 0.02);                    // 梅干し
+      bowl(g, 0.08, -0.04, 0.035, 0.03, '#2f2a28', '#b98a4a');                         // みそ汁
+      part(g, box(0.1, 0.008, 0.012), '#c49a6c', 0.06, 0.026, 0.07).rotation.y = 0.3;  // スプーン
+    } else {
+      const minced = s.label === 'きざみ食';
+      bowl(g, -0.08, 0.05, 0.04, 0.035, '#ffffff', '#fbf8ee');   // ごはん
+      bowl(g, 0.08, 0.05, 0.035, 0.03, '#2f2a28', '#b98a4a');    // みそ汁
+      part(g, cyl(0.06, 0.05, 0.012, 20), '#e8e2d6', 0, 0.026, -0.05); // 主菜の皿
+      if (minced) {
+        for (let i = 0; i < 14; i++) part(g, box(0.01, 0.008, 0.01), i % 3 ? '#d9925a' : '#6aa04a', -0.035 + (i % 5) * 0.017, 0.036, -0.07 + Math.floor(i / 5) * 0.018);
+      } else {
+        const fish = part(g, ball(0.035, 14, 10), '#d9925a', 0, 0.04, -0.05); fish.scale.set(1.4, 0.35, 0.6);
+        part(g, ball(0.012, 8, 6), '#6aa04a', 0.035, 0.038, -0.03);
+      }
+      part(g, box(0.006, 0.006, 0.16), '#7a4a2a', 0.135, 0.023, 0); // おはし
+    }
+    return g;
+  },
+  // 名札を つけた 利用者
+  resident(s) { return person(s.color, '#6f6a64', true); },
+  // 事務所の 書類トレー（紙が 入っている）
+  docTray(s) {
+    const g = new THREE.Group();
+    part(g, box(0.3, 0.008, 0.22), s.color, 0, 0.004, 0);
+    part(g, box(0.3, 0.04, 0.008), s.color, 0, 0.02, -0.106);
+    [-1, 1].forEach((sd) => part(g, box(0.008, 0.04, 0.22), s.color, sd * 0.146, 0.02, 0));
+    part(g, box(0.3, 0.025, 0.008), s.color, 0, 0.0125, 0.106);
+    for (let i = 0; i < 3; i++) { const p = part(g, box(0.21, 0.003, 0.18), i % 2 ? '#f4f4f0' : '#ffffff', 0, 0.01 + i * 0.004, -0.005); p.rotation.y = (i - 1) * 0.05; }
+    [-0.04, -0.01, 0.02].forEach((z) => part(g, box(0.15, 0.001, 0.008), '#b9c0c6', 0, 0.0225, z));
+    return g;
+  },
+  // トマト（赤も 青も 同じ 形。ヘタを つける）
+  tomato(s) {
+    const g = new THREE.Group();
+    part(g, ball(0.07, 22, 16), s.color, 0, 0.06, 0, { roughness: 0.35 }).scale.set(1, 0.85, 1);
+    for (let i = 0; i < 5; i++) { const a = (i / 5) * TAU; const sep = part(g, box(0.035, 0.004, 0.01), '#3f7a2a', Math.cos(a) * 0.014, 0.119, Math.sin(a) * 0.014); sep.rotation.y = -a; }
+    part(g, cyl(0.004, 0.005, 0.02, 6), '#3f7a2a', 0, 0.13, 0);
+    return g;
+  },
+};
+
 function makeItemMesh(spec) {
+  const build = SHAPE_MODELS[spec.shape] || (spec.label && ITEM_MODELS[spec.label]);
+  if (build) return build(spec);
   const m = mat(spec.color, spec.opacity ? { transparent: true, opacity: spec.opacity } : null);
   let geo; let y = 0;
   switch (spec.shape) {
@@ -1049,10 +1381,11 @@ function nextRound() {
     }
     holder.position.set(x, baseY, z);
     const mesh = makeItemMesh(spec);
+    const top = new THREE.Box3().setFromObject(mesh).max.y;
+    mesh.traverse((o) => { o.userData.slotIndex = idx; });
     holder.add(mesh);
     const ringMesh = makeGlowRing(); ringMesh.position.y = 0.005; holder.add(ringMesh);
-    if (spec.label) { const s = labelSprite(spec.label); s.position.y = (spec.shape === 'shelf' ? 0.62 : 0.3) + row * 0.14; holder.add(s); }
-    mesh.userData.slotIndex = idx;
+    if (spec.label) { const s = labelSprite(spec.label); s.position.y = Math.max(0.3, top + 0.12) + row * 0.14; holder.add(s); }
     b.workArea.add(holder);
     slots.push({ spec, key: itemKey(spec), mesh, ring: ringMesh, holder, done: false });
   });
@@ -1060,6 +1393,10 @@ function nextRound() {
   if (def.carry || def.carryText) {
     const carry = labelSprite(def.carryText || 'もっている：' + def.carry, { bg: 'rgba(255,240,200,0.95)', h: 0.12 });
     carry.position.set(0, 1.25, 2.0); b.workArea.add(carry);
+    if (def.carry && ITEM_MODELS[def.carry]) {
+      const held = fitInto(ITEM_MODELS[def.carry]({ color: '#ffffff' }), 0.16, 0.16, 0.16);
+      held.position.set(0, 1.08, 2.45); held.rotation.y = -0.3; b.workArea.add(held); // 手もと（台より 手前）
+    }
   }
   state.round = { def, slots, pos: 0, lastActionAt: performance.now(), hintShown: false, mistakeThisRound: false };
   state.feedback = { text: '', kind: '' };
@@ -1201,8 +1538,10 @@ function useHint(auto) {
 const anims = [];
 function animateDone(slot) { anims.push({ kind: 'done', slot, t0: performance.now() }); }
 function flashWrong(slot) {
-  const m = slot.mesh.material; const prev = m.emissive.clone();
-  m.emissive.set('#c0392b'); anims.push({ kind: 'wrong', slot, t0: performance.now(), prev });
+  const mats = [];
+  slot.mesh.traverse((o) => { if (o.isMesh && o.material.emissive) mats.push(o.material); });
+  mats.forEach((m) => { if (!m.userData.baseEmissive) m.userData.baseEmissive = m.emissive.clone(); m.emissive.set('#c0392b'); });
+  anims.push({ kind: 'wrong', slot, t0: performance.now(), mats });
 }
 function stepAnims(now) {
   for (let i = anims.length - 1; i >= 0; i--) {
@@ -1212,7 +1551,7 @@ function stepAnims(now) {
       if (t > 0.5) { a.slot.holder.visible = false; anims.splice(i, 1); }
     } else if (a.kind === 'wrong') {
       a.slot.holder.position.x += Math.sin(t * 60) * 0.003;
-      if (t > 0.4) { a.slot.mesh.material.emissive.copy(a.prev); anims.splice(i, 1); }
+      if (t > 0.4) { a.mats.forEach((m) => m.emissive.copy(m.userData.baseEmissive)); anims.splice(i, 1); }
     }
   }
 }
@@ -1256,7 +1595,7 @@ renderer.domElement.addEventListener('pointerup', (e) => {
 function currentClickables() {
   if (state.where === 'plaza') return booths.map((b) => b.pin).concat(plazaClickables);
   const b = state.booth; const list = Object.values(b.btns).filter((m) => m.visible);
-  if (state.phase === 'work' && state.round) state.round.slots.forEach((s) => { if (!s.done) list.push(s.mesh); });
+  if (state.phase === 'work' && state.round) state.round.slots.forEach((s) => { if (!s.done) s.mesh.traverse((o) => { if (o.isMesh) list.push(o); }); });
   return list.concat(plazaClickables.filter((m) => m.userData.boothIndex !== booths.indexOf(b)));
 }
 
