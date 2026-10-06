@@ -167,7 +167,11 @@ button.primary { background: var(--accent); color: var(--accent-ink); border-col
   background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 4px;
   box-shadow: 0 6px 20px rgba(0,0,0,.14);
 }
-.minimap-head { width: 100%; display: flex; justify-content: space-between; align-items: center; border: 0; background: none; padding: 2px 6px 4px; font-size: 12px; }
+.minimap-bar { display: flex; gap: 4px; align-items: center; }
+.minimap-size { border: 0; background: none; padding: 2px 6px 4px; font-size: 12px; color: var(--ink-soft); white-space: nowrap; }
+.minimap.big { width: min(460px, calc(100vw - 24px)); }
+.minimap.closed .minimap-size { display: none; }
+.minimap-head { flex: 1; width: 100%; display: flex; justify-content: space-between; align-items: center; border: 0; background: none; padding: 2px 6px 4px; font-size: 12px; }
 .minimap canvas { display: block; width: 100%; aspect-ratio: 850 / 680; border-radius: 8px; cursor: pointer; touch-action: manipulation; }
 .minimap.closed { width: auto; }
 .minimap.closed canvas { display: none; }
@@ -214,7 +218,7 @@ button.primary { background: var(--accent); color: var(--accent-ink); border-col
 
 <nav class="hud bottom" id="chips" aria-label="職業をえらぶ"></nav>
 <div class="minimap" id="minimap">
-  <button type="button" class="minimap-head" id="minimap-toggle" aria-expanded="true">島の 地図 <span aria-hidden="true">−</span></button>
+  <div class="minimap-bar"><button type="button" class="minimap-head" id="minimap-toggle" aria-expanded="true">島の 地図 <span aria-hidden="true">−</span></button><button type="button" class="minimap-size" id="minimap-size">大きく</button></div>
   <canvas id="minimap-canvas" role="img" aria-label="島ぜんたいの 地図。お店の 点を タップすると その お店へ 行きます"></canvas>
 </div>
 <button type="button" class="chip-nav" id="chips-prev" aria-label="前の お店へ 送る" hidden>‹</button>
@@ -898,10 +902,10 @@ const SITES = {
   craft: { at: [352, 540], face: 'n' },    // 学校エリア：職業訓練校の作業室
   forest: { at: [392, 252], face: 's' },   // 林業エリア
   fish: { at: [592, 250], face: 's' },     // 漁村
-  ski: { at: [625, 350], face: 'n' },      // 山の裏（北東）。南向きの斜面は雪がとけやすいので、スキー場は北東側
+  ski: { at: [648, 362], face: 'n' },      // 山の裏（北東）。南向きの斜面は雪がとけやすいので、スキー場は北東側
   logi: { at: [742, 392], face: 'n' },     // 漁港：港の物流センター
   farm: { at: [702, 602], face: 'n' },     // 農村
-  hut: { at: [478, 505], face: 's' },      // 山の表（南）の登山口
+  hut: { at: [478, 512], face: 's' },      // 山の表（南）の登山口
   wind: { at: [200, 398], face: 's' },     // 風の丘のふもと
   it: { at: [548, 606], face: 'w' },       // IT街（南の 新しい 通りぞい）
 };
@@ -910,7 +914,7 @@ const SITES = {
 const ROAD_W = 2.4;
 const ROADS = [
   [[742, 425], [640, 520], [470, 545], [400, 505], [330, 488], [262, 488], [232, 555], [190, 600], [150, 625]],
-  [[330, 488], [345, 395], [392, 290], [470, 300], [592, 300], [680, 330]],
+  [[330, 488], [352, 478], [360, 440], [345, 395], [392, 290], [470, 282], [530, 276], [592, 298], [648, 308], [700, 320]],
   [[262, 488], [230, 430], [222, 368]],
   [[400, 505], [400, 560], [392, 640], [330, 686]],
   [[640, 520], [702, 640], [820, 690]],
@@ -920,7 +924,7 @@ const ROADS = [
   [[160, 688], [238, 693], [330, 688]],                       // カフェ → スーパー（南の 海ぞい）
   [[575, 470], [595, 520], [585, 600], [604, 700], [620, 762]], // 川ぞいの 道（山の ふもと → 南の 海）
   [[860, 560], [895, 605]], [[895, 605], [772, 676]], [[895, 605], [850, 705]], // 農村の 東の 道
-  [[680, 330], [742, 346]],                                   // 山の 北の 道 → 物流センター
+  [[700, 320], [742, 346]],                                   // 山の 北の 道 → 物流センター
 ];
 
 // 川。山のふもとの湧き水から、放射状に海へ（火山の島に多い形）。w は川はば（m）。
@@ -1223,11 +1227,11 @@ const HOME_SITES = {
 Object.values(HOME_SITES).forEach((h) => { const p = toWorld(...h.at); h.blk = { x: p.x, z: p.z, r: 2.9, w: 0 }; blocked.push(h.blk); });
 
 // 地域の名前（お店のない地域・目じるし）
-[['ビーチ', [250, 205]], ['湖（冬は スケート場）', [265, 592]], ['田んぼ', [826, 424]], ['表：夏山登山　裏：冬スキー', [520, 392]], ['ジップライン', [432, 318]],
+[['ビーチ', [250, 205]], ['湖（冬は スケート場）', [265, 592]], ['田んぼ', [826, 424]], ['表：夏山登山　裏：冬スキー', [520, 392]],
   ['フェリー乗り場（となりの国へ）', [125, 458]]].forEach(([text, at]) => {
   const p = toWorld(...at);
   const s = overviewSign(text, '', '', text.length > 10 ? 11 : text.length > 4 ? 7.5 : 4.5);
-  s.position.set(p.x, text.startsWith('表：') ? 19 : 7, p.z); s.lookAt(OVERVIEW.pos);
+  s.position.set(p.x, text.startsWith('表：') ? 26 : 7, p.z); s.lookAt(OVERVIEW.pos);
   scene.add(s); overviewOnly.push(s);
 });
 // 季節。山は 夏は 山小屋（表）、冬は スキー場（裏）が ひらく。見た目（雪・ゲレンデ・看板）も 季節で かわる。
@@ -1293,7 +1297,7 @@ function tree(x, z, kind) {
 
 (function buildScenery() {
   // 山（夏は登山、冬はスキー）。頂上に雪。
-  const peak = toWorld(520, 392); const MR = 11; const MH = 15;
+  const peak = toWorld(520, 392); const MR = 12.5; const MH = 22;
   const mountain = new THREE.Mesh(new THREE.ConeGeometry(MR, MH, 24), mat('#7f9161', { flatShading: true }));
   mountain.position.set(peak.x, MH / 2, peak.z); scene.add(mountain);
   const snow = new THREE.Mesh(new THREE.ConeGeometry(MR * 0.37, MH * 0.36, 24), mat('#f7fbff', { flatShading: true }));
@@ -1308,7 +1312,7 @@ function tree(x, z, kind) {
   function slopeStrip(dir, width) {
     const side = new THREE.Vector3(-dir.z, 0, dir.x); const pos = []; const idx = []; const N = 16;
     for (let i = 0; i <= N; i++) {
-      const r = MR * (0.3 + 0.8 * i / N);
+      const r = MR * (0.1 + 1.05 * i / N);
       [-1, 1].forEach((s) => {
         const x = peak.x + dir.x * r + side.x * s * width / 2; const z = peak.z + dir.z * r + side.z * s * width / 2;
         pos.push(x, heightAt(x, z) + 0.12, z);
@@ -1321,17 +1325,11 @@ function tree(x, z, kind) {
   slopeStrip(turn(toSki, -0.35), 2.6); slopeStrip(turn(toSki, -0.05), 1.8);
   const liftDir = turn(toSki, 0.4);
   const liftA = new THREE.Vector3(peak.x + liftDir.x * (MR + 1.2), 2.6, peak.z + liftDir.z * (MR + 1.2));
-  const liftB = new THREE.Vector3(peak.x + liftDir.x * MR * 0.36, MH * 0.64 + 2.2, peak.z + liftDir.z * MR * 0.36);
+  const liftB = new THREE.Vector3(peak.x + liftDir.x * MR * 0.14, MH * 0.86 + 2.2, peak.z + liftDir.z * MR * 0.14);
   seasonal.mount = { peak, MR, MH, heightAt, runs: [turn(toSki, -0.35), turn(toSki, -0.05)], widths: [2.6, 1.8], liftA, liftB }; // 自分で スキー・山登り する ときに 使う
   block(liftA.x, liftA.z, 0.8);
   [liftA, liftB].forEach((p) => addCyl(p.x, p.y / 2, p.z, 0.12, 0.12, p.y, '#55626d', 6));
   scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([liftA, liftB]), new THREE.LineBasicMaterial({ color: '#33404a' })));
-  // ジップライン（山の中腹 → 林業エリア）
-  const zipA = toWorld(470, 350); zipA.y = MH * (1 - Math.hypot(zipA.x - peak.x, zipA.z - peak.z) / MR) + 3;
-  const zipB = toWorld(415, 300); zipB.y = 4.5;
-  [zipA, zipB].forEach((p) => addCyl(p.x, p.y / 2, p.z, 0.15, 0.15, p.y, '#8a6a46', 6));
-  scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([zipA, zipB]), new THREE.LineBasicMaterial({ color: '#e0662f' })));
-  block(zipB.x, zipB.z, 1.2);
 
   // 首都：議事堂（ドームと旗）
   const capitol = toWorld(282, 392);
@@ -1428,7 +1426,7 @@ function tree(x, z, kind) {
     const p = toWorld(px, py); if (!isFree(p.x, p.z, 1)) return;
     addCyl(p.x, 1.1, p.z, 0.04, 0.04, 2.2, '#f4f4f0', 6);
     const u = new THREE.Mesh(new THREE.ConeGeometry(1.3, 0.6, 12), cmat(['#e0662f', '#3b6fb6', '#f2c230'][k % 3])); u.position.set(p.x, 2.3, p.z); scene.add(u);
-    seasonal.parasols.push(new THREE.Vector3(p.x, 0, p.z));
+    seasonal.parasols.push(new THREE.Vector3(p.x, 0, p.z)); block(p.x, p.z, 4.5, 0.3);
   });
 
   // 林業エリア：針葉樹の森。島のあちこちにも木。
@@ -3152,6 +3150,17 @@ function drawMinimap() {
     if (state.booth === b) { x.beginPath(); x.arc(u, v, dot * 1.9, 0, Math.PI * 2); x.strokeStyle = '#ffd23f'; x.lineWidth = Math.max(2, dot * 0.4); x.stroke(); }
     x.globalAlpha = 1;
   });
+  // お店の しごと（なんの 職業体験か）を 点の 下に 小さく
+  const big = mmWrap.classList.contains('big');
+  x.font = '700 ' + Math.round((big ? 11 : 8) * px) + 'px ' + FONT_BODY; x.textAlign = 'center'; x.textBaseline = 'top'; x.lineJoin = 'round';
+  booths.forEach((b) => {
+    const [u, v] = mmPos(...SITES[b.job.id].at); const vs = variantsNow(b.job);
+    const t = vs && vs.length > 1 ? vs.map((w) => w.short || w.work).join('・') : b.job.work;
+    x.globalAlpha = isOpen(b.job) ? 1 : 0.5;
+    x.lineWidth = 3 * px; x.strokeStyle = 'rgba(255,255,255,0.9)'; x.strokeText(t, u, v + dot + 1.5 * px);
+    x.fillStyle = '#1f2a33'; x.fillText(t, u, v + dot + 1.5 * px);
+    x.globalAlpha = 1;
+  });
   if (home.site) { // 自分の 家（小さな 家の 形）
     const [hx, hy] = mmPos(...home.site.at); const S = 6 * px;
     x.beginPath(); x.moveTo(hx, hy - S * 1.1); x.lineTo(hx + S, hy - S * 0.1); x.lineTo(hx + S * 0.75, hy - S * 0.1); x.lineTo(hx + S * 0.75, hy + S * 0.8); x.lineTo(hx - S * 0.75, hy + S * 0.8); x.lineTo(hx - S * 0.75, hy - S * 0.1); x.lineTo(hx - S, hy - S * 0.1); x.closePath();
@@ -3177,6 +3186,10 @@ mmCanvas.addEventListener('click', (e) => {
   if (best < 0) return;
   if (state.phase === 'work' || state.phase === 'between') { toast('体験が おわってから 移動できます'); return; }
   goBooth(best);
+});
+$('minimap-size').addEventListener('click', () => {
+  const big = mmWrap.classList.toggle('big'); $('minimap-size').textContent = big ? '小さく' : '大きく';
+  mmBase = null; drawMinimap();
 });
 $('minimap-toggle').addEventListener('click', () => {
   const closed = mmWrap.classList.toggle('closed');
@@ -3374,7 +3387,7 @@ function leaveForPlay() {
 function startSki() {
   const m = seasonal.mount; if (season !== 'winter') { toast('スキーは 冬だけです（上の「季節」）'); return; }
   leaveForPlay();
-  state.where = 'play'; state.play = { kind: 'ski', run: Math.random() < 0.5 ? 0 : 1, r: m.MR * 0.32, lat: 0, v: 1.2, t0: performance.now() };
+  state.where = 'play'; state.play = { kind: 'ski', run: Math.random() < 0.5 ? 0 : 1, r: m.MR * 0.12, lat: 0, v: 1.2, t0: performance.now() };
   toast('リフトで 上に つきました。← → で よけながら すべります');
   renderHud();
 }
@@ -3423,14 +3436,14 @@ function stepPlay(dt, now) {
   const side = xr ? xr.strafe : (walkKeys.right ? 1 : 0) - (walkKeys.left ? 1 : 0);
   if (pl.kind === 'ski') {
     const dir = m.runs[pl.run]; const sd = new THREE.Vector3(-dir.z, 0, dir.x); const W = m.widths[pl.run];
-    pl.v = Math.min(walkKeys.run ? 11 : 8, pl.v + (2.2 - (side ? 0.9 : 0)) * dt);
+    pl.v = Math.min(walkKeys.run ? 9 : 7, pl.v + (1.6 - (side ? 0.7 : 0)) * dt);
     pl.lat = Math.max(-W * 0.45, Math.min(W * 0.45, pl.lat + side * 2.4 * dt));
-    pl.r += pl.v * dt * 0.55;
+    pl.r += pl.v * dt * 0.2; // 横に 進む はやさ（ななめに 長く すべる）
     const x = m.peak.x + dir.x * pl.r + sd.x * pl.lat; const z = m.peak.z + dir.z * pl.r + sd.z * pl.lat;
     rig.position.set(x, m.heightAt(x, z) + 0.12, z); rig.rotation.y = Math.atan2(-dir.x, -dir.z) - side * 0.15; look.pitch = 0.32;
-    if (pl.r > m.MR * 1.12) { toast('ゴール！ ' + Math.round((now - pl.t0) / 1000) + '秒で すべりました'); endPlay(); }
+    if (pl.r > m.MR * 1.15) { toast('ゴール！ ' + Math.round((now - pl.t0) / 1000) + '秒で すべりました'); endPlay(); }
   } else if (pl.kind === 'climb') {
-    pl.s = Math.max(0, Math.min(1, pl.s + fwd * dt / 40));
+    pl.s = Math.max(0, Math.min(1, pl.s + fwd * dt / 55));
     const at = (s) => { const a = pl.a0 + s * Math.PI * 2.2; const r = m.MR * (1 - s) * 0.97 + 0.4 * s; return [m.peak.x + Math.cos(a) * r, m.peak.z + Math.sin(a) * r]; };
     const [x, z] = at(pl.s); const [x2, z2] = at(Math.min(1, pl.s + 0.01));
     rig.position.set(x, m.heightAt(x, z) + 0.15, z);
@@ -3510,7 +3523,7 @@ function renderWallet() {
 // オープニング 1：名前・性別・モード
 function openOpening() {
   modal.dataset.closable = '0';
-  openModal('<h2>HOPE しごとタウンへ ようこそ</h2><p>Work Island で、いろいろな しごとを 体験します。はじめに あなたの ことを 教えてください。</p>' +
+  openModal('<h2>HOPE しごとタウンへ ようこそ</h2><p>Work Island で、いろいろな しごとを 体験します。はじめに あなたの ことを 教えてください。</p><p>VR ゴーグルの 人は、VR に 入る 前に この 画面で 名前を 入れて ください（名前の らんを えらぶと キーボードが 出ます）。</p>' +
     '<label class="field" for="op-name">名前</label><input type="text" id="op-name" maxlength="12" placeholder="例：みな" autocomplete="off">' +
     '<div class="field">性別（家の 中の 自分の 姿に 使います）</div>' + radio('op-g', GENDER, 'n') +
     '<div class="field">あそびかた</div>' + radio('op-m', MODE_HTML, 'money') +
