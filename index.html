@@ -465,8 +465,8 @@ const JOBS = [
   },
   {
     id: 'it', area: 'IT街', name: 'IT企業', work: 'データのチェック', color: '#3f6fa8', category: '事務',
-    intro: 'ノートパソコンの 画面で、伝票と 入力データを くらべます。合っている 行には ✓、ちがう 数には 線を ひきます。',
-    defect: '見落とし・合っている 行に 線を ひく',
+    intro: 'ノートパソコンの 画面で、伝票と 入力データを くらべます。まちがっている 行だけ □ に ✓ を つけて、ぜんぶ 見たら「チェック おわり」を おします。',
+    defect: '見落とし・合っている 行に ✓ を つける',
     round() { return laptopRound(['りんご', 'みかん', 'ぶどう', 'もも', 'なし', 'バナナ'], '入力データ'); },
   },
 ];
@@ -474,13 +474,14 @@ const JOBS = [
 // IT企業：伝票と 表を くらべる（行ごとに 合っていれば ✓、ちがえば 数に 線）
 function laptopRound(pool, rightTitle) {
   const rows = sample(pool, 4).map((f) => ({ f, n: 1 + Math.floor(Math.random() * 10) }));
-  const wrong = sample([0, 1, 2, 3], 1 + Math.floor(Math.random() * 2));
+  const wrong = sample([0, 1, 2, 3], 1 + Math.floor(Math.random() * 2)).sort();
   rows.forEach((r, i) => { r.shown = r.n; if (wrong.includes(i)) { r.shown = r.n + pick([-3, -2, -1, 1, 2, 3]); if (r.shown < 1) r.shown = r.n + 2; } });
-  const items = [];
-  rows.forEach((r, i) => { items.push({ label: '', id: 'ok' + i, row: i, name: r.f + 'に ✓' }); items.push({ label: '', id: 'ng' + i, row: i, name: r.f + 'の 数に 線' }); });
+  // まちがっている 行だけ ✓。行は 好きな 順で よい（free）、さいごに「チェック おわり」
+  const items = rows.map((r, i) => ({ label: '', id: 'ng' + i, row: i, name: r.f + 'の 行に ✓' })).concat([{ label: '', id: 'done', name: 'チェック おわり' }]);
+  const checks = wrong.map((i) => 'ng' + i);
   return {
-    title: '伝票と ' + rightTitle + 'を くらべる（合っていれば ✓、ちがう 数に 線）', shortTitle: '伝票と ' + rightTitle + 'を くらべる',
-    items, need: rows.map((r, i) => (wrong.includes(i) ? 'ng' : 'ok') + i), ordered: false, layout: 'laptop', rows, rightTitle,
+    title: 'まちがっている 行だけ □ に ✓', shortTitle: 'まちがっている 行だけ □ に ✓', carryText: '伝票と ' + rightTitle + 'を くらべる。ぜんぶ 見たら「チェック おわり」',
+    items, need: checks.concat(['done']), free: checks, ordered: true, hideSteps: true, layout: 'laptop', rows, rightTitle,
   };
 }
 // 店員の 動作の 名前。台の 上の 道具には、品名ではなく「何を するか」を 出す。
@@ -771,7 +772,7 @@ const WINTER = {
     },
   },
   it: {
-    work: '年末の在庫チェック', intro: 'ノートパソコンの 画面で、伝票と 在庫表を くらべます。合っている 行には ✓、ちがう 数には 線を ひきます。', defect: '見落とし・合っている 行に 線を ひく',
+    work: '年末の在庫チェック', intro: 'ノートパソコンの 画面で、伝票と 在庫表を くらべます。まちがっている 行だけ □ に ✓ を つけて、ぜんぶ 見たら「チェック おわり」を おします。', defect: '見落とし・合っている 行に ✓ を つける',
     round() { return laptopRound(['みかん', 'もち', 'カイロ', '手袋', 'マフラー', '鍋つゆ'], '在庫表'); },
   },
   yatai: {
@@ -3816,14 +3817,14 @@ function startLaptop(b, def) {
   const screen = new Board(SW, SH, 1000); disp.add(screen.mesh);
   const CW = Math.round(SW * 1000); const CH = Math.round(SH * 1000);
   const month = (season === 'winter' ? 12 : 7) + '月分';
-  const rowY = (i) => 215 + i * 92;
+  const rowY = (i) => 196 + i * 82;
   const RX = CW / 2 + 20; // 右の 表の 左はし
-  const marks = {}; // 行 → 'ok' | 'ng'
+  const marks = {}; // ✓ を つけた 行
   let flash = -1;
   const paint = () => screen.draw((c, w, h) => {
     c.fillStyle = '#dfe6ec'; c.fillRect(0, 0, w, h);
     [[24, '伝票'], [RX, def.rightTitle]].forEach(([x0, t]) => {
-      c.fillStyle = '#ffffff'; c.fillRect(x0, 24, w / 2 - 44, h - 48);
+      c.fillStyle = '#ffffff'; c.fillRect(x0, 24, w / 2 - 44, h - 140);
       c.fillStyle = '#1f2a33'; c.textAlign = 'center'; c.textBaseline = 'middle';
       c.font = '700 46px ' + FONT_BODY; c.fillText(t, x0 + (w / 2 - 44) / 2, 72);
       c.font = '400 36px ' + FONT_BODY; c.fillText(month, x0 + (w / 2 - 44) / 2, 128);
@@ -3833,24 +3834,35 @@ function startLaptop(b, def) {
       const y = rowY(i);
       c.fillStyle = '#1f2a33'; c.fillText(r.f, 70, y); c.fillText(r.n + 'こ', 330, y);
       if (flash === i) { c.fillStyle = 'rgba(208,69,58,0.18)'; c.fillRect(RX + 6, y - 40, w / 2 - 56, 80); }
-      c.strokeStyle = '#8a949c'; c.lineWidth = 4; c.strokeRect(RX + 24, y - 24, 48, 48); // ✓ を 入れる □
+      c.strokeStyle = '#55626d'; c.lineWidth = 5; c.strokeRect(RX + 24, y - 24, 48, 48); // ✓ を 入れる □
       c.fillStyle = '#1f2a33'; c.fillText(r.f, RX + 96, y); c.fillText(r.shown + 'こ', RX + 316, y);
-      c.strokeStyle = '#d0453a'; c.lineWidth = 8;
-      if (marks[i] === 'ok') { c.beginPath(); c.moveTo(RX + 28, y - 2); c.lineTo(RX + 46, y + 20); c.lineTo(RX + 80, y - 34); c.stroke(); }
-      if (marks[i] === 'ng') { c.beginPath(); c.moveTo(RX + 306, y + 30); c.lineTo(RX + 420, y + 30); c.stroke(); }
+      if (marks[i]) { c.strokeStyle = '#d0453a'; c.lineWidth = 9; c.beginPath(); c.moveTo(RX + 28, y - 2); c.lineTo(RX + 46, y + 20); c.lineTo(RX + 80, y - 34); c.stroke(); }
     });
-    c.fillStyle = '#55626d'; c.font = '400 28px ' + FONT_BODY; c.textAlign = 'center';
-    c.fillText('合っていれば □ に ✓ ／ ちがう 数に 線', w * 0.75, h - 46);
+    // 指示（大きく）
+    c.fillStyle = '#3f6fa8'; roundRect(c, 16, h - 104, w - 32, 92, 20); c.fill();
+    c.fillStyle = '#ffffff'; c.font = '700 60px ' + FONT_DISPLAY; c.textAlign = 'center';
+    c.fillText('まちがっている 行だけ □ に ✓', w / 2, h - 56);
   });
   paint();
-  // えらぶ ところ（□ と 名前 ＝ ✓、数 ＝ 線）。画面の 座標 → 板の 座標
+  // えらぶ ところ（右の 表の 行 ぜんたい）。画面の 座標 → 板の 座標
   const toLocal = (cx, cy) => [(cx / CW - 0.5) * SW, (0.5 - cy / CH) * SH];
   def.items.forEach((spec, idx) => {
-    const i = spec.row; const y = rowY(i); const isOk = spec.id.startsWith('ok');
-    const [x0, w0] = isOk ? [RX + 14, 270] : [RX + 296, 150];
+    if (spec.id === 'done') {
+      // 「チェック おわり」の ボタン（パソコンの 右の 台の 上。店員に 向けて ななめに）
+      const holder = new THREE.Group(); holder.position.set(-0.72, 0.9, 2.0); W.add(holder);
+      const tilt = new THREE.Group(); tilt.rotation.y = Math.PI; holder.add(tilt);
+      const btn = textPlate('チェック おわり', 0.34, 0.12, '#2f7d4f', '#ffffff'); btn.rotation.x = -1.0; btn.position.y = 0.05; tilt.add(btn);
+      part(tilt, box(0.36, 0.04, 0.16), '#3d444b', 0, 0.02, 0);
+      btn.userData.slotIndex = idx;
+      const ring = makeGlowRing(); ring.scale.setScalar(1.6); ring.position.y = 0.01; holder.add(ring);
+      slots.push({ spec, key: itemKey(spec), mesh: btn, ring, holder, done: false });
+      return;
+    }
+    const i = spec.row; const y = rowY(i);
+    const [x0, w0] = [RX + 14, CW / 2 - 70];
     const [lx, ly] = toLocal(x0 + w0 / 2, y);
     const holder = new THREE.Group(); holder.position.set(lx, ly, 0.004); disp.add(holder);
-    const hit = new THREE.Mesh(new THREE.PlaneGeometry(w0 / 1000, 0.085), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.001, depthWrite: false }));
+    const hit = new THREE.Mesh(new THREE.PlaneGeometry(w0 / 1000, 0.08), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.001, depthWrite: false }));
     hit.userData.slotIndex = idx; holder.add(hit);
     const ringG = new THREE.Group(); ringG.scale.set(w0 / 1000 / 0.28, 0.1 / 0.28, 1); holder.add(ringG);
     const ring = new THREE.Mesh(new THREE.RingGeometry(0.12, 0.14, 40), new THREE.MeshBasicMaterial({ color: '#ffd23f', transparent: true, opacity: 0.95, depthTest: false }));
@@ -3860,7 +3872,8 @@ function startLaptop(b, def) {
   state.round = { def, slots, pos: 0, lastActionAt: performance.now(), hintShown: false, mistakeThisRound: false,
     onPick(slot, ok) {
       const i = slot.spec.row;
-      if (ok) { marks[i] = slot.spec.id.slice(0, 2); slots.forEach((o) => { if (o.spec.row === i) { o.done = true; o.holder.visible = false; } }); }
+      if (slot.spec.id === 'done') { if (!ok) flashWrong(slot); return; }
+      if (ok) marks[i] = true;
       else { flash = i; setTimeout(() => { flash = -1; paint(); }, 450); }
       paint();
     } };
@@ -4157,7 +4170,7 @@ function drawWorkBoard() {
       wrapLines(ctx, r.def.carryText, W - 96).slice(0, 2).forEach((l) => { ctx.fillText(l, 48, y); y += 46; });
       y += 8;
     }
-    if (state.withSupport && r.def.ordered) {
+    if (state.withSupport && r.def.ordered && !r.def.hideSteps) {
       const many = r.def.need.length > 8; const rowH = many ? 38 : 48;
       ctx.font = '400 ' + (many ? 27 : 36) + 'px ' + FONT_BODY;
       // 動作の 名前が 長いときは 2 列に（手順が 多いときは 小さく 3 列）
@@ -4172,7 +4185,7 @@ function drawWorkBoard() {
     } else if (r.cover) {
       ctx.font = '700 40px ' + FONT_BODY; ctx.fillStyle = '#33404a';
       ctx.fillText('きれいに なった ところ ' + Math.floor(r.cover.surf.ratio() * 100) + '%', 48, y); y += 56;
-    } else if (state.withSupport) {
+    } else if (state.withSupport && !r.def.hideSteps) {
       ctx.font = '400 38px ' + FONT_BODY; ctx.fillStyle = '#33404a';
       ctx.fillText('のこり ' + remainingKeys().length + ' こ', 48, y); y += 56;
     }
@@ -4203,11 +4216,12 @@ function onSelectItem(slotIndex) {
     if (r.def.layout === 'picking') { dropIntoBox(slot, r.inBox++); r.paintSlip(); } else if (r.stock) { shelveBox(r.stock, slot); } else if (r.onPick) r.onPick(slot, true); else animateDone(slot);
     state.feedback = { text: 'OK！', kind: 'ok' };
     if (remainingKeys().length === 0) return finishRound();
-    if (state.withSupport && r.def.ordered) speak('つぎは、' + stepLabel(nextTargetKey()) + '。');
+    if (state.withSupport && r.def.ordered && !r.def.hideSteps) speak('つぎは、' + stepLabel(nextTargetKey()) + '。');
   } else {
     state.session.defects++; r.mistakeThisRound = true;
     if (r.onPick) r.onPick(slot, false); else flashWrong(slot);
-    state.feedback = { text: r.def.ordered ? 'じゅんばんを たしかめよう' : 'それでは ないかも', kind: 'ng' };
+    const ngText = r.def.layout === 'laptop' ? (slot.key === 'done' ? 'まだ まちがいが のこっています' : 'その 行は 合っています') : r.def.ordered ? 'じゅんばんを たしかめよう' : 'それでは ないかも';
+    state.feedback = { text: ngText, kind: 'ng' };
     if (state.withSupport) speak(state.feedback.text);
   }
   drawWorkBoard(); renderHud();
@@ -4714,11 +4728,11 @@ function renderHud() {
   }
   const r = state.round; const s = state.session; if (!r || !s) return;
   let steps = '';
-  if (state.withSupport && r.def.ordered) {
+  if (state.withSupport && r.def.ordered && !r.def.hideSteps) {
     steps = '<ol>' + r.def.need.map((k, n) => '<li class="' + (n < r.pos ? 'done' : n === r.pos ? 'now' : '') + '">' + esc(stepLabel(k)) + '</li>').join('') + '</ol>';
   } else if (r.cover) {
     steps = '<div>きれいに なった ところ ' + Math.floor(r.cover.surf.ratio() * 100) + '%' + (r.cover.kind === 'mop' ? '（W A S D・矢印 ／ 右下の ボタン ／ VR は 左スティックで 動く）' : '（台ふきを つかんで 動かす ／ VR は トリガーを 押したまま）') + '</div>';
-  } else if (state.withSupport) {
+  } else if (state.withSupport && !r.def.hideSteps) {
     steps = '<div>のこり ' + remainingKeys().length + ' こ</div>';
   }
   el.innerHTML = '<span class="tag">' + esc(job.name) + '・' + (state.withSupport ? '配慮あり' : '配慮なし') + '</span>' +
