@@ -2472,10 +2472,42 @@ function decorateInterior(b) {
     wallShelf(g, -1, ['牛乳', 'お茶', 'パン'], '#d0d5db');
     wallShelf(g, 1, ['じゃがいも', 'たまご', 'みかん'], '#d0d5db');
   } else if (id === 'school') {
-    wallShelf(g, -1, ['#c8463d', '#3c7fc4', '#e3b23c', '#4f9a45'], '#8a6a46'); // 本だな
-    // 黒板
-    part(g, box(0.03, 0.7, 1.4), '#2f4a3a', SHOP_W / 2 - 0.02, 1.35, 1.6);
-    part(g, box(0.04, 0.04, 1.44), '#8a6a46', SHOP_W / 2 - 0.04, 0.98, 1.6);
+    // 作業で 部屋の ようすを かえる（applyRoomMode）。図書の整理＝図書室、書き初め＝教室
+    const lib = new THREE.Group(); const cls = new THREE.Group(); g.add(lib); g.add(cls); b.rooms = { library: lib, classroom: cls };
+    // 図書室：入口がわの かべぞいに 低い 絵本だな、ゆかに カーペット、「図書室」の 札と「しずかに」の はり紙
+    part(lib, box(SHOP_W - 0.3, 0.012, 2.6), '#7a9a6a', 0, 0.106, 2.5);
+    [-1, 1].forEach((sd) => {
+      part(lib, box(0.34, 0.7, 0.8), '#9a6b44', sd * (SHOP_W / 2 - 0.2), 0.45, 3.95);
+      [0.28, 0.6].forEach((y) => { for (let k = 0; k < 4; k++) part(lib, box(0.03, 0.24, 0.17), ['#e3a33c', '#c8463d', '#4f9a45', '#3c7fc4', '#e07fa4'][(k + (y > 0.4 ? 2 : 0)) % 5], sd * (SHOP_W / 2 - 0.27), y + 0.13, 3.67 + k * 0.19).rotation.z = sd * 0.18; }); // 表紙を 見せて 立てかけた 絵本
+    });
+    wallShelf(lib, -1, ['#c8463d', '#3c7fc4', '#e3b23c', '#4f9a45'], '#8a6a46'); // 右の かべの 手前にも 本だな
+    // 作業の 前と あとに 見える かべの 本だな（作業中は 作業用の 本だなに いれかわる。大きさは LIBRARY と 同じ）
+    const cases = new THREE.Group(); lib.add(cases); b.rooms.libCases = cases;
+    [['ミステリー', 1.98, Math.PI / 2, '#2f5f9e'], ['ファンタジー', -1.98, -Math.PI / 2, '#8a4fa8']].forEach(([name, x, rot, col], gi) => {
+      const c = new THREE.Group(); c.position.set(x, 0.1, 2.9); c.rotation.y = rot; cases.add(c);
+      const W = 1.3; const D = 0.34; const TOP = 1.75;
+      part(c, box(W, TOP, 0.02), '#9a6b44', 0, TOP / 2, D / 2);
+      [-1, 1].forEach((sd) => part(c, box(0.03, TOP, D), '#9a6b44', sd * (W / 2 - 0.015), TOP / 2, 0));
+      [1.33, 0.93, 0.53, 0.13, TOP - 0.02].forEach((y) => part(c, box(W, 0.025, D), '#9a6b44', 0, y - 0.0125, 0));
+      [1.33, 0.93, 0.53, 0.13].forEach((y, r) => { for (let k = 0; k < 4; k++) part(c, box(0.07, 0.3, 0.22), ['#c8463d', '#3c7fc4', '#e3a33c', '#4f9a45', '#6b4f9e', '#d9824a'][(k + r + gi * 2) % 6], 0.32 - k * 0.2, y + 0.15, 0.02); });
+      const sign = new Board(0.16, 0.62, 900);
+      sign.draw((ctx, w, h) => { ctx.fillStyle = col; roundRect(ctx, 0, 0, w, h, 20); ctx.fill(); ctx.fillStyle = '#ffffff'; ctx.font = '700 ' + Math.round(Math.min(w * 0.62, h / name.length * 0.85)) + 'px ' + FONT_BODY; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; [...name].forEach((ch, n) => ctx.fillText(ch === 'ー' ? '｜' : ch, w / 2, h * (n + 0.5) / name.length)); });
+      sign.mesh.position.set((rot > 0 ? 1 : -1) * (W / 2 + 0.1), TOP - 0.36, -D / 2); sign.mesh.rotation.y = Math.PI; c.add(sign.mesh);
+    });
+    const libSign = new Board(1.2, 0.3, 300); libSign.draw((c, w, h) => { c.fillStyle = '#9a5b3c'; roundRect(c, 0, 0, w, h, 16); c.fill(); c.fillStyle = '#fffaf0'; c.font = '700 ' + Math.round(h * 0.6) + 'px ' + FONT_DISPLAY; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('図書室', w / 2, h * 0.55); });
+    libSign.mesh.position.set(0, 2.72, SHOP_DEPTH - 0.07); libSign.mesh.rotation.y = Math.PI; lib.add(libSign.mesh);
+    const quiet = new Board(0.5, 0.3, 300); quiet.draw((c, w, h) => { c.fillStyle = '#fffaf0'; c.fillRect(0, 0, w, h); c.fillStyle = '#1f2a33'; c.font = '700 ' + Math.round(h * 0.32) + 'px ' + FONT_BODY; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('しずかに', w / 2, h * 0.36); c.font = '400 ' + Math.round(h * 0.2) + 'px ' + FONT_BODY; c.fillText('本は もとの たなへ', w / 2, h * 0.72); });
+    quiet.mesh.position.set(SHOP_W / 2 - 0.02, 1.95, 1.0); quiet.mesh.rotation.y = -Math.PI / 2; lib.add(quiet.mesh);
+    // 教室：黒板（左の かべ）と、かべぞいの 生徒の 机・いす
+    part(cls, box(0.03, 0.7, 1.4), '#2f4a3a', SHOP_W / 2 - 0.02, 1.35, 1.6);
+    part(cls, box(0.04, 0.04, 1.44), '#8a6a46', SHOP_W / 2 - 0.04, 0.98, 1.6);
+    const bb = new Board(1.3, 0.6, 300); bb.draw((c, w, h) => { c.fillStyle = '#2f4a3a'; c.fillRect(0, 0, w, h); c.fillStyle = '#f2efe6'; c.font = '700 ' + Math.round(h * 0.26) + 'px ' + FONT_DISPLAY; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('書き初め', w / 2, h * 0.35); c.font = '400 ' + Math.round(h * 0.16) + 'px ' + FONT_BODY; c.fillText('道具を じゅんばんに ならべよう', w / 2, h * 0.7); });
+    bb.mesh.position.set(SHOP_W / 2 - 0.04, 1.35, 1.6); bb.mesh.rotation.y = -Math.PI / 2; cls.add(bb.mesh);
+    [[-1.55, 3.3], [1.55, 3.3], [-1.55, 2.3]].forEach(([x, z]) => {
+      part(cls, box(0.6, 0.04, 0.45), '#d9b98a', x, 0.72, z); [-1, 1].forEach((a) => [-1, 1].forEach((c) => part(cls, box(0.03, 0.62, 0.03), '#8a8f96', x + a * 0.26, 0.41, z + c * 0.19)));
+      part(cls, box(0.36, 0.04, 0.36), '#8a6a46', x, 0.5, z + 0.42); part(cls, box(0.36, 0.36, 0.04), '#8a6a46', x, 0.7, z + 0.6);
+      part(cls, box(0.3, 0.003, 0.4), '#fbfaf6', x, 0.743, z); // 半紙
+    });
   } else if (id === 'it') {
     deskSet(g, -1, 1.7); deskSet(g, 1, 1.7);
   } else if (id === 'rice') {
@@ -3140,6 +3172,7 @@ const signWorkOf = (job) => { const vs = variantsNow(job); return !vs ? job.work
 function applySeason() {
   const winter = season === 'winter';
   JOBS.forEach((job) => { if (job.variants) selectVariant(job, 0); });
+  booths.forEach(applyRoomMode);
   booths.forEach((b) => { if (!b.job.variants) return; b.paintSign(signWorkOf(b.job)); b.pin.userData.repaint(b.job.name + '・' + signWorkOf(b.job)); });
   if (seasonal.rink) seasonal.rink.visible = winter;
   if (LAKE.blk) LAKE.blk.w = winter ? 0 : 3.6; // 冬は 氷の 上を 歩ける（すべる）
@@ -3182,8 +3215,16 @@ function pickVariant(i) {
   renderChips(); shownChip = -1; updateChipNav();
   showChoose(); renderHud();
 }
+// 作業に 合わせて 部屋の ようすを きりかえる（学校：図書の整理＝図書室、書き初め＝教室）
+function applyRoomMode(b) {
+  if (!b || !b.rooms) return;
+  const lib = b.job.work === '図書の整理';
+  b.rooms.library.visible = lib; b.rooms.classroom.visible = !lib;
+  b.rooms.libCases.visible = true; b.counter.visible = !lib; // 図書室に 作業台は ない
+}
 function showChoose() {
   const { job, board } = state.booth;
+  applyRoomMode(state.booth);
   state.phase = 'choose';
   if (!isOpen(job)) {
     // 季節の ちがう お店は 閉まっている（島ぜんたいへ もどるだけ）
@@ -3251,6 +3292,7 @@ function clearWork() {
   Object.values(FIELDS).forEach((f) => { while (f.work.children.length) f.work.remove(f.work.children[0]); });
   if (b.panelOut) { b.group.add(b.panel); b.panel.position.set(0, 0, PANEL_Z); b.panel.rotation.y = Math.PI; b.panel.scale.setScalar(1); b.panelOut = false; } // 指示モニターを お店に もどす
   b.inField = false; b.away = false;
+  applyRoomMode(b); // 部屋の ようすを 作業に 合わせて もどす
 }
 // 外の 作業：指示モニター（ボタンつき）を 畑へ 持って いき、自分も その 場所へ 行く
 function goField(b, f, stand, pitch, panelAt) {
@@ -4132,7 +4174,8 @@ function startStock(b, def) {
 }
 // 図書館（学校）：左に ミステリー、まん中に ファンタジーの 本だな、右に ブックトラック（店員から 見て 左が +x）。
 //   本だなの 中は 店員がわ（-z）が 正面。だんの 左はしに 見出し板（あ・か・さ・た）、その あとに 作者の 頭文字の 順に 本が ならぶ。
-const LIBRARY = { cases: { 'ミステリー': 0.78, 'ファンタジー': -0.62 }, caseZ: 2.75, w: 1.3, d: 0.34, rowY: [1.33, 0.93, 0.53, 0.13], top: 1.75, cart: [-1.2, 2.0], start: 0.55, standGap: 1.25 };
+// 本だなは 左右の かべぞい（x は 本だなの まん中、rot は 向き：左の かべは 部屋の まん中を 向く）
+const LIBRARY = { cases: { 'ミステリー': { x: 1.98, rot: Math.PI / 2 }, 'ファンタジー': { x: -1.98, rot: -Math.PI / 2 } }, caseZ: 2.9, w: 1.3, d: 0.34, rowY: [1.33, 0.93, 0.53, 0.13], top: 1.75, cart: [0, 2.05], start: 0.4, standGap: 1.15 };
 const LIB_BOOK_COLORS = ['#c8463d', '#3c7fc4', '#e3a33c', '#4f9a45', '#6b4f9e', '#d9824a', '#2f8f8a'];
 // 本（背を 店員がわに 向ける）。背の 下に ラベル（頭文字）、その 上に ジャンルの 色の テープ
 function libBook(kana, genreColor, color) {
@@ -4147,7 +4190,7 @@ function libBook(kana, genreColor, color) {
 const libGapX = (j) => -0.42 + j * 0.2; // すきまの 位置（本だなの 中。店員から 見て 左→右が -x→ ではなく、本だなの ローカルで 左はしが 正）
 function startLibrary(b, def) {
   const W = b.workArea; const slots = []; const L = LIBRARY;
-  b.counter.visible = false; // 台の かわりに 本だなと ブックトラック
+  b.counter.visible = false; if (b.rooms) b.rooms.libCases.visible = false; // 台の かわりに 作業用の 本だなと ブックトラック
   b.panel.position.y = 0.3; b.panelOut = true; // 指示モニターを 本だなより 上へ
   const toW = (x, z) => b.group.localToWorld(new THREE.Vector3(x, 0, z));
   const idx = (id) => def.items.findIndex((it) => it.id === id);
@@ -4159,8 +4202,9 @@ function startLibrary(b, def) {
   // 本だな（2 つ）
   const gaps = {};
   Object.keys(L.cases).forEach((g) => {
-    const cx = L.cases[g]; const col = LIB.genres[g];
-    const c = new THREE.Group(); c.position.set(cx, 0.1, L.caseZ); W.add(c); // 正面（-z）が 店員がわ
+    const cx = L.cases[g].x; const rot = L.cases[g].rot; const col = LIB.genres[g];
+    const c = new THREE.Group(); c.position.set(cx, 0.1, L.caseZ); c.rotation.y = rot; W.add(c); // 本だなの 正面（ローカル -z）が 部屋の まん中を 向く
+    const nx = -Math.sin(rot); // 正面の 向き（部屋がわ）の x
     const wood = '#9a6b44';
     part(c, box(L.w, L.top, 0.02), wood, 0, L.top / 2, L.d / 2);                                    // 背板
     [-1, 1].forEach((sd) => part(c, box(0.03, L.top, L.d), wood, sd * (L.w / 2 - 0.015), L.top / 2, 0)); // 側板
@@ -4168,7 +4212,8 @@ function startLibrary(b, def) {
     // ジャンルの 札（店員から 見て 左がわの 上に つき出す。スケッチの とおり）
     const sign = new Board(0.16, 0.62, 900);
     sign.draw((ctx, w, h) => { ctx.fillStyle = col; roundRect(ctx, 0, 0, w, h, 20); ctx.fill(); ctx.fillStyle = '#ffffff'; ctx.font = '700 ' + Math.round(Math.min(w * 0.62, h / g.length * 0.85)) + 'px ' + FONT_BODY; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; [...g].forEach((ch, n) => ctx.fillText(ch === 'ー' ? '｜' : ch, w / 2, h * (n + 0.5) / g.length)); });
-    sign.mesh.position.set(L.w / 2 + 0.1, L.top - 0.36, -L.d / 2); sign.mesh.rotation.y = Math.PI; c.add(sign.mesh);
+    const sx = rot > 0 ? 1 : -1; // 札は 入口がわ（店員から 見える がわ）に つき出す
+    sign.mesh.position.set(sx * (L.w / 2 + 0.1), L.top - 0.36, -L.d / 2); sign.mesh.rotation.y = Math.PI; c.add(sign.mesh);
     // だん：左はしに 見出し板、本は 作者の 頭文字の 順（本だなの ローカル +x が 店員から 見て 左）
     L.rowY.forEach((y, r) => {
       const plate = new Board(0.07, 0.22, 900);
@@ -4191,8 +4236,8 @@ function startLibrary(b, def) {
     // 本だなを えらぶ 当たり（本だな ぜんたい）
     const hitAll = new THREE.Group(); c.add(hitAll);
     part(hitAll, box(L.w, L.top, L.d), '#ffffff', 0, L.top / 2, 0, { transparent: true, opacity: 0.01, depthWrite: false });
-    const sl = addSlot(g, hitAll, c, new THREE.Vector3(cx, 0.12, L.caseZ - L.d / 2 - 0.3), 2.4);
-    sl.case = c; sl.cx = cx;
+    const sl = addSlot(g, hitAll, c, new THREE.Vector3(cx + nx * (L.d / 2 + 0.3), 0.12, L.caseZ), 2.4);
+    sl.case = c; sl.cx = cx; sl.nx = nx; sl.rot = rot;
   });
   // ブックトラック（2 だん。本が たって ならぶ。車輪と 持ち手）
   const [tx, tz] = L.cart; const truck = new THREE.Group(); truck.position.set(tx, 0.1, tz); W.add(truck);
@@ -4207,25 +4252,28 @@ function startLibrary(b, def) {
   const bookTag = labelSprite('返ってきた 本を とる', { h: 0.1 }); bookTag.position.set(tx, 1.42, tz); W.add(bookTag);
   addSlot('cart', book, book, new THREE.Vector3(tx, 1.04, tz), 1.8);
   // 本だなの 名札（えらぶ ところ）
-  const caseTags = Object.keys(L.cases).map((g) => { const t = labelSprite(g + 'の たなへ', { h: 0.1 }); t.position.set(L.cases[g], L.top + 0.1, L.caseZ - L.d / 2 - 0.05); W.add(t); return t; });
-  const hand = (sx, sz) => new THREE.Vector3(sx - 0.3, 0.98, sz + 0.5); // 右手に 持つ（店員から 見て 右が -x）
+  const caseTags = Object.keys(L.cases).map((g) => { const c = L.cases[g]; const t = labelSprite(g + 'の たなへ', { h: 0.1 }); t.position.set(c.x - Math.sin(c.rot) * (L.d / 2 + 0.05), L.top + 0.12, L.caseZ); W.add(t); return t; });
+  // 手に 持つ ところ（立つ ところから 前へ 0.5、右へ 0.3）。fx, fz は 向いている 方向
+  const hand = (sx, sz, fx, fz) => new THREE.Vector3(sx + fx * 0.5 - fz * 0.3, 0.98, sz + fz * 0.5 + fx * 0.3);
   const r = { def, slots, pos: 0, lastActionAt: performance.now(), hintShown: false, mistakeThisRound: false,
     onPick(slot, ok) {
       if (!ok) { flashWrong(slot); return; }
       const now = performance.now(); const id = slot.spec.id;
       if (id === 'cart') {
         bookTag.visible = false; book.rotation.z = 0; book.scale.setScalar(0.75); // 手に 持つ ときは 小さく 見える
-        anims.push({ kind: 'box', obj: book, from: book.position.clone(), to: hand(0, L.start), t0: now }); // 手に 持つ
+        anims.push({ kind: 'box', obj: book, from: book.position.clone(), to: hand(0, L.start, 0, 1), t0: now }); // 手に 持つ
       } else if (LIB.genres[id]) {
         // 本だなの 前へ 行き、すきまを 出す
         caseTags.forEach((t) => { t.visible = false; });
-        const sz = L.caseZ - L.d / 2 - L.standGap;
-        moveRig(toW(slot.cx, sz), b.yaw + Math.PI, 0.32, 800);
-        anims.push({ kind: 'box', obj: book, from: book.position.clone(), to: hand(slot.cx, sz), t0: now });
+        // 本だなの 前に 立って、かべの 本だなを 向く（左の かべなら 左を 向く）
+        const sx = slot.cx + slot.nx * (L.d / 2 + L.standGap); const sz = L.caseZ;
+        moveRig(toW(sx, sz), b.yaw + Math.PI + (slot.nx < 0 ? Math.PI / 2 : -Math.PI / 2), 0.32, 900);
+        book.rotation.y = slot.rot; // 本の 背を 自分の ほうへ
+        anims.push({ kind: 'box', obj: book, from: book.position.clone(), to: hand(sx, sz, -slot.nx, 0), t0: now });
         Object.values(gaps).forEach((h) => { h.visible = true; });
       } else {
         // えらんだ すきまへ 本を 入れる
-        const target = slot.holder.getWorldPosition(new THREE.Vector3()); W.worldToLocal(target); target.z += 0.02;
+        const target = slot.holder.getWorldPosition(new THREE.Vector3()); W.worldToLocal(target);
         book.scale.setScalar(1); anims.push({ kind: 'box', obj: book, from: book.position.clone(), to: target, t0: now });
         Object.values(gaps).forEach((h) => { h.visible = false; });
       }
