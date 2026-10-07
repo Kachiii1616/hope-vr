@@ -286,25 +286,19 @@ const JOBS = [
     // 客室の 清掃。モップかけ・台ふき・ベッドメイキングの 3 つから えらぶ（夏も 冬も。冬の モップは 雪どけ水）。
     variants: (() => {
       const mop = (winter) => ({
-        work: winter ? '雪どけ水のモップかけ' : 'モップかけ', short: 'モップ',
-        intro: winter ? 'ゆかに 落ちた 雪どけ水を 見つけて、モップで ふきます。うすい もようは 水では ありません。' : 'ゆかの よごれを 見つけて、モップで ふきます。うすい もようは よごれでは ありません。',
-        defect: 'ふき残し・もようを ふく',
+        work: winter ? '雪どけ水のモップかけ' : 'モップかけ', short: 'モップ', rounds: 2,
+        intro: 'モップを 持って 部屋の ゆかを ぜんぶ ふきます。ベッドや たなに ぶつからないように、よけて 進みます。' + (winter ? 'ゆかには 雪どけ水が 落ちています。' : ''),
+        defect: 'ものに ぶつかる',
         round() {
-          const n = 3 + Math.floor(Math.random() * 2); const items = [];
-          for (let i = 0; i < n; i++) items.push({ label: '', id: 'dirt' + i, shape: 'blob', color: winter ? '#6f93a8' : '#7a5634', opacity: winter ? 0.75 : 1 });
-          for (let i = 0; i < 2; i++) items.push({ label: '', id: 'shade' + i, shape: 'blob', color: '#9aa1a3', opacity: 0.4 });
-          const what = winter ? '雪どけ水' : 'ゆかの よごれ';
-          return { title: what + 'を ぜんぶ モップで ふく（' + n + 'か所）', shortTitle: what + 'を ふく', items: shuffle(items), need: items.filter((i) => i.id.startsWith('dirt')).map((i) => i.id), ordered: false, layout: 'mop' };
+          return { title: 'モップで ゆかを ぜんぶ ふく（ものに ぶつからないように）', shortTitle: 'ゆかを ぜんぶ ふく', items: [], need: [], ordered: false, layout: 'mop', winter };
         },
       });
       const wipe = {
-        work: '台ふき', short: '台ふき',
-        intro: 'ふきんで 台の 上を ふきます。よごれを 広げないように、奥の 右から S字に ふきます。',
-        defect: 'ふく 順番の まちがい（S字に ならない）',
+        work: '台ふき', short: '台ふき', rounds: 3,
+        intro: '台ふきを 持って、台の 上を ぜんぶ ふきます。ふき残しが ないように。',
+        defect: '（ふき残しが あると おわらない）',
         round() {
-          const names = ['奥の 右', '奥の 左', 'まん中の 左', 'まん中の 右', '手前の 右', '手前の 左'];
-          const items = names.map((name, k) => ({ label: '', id: 'cell' + k, name: name + 'を ふく' }));
-          return { title: '台の 上を S字に ふく（奥の 右から）', shortTitle: '台を S字に ふく', items, need: items.map((i) => i.id), ordered: true, layout: 'wipe' };
+          return { title: '台ふきで 台の 上を ぜんぶ ふく', shortTitle: '台の 上を ぜんぶ ふく', items: [], need: [], ordered: false, layout: 'wipe' };
         },
       };
       const bed = {
@@ -506,25 +500,24 @@ const JOBS = [
   },
   {
     id: 'it', area: 'IT街', name: 'IT企業', work: 'データのチェック', color: '#3f6fa8', category: '事務',
-    intro: '伝票と、パソコンに 入力された 表を くらべて、入力ミスの 行を ぜんぶ 見つけます。',
-    defect: '見落とし・合っている 行を ミスに する',
-    round() {
-      const rows = sample(['りんご', 'みかん', 'ぶどう', 'もも', 'なし', 'バナナ'], 4).map((f) => ({ f, n: 1 + Math.floor(Math.random() * 8) }));
-      const wrong = sample([0, 1, 2, 3], 1 + Math.floor(Math.random() * 2));
-      const items = rows.map((r, i) => {
-        let shown = r.n;
-        if (wrong.includes(i)) { shown = r.n + pick([-2, -1, 1, 2]); if (shown < 1) shown = r.n + 1; }
-        return { id: 'row' + i, label: r.f + ' ' + shown + 'こ', shape: 'sheet', color: '#ffffff' };
-      });
-      return {
-        title: '入力ミスを ぜんぶ 見つける（' + wrong.length + 'か所）', shortTitle: '入力ミスを 見つける',
-        items, need: wrong.sort().map((i) => 'row' + i), ordered: false,
-        carryText: '伝票：' + rows.map((r) => r.f + ' ' + r.n).join('・'),
-      };
-    },
+    intro: 'ノートパソコンの 画面で、伝票と 入力データを くらべます。合っている 行には ✓、ちがう 数には 線を ひきます。',
+    defect: '見落とし・合っている 行に 線を ひく',
+    round() { return laptopRound(['りんご', 'みかん', 'ぶどう', 'もも', 'なし', 'バナナ'], '入力データ'); },
   },
 ];
 
+// IT企業：伝票と 表を くらべる（行ごとに 合っていれば ✓、ちがえば 数に 線）
+function laptopRound(pool, rightTitle) {
+  const rows = sample(pool, 4).map((f) => ({ f, n: 1 + Math.floor(Math.random() * 10) }));
+  const wrong = sample([0, 1, 2, 3], 1 + Math.floor(Math.random() * 2));
+  rows.forEach((r, i) => { r.shown = r.n; if (wrong.includes(i)) { r.shown = r.n + pick([-3, -2, -1, 1, 2, 3]); if (r.shown < 1) r.shown = r.n + 2; } });
+  const items = [];
+  rows.forEach((r, i) => { items.push({ label: '', id: 'ok' + i, row: i, name: r.f + 'に ✓' }); items.push({ label: '', id: 'ng' + i, row: i, name: r.f + 'の 数に 線' }); });
+  return {
+    title: '伝票と ' + rightTitle + 'を くらべる（合っていれば ✓、ちがう 数に 線）', shortTitle: '伝票と ' + rightTitle + 'を くらべる',
+    items, need: rows.map((r, i) => (wrong.includes(i) ? 'ng' : 'ok') + i), ordered: false, layout: 'laptop', rows, rightTitle,
+  };
+}
 // 店員の 動作の 名前。台の 上の 道具には、品名ではなく「何を するか」を 出す。
 //   関数は 品名から 作る（数や 名前が 毎回 かわる もの）、表は 品名ごと。ないものは 品名の まま。
 const HUT_ACTS = {
@@ -535,7 +528,7 @@ const HUT_ACTS = {
 // 季節で しごとが かわる お店（山小屋）。えらんだ しごとの 名前・説明・作業を お店に 入れる。
 function selectVariant(job, i) {
   const v = job.variants[season][i] || job.variants[season][0];
-  Object.assign(job, { work: v.work, intro: v.intro, defect: v.defect, round: v.round, variantIndex: i });
+  Object.assign(job, { work: v.work, intro: v.intro, defect: v.defect, round: v.round, rounds: v.rounds, variantIndex: i });
 }
 const variantsNow = (job) => (job.variants ? job.variants[season] : null);
 const ACTIONS = {
@@ -747,17 +740,8 @@ const WINTER = {
     },
   },
   it: {
-    work: '年末の在庫チェック', intro: '伝票と、パソコンに 入力された 年末の 在庫の 表を くらべて、入力ミスの 行を ぜんぶ 見つけます。', defect: '見落とし・合っている 行を ミスに する',
-    round() {
-      const rows = sample(['みかん', 'もち', 'カイロ', '手袋', 'マフラー', '鍋つゆ'], 4).map((f) => ({ f, n: 1 + Math.floor(Math.random() * 8) }));
-      const wrong = sample([0, 1, 2, 3], 1 + Math.floor(Math.random() * 2));
-      const items = rows.map((r, i) => {
-        let shown = r.n;
-        if (wrong.includes(i)) { shown = r.n + pick([-2, -1, 1, 2]); if (shown < 1) shown = r.n + 1; }
-        return { id: 'row' + i, label: r.f + ' ' + shown + 'こ', shape: 'sheet', color: '#ffffff' };
-      });
-      return { title: '入力ミスを ぜんぶ 見つける（' + wrong.length + 'か所）', shortTitle: '入力ミスを 見つける', items, need: wrong.sort().map((i) => 'row' + i), ordered: false, carryText: '伝票：' + rows.map((r) => r.f + ' ' + r.n).join('・') };
-    },
+    work: '年末の在庫チェック', intro: 'ノートパソコンの 画面で、伝票と 在庫表を くらべます。合っている 行には ✓、ちがう 数には 線を ひきます。', defect: '見落とし・合っている 行に 線を ひく',
+    round() { return laptopRound(['みかん', 'もち', 'カイロ', '手袋', 'マフラー', '鍋つゆ'], '在庫表'); },
   },
   yatai: {
     work: '焼きいも・甘酒', intro: '冬の 屋台。注文の 品を 手順どおりに 用意して わたします。', defect: '手順ちがい・ちがう 入れもの',
@@ -2309,7 +2293,7 @@ const badgeCount = () => JOBS.filter((j) => badgeOf(j.id) > 0).length;
 const trophyLevel = () => (profile ? Math.min(...JOBS.map((j) => badgeOf(j.id))) : 0);
 const PAY_PER_ITEM = 100; const PAY_BONUS = 200; // 1 こ 100円、ミス 0 で ボーナス
 function medalFor(s, withSupport) {
-  if (s.completed < ROUNDS_PER_SESSION) return 0;
+  if (s.completed < (s.target || ROUNDS_PER_SESSION)) return 0;
   if (!withSupport && s.defects === 0 && s.questionCount === 0 && s.promptCount === 0) return 3;
   return s.defects <= 1 ? 2 : 1;
 }
@@ -2320,7 +2304,7 @@ function rewardFor(job, s, withSupport) {
   const medal = medalFor(s, withSupport);
   if (medal > before) profile.badges[job.id] = medal;
   let pay = 0;
-  if (profile.mode === 'money') { pay = s.completed * PAY_PER_ITEM + (s.defects === 0 ? PAY_BONUS : 0); profile.money += pay; }
+  if (profile.mode === 'money') { pay = Math.round(s.completed * PAY_PER_ITEM * ROUNDS_PER_SESSION / (s.target || ROUNDS_PER_SESSION)) + (s.defects === 0 ? PAY_BONUS : 0); profile.money += pay; } // 回数が 少ない しごとも 1 回分の お金は 同じ
   const tAfter = trophyLevel();
   saveProfile(); refreshHome(); renderWallet();
   return { medal, up: medal > before, pay, trophy: tAfter > tBefore ? tAfter : 0 };
@@ -2643,7 +2627,7 @@ function snapTurn(a) {
 function syncPad() { document.querySelectorAll('#pad button').forEach((b) => b.setAttribute('aria-pressed', String(!!walkKeys[b.dataset.key]))); }
 window.addEventListener('keydown', (e) => {
   if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || !(e.code in KEYMAP)) return;
-  if (state.where === 'walk' && e.code.startsWith('Arrow')) e.preventDefault();
+  if ((state.where === 'walk' || (state.round && state.round.cover)) && e.code.startsWith('Arrow')) e.preventDefault();
   walkKeys[KEYMAP[e.code]] = true;
 });
 window.addEventListener('keyup', (e) => { if (e.code in KEYMAP) walkKeys[KEYMAP[e.code]] = false; });
@@ -2789,7 +2773,7 @@ function showChoose() {
     ctx.font = '400 40px ' + FONT_BODY; ctx.fillStyle = '#33404a';
     wrapLines(ctx, job.intro, W - 96).forEach((l, n) => ctx.fillText(l, 48, 210 + n * 54));
     ctx.fillStyle = '#55626d'; ctx.font = '400 32px ' + FONT_BODY;
-    ctx.fillText('1 回の体験は ' + ROUNDS_PER_SESSION + ' こ。下の ボタンで はじめます。', 48, H - 112);
+    ctx.fillText('1 回の体験は ' + (job.rounds || ROUNDS_PER_SESSION) + ' こ。下の ボタンで はじめます。', 48, H - 112);
     ctx.fillStyle = '#7a4a12'; ctx.font = '400 28px ' + FONT_BODY;
     ctx.fillText('配慮ありは 銀バッジまで（金バッジは 配慮なしで ミス 0・ヒント 0）', 48, H - 66);
   });
@@ -2805,7 +2789,7 @@ function paintBoardBase(ctx, W, H, job) {
 function startSession(withSupport) {
   if (!isOpen(state.booth.job)) return;
   state.withSupport = withSupport;
-  state.session = { started: performance.now(), completed: 0, inspected: 0, defects: 0, promptCount: 0, questionCount: 0, roundIndex: 0 };
+  state.session = { started: performance.now(), completed: 0, inspected: 0, defects: 0, promptCount: 0, questionCount: 0, roundIndex: 0, target: state.booth.job.rounds || ROUNDS_PER_SESSION };
   setButtons(['hint', 'back']);
   nextRound();
 }
@@ -2826,6 +2810,7 @@ function nextRound() {
   const rows = Math.ceil(n / cols);
   const labels = [];
   if (def.layout === 'picking') return startPicking(b, def);
+  if (def.layout === 'laptop') return startLaptop(b, def);
   if (CLEAN_LAYOUTS[def.layout]) return startCleaning(b, def);
   def.items.forEach((spec, idx) => {
     const col = idx % cols; const row = Math.floor(idx / cols);
@@ -2938,6 +2923,74 @@ function startPicking(b, def) {
   if (state.withSupport) speak(def.title + '。');
 }
 
+// ---- IT企業：台の 上の ノートパソコン。画面の 左に 伝票、右に 表。右の 行の □ か 数を えらぶ。
+function startLaptop(b, def) {
+  const W = b.workArea; const slots = [];
+  const lap = new THREE.Group(); lap.position.set(0, 0.9, 2.15); W.add(lap);
+  part(lap, box(1.0, 0.03, 0.62), '#3d444b', 0, 0.015, 0);
+  part(lap, box(0.86, 0.004, 0.3), '#2a2f34', 0, 0.032, 0.02);   // キーボード
+  part(lap, box(0.3, 0.004, 0.16), '#4a525a', 0, 0.032, -0.22);  // タッチパッド
+  const lid = new THREE.Group(); lid.position.set(0, 0.03, 0.3); lid.rotation.x = 0.22; lap.add(lid); // うしろの ちょうつがい
+  const SW = 0.96; const SH = 0.62;
+  part(lid, box(SW + 0.04, SH + 0.04, 0.02), '#3d444b', 0, SH / 2 + 0.02, 0.01);
+  const disp = new THREE.Group(); disp.position.set(0, SH / 2 + 0.02, -0.002); disp.rotation.y = Math.PI; lid.add(disp); // 店員の ほうを 向く
+  const screen = new Board(SW, SH, 1000); disp.add(screen.mesh);
+  const CW = Math.round(SW * 1000); const CH = Math.round(SH * 1000);
+  const month = (season === 'winter' ? 12 : 7) + '月分';
+  const rowY = (i) => 215 + i * 92;
+  const RX = CW / 2 + 20; // 右の 表の 左はし
+  const marks = {}; // 行 → 'ok' | 'ng'
+  let flash = -1;
+  const paint = () => screen.draw((c, w, h) => {
+    c.fillStyle = '#dfe6ec'; c.fillRect(0, 0, w, h);
+    [[24, '伝票'], [RX, def.rightTitle]].forEach(([x0, t]) => {
+      c.fillStyle = '#ffffff'; c.fillRect(x0, 24, w / 2 - 44, h - 48);
+      c.fillStyle = '#1f2a33'; c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.font = '700 46px ' + FONT_BODY; c.fillText(t, x0 + (w / 2 - 44) / 2, 72);
+      c.font = '400 36px ' + FONT_BODY; c.fillText(month, x0 + (w / 2 - 44) / 2, 128);
+    });
+    c.textAlign = 'left'; c.font = '700 44px ' + FONT_BODY;
+    def.rows.forEach((r, i) => {
+      const y = rowY(i);
+      c.fillStyle = '#1f2a33'; c.fillText(r.f, 70, y); c.fillText(r.n + 'こ', 330, y);
+      if (flash === i) { c.fillStyle = 'rgba(208,69,58,0.18)'; c.fillRect(RX + 6, y - 40, w / 2 - 56, 80); }
+      c.strokeStyle = '#8a949c'; c.lineWidth = 4; c.strokeRect(RX + 24, y - 24, 48, 48); // ✓ を 入れる □
+      c.fillStyle = '#1f2a33'; c.fillText(r.f, RX + 96, y); c.fillText(r.shown + 'こ', RX + 316, y);
+      c.strokeStyle = '#d0453a'; c.lineWidth = 8;
+      if (marks[i] === 'ok') { c.beginPath(); c.moveTo(RX + 28, y - 2); c.lineTo(RX + 46, y + 20); c.lineTo(RX + 80, y - 34); c.stroke(); }
+      if (marks[i] === 'ng') { c.beginPath(); c.moveTo(RX + 306, y + 30); c.lineTo(RX + 420, y + 30); c.stroke(); }
+    });
+    c.fillStyle = '#55626d'; c.font = '400 28px ' + FONT_BODY; c.textAlign = 'center';
+    c.fillText('合っていれば □ に ✓ ／ ちがう 数に 線', w * 0.75, h - 46);
+  });
+  paint();
+  // えらぶ ところ（□ と 名前 ＝ ✓、数 ＝ 線）。画面の 座標 → 板の 座標
+  const toLocal = (cx, cy) => [(cx / CW - 0.5) * SW, (0.5 - cy / CH) * SH];
+  def.items.forEach((spec, idx) => {
+    const i = spec.row; const y = rowY(i); const isOk = spec.id.startsWith('ok');
+    const [x0, w0] = isOk ? [RX + 14, 270] : [RX + 296, 150];
+    const [lx, ly] = toLocal(x0 + w0 / 2, y);
+    const holder = new THREE.Group(); holder.position.set(lx, ly, 0.004); disp.add(holder);
+    const hit = new THREE.Mesh(new THREE.PlaneGeometry(w0 / 1000, 0.085), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.001, depthWrite: false }));
+    hit.userData.slotIndex = idx; holder.add(hit);
+    const ringG = new THREE.Group(); ringG.scale.set(w0 / 1000 / 0.28, 0.1 / 0.28, 1); holder.add(ringG);
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.12, 0.14, 40), new THREE.MeshBasicMaterial({ color: '#ffd23f', transparent: true, opacity: 0.95, depthTest: false }));
+    ring.renderOrder = 9; ring.visible = false; ringG.add(ring);
+    slots.push({ spec, key: itemKey(spec), mesh: hit, ring, holder, done: false });
+  });
+  state.round = { def, slots, pos: 0, lastActionAt: performance.now(), hintShown: false, mistakeThisRound: false,
+    onPick(slot, ok) {
+      const i = slot.spec.row;
+      if (ok) { marks[i] = slot.spec.id.slice(0, 2); slots.forEach((o) => { if (o.spec.row === i) { o.done = true; o.holder.visible = false; } }); }
+      else { flash = i; setTimeout(() => { flash = -1; paint(); }, 450); }
+      paint();
+    } };
+  state.feedback = { text: '', kind: '' };
+  drawWorkBoard();
+  renderHud();
+  if (state.withSupport) speak(def.title + '。');
+}
+
 // ---- 清掃（客室）：モップかけ・台ふき・ベッドメイキング。作業台は なく、部屋の 中の ものを えらぶ。
 //   店員は +z を 向いて 立つので、+x が 店員の 左（画面の 左）。
 function cleanSlot(ctx, idx, spec, obj, x, y, z, opt) {
@@ -2950,28 +3003,80 @@ function cleanSlot(ctx, idx, spec, obj, x, y, z, opt) {
 }
 // 道具（モップ・ふきん）を 品物の 上へ 動かす
 function moveTool(tool, to) { anims.push({ kind: 'tool', obj: tool, from: tool.position.clone(), to: to.clone(), t0: performance.now() }); }
+// よごれの 面（キャンバスに よごれを 描き、ふいた ところを 消す。0.12m の ます目で どれだけ きれいに なったかを 数える）
+function dirtSurface(W, xc, zc, w, d, y, paint) {
+  const RES = 160; const cw = Math.round(w * RES); const ch = Math.round(d * RES);
+  const canvas = makeCanvas(cw, ch); const c = canvas.getContext('2d'); paint(c, cw, ch);
+  const tex = new THREE.CanvasTexture(canvas);
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, d), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }));
+  mesh.rotation.x = -Math.PI / 2; mesh.position.set(xc, y, zc); mesh.renderOrder = 2; W.add(mesh);
+  const CELL = 0.12; const nx = Math.ceil(w / CELL); const nz = Math.ceil(d / CELL);
+  const x0 = xc - w / 2; const z0 = zc - d / 2;
+  const dirty = new Uint8Array(nx * nz).fill(1);
+  const cx = (i) => x0 + (i + 0.5) * CELL; const cz = (j) => z0 + (j + 0.5) * CELL;
+  const surf = {
+    mesh, total: nx * nz, left: nx * nz,
+    exclude(ax, az, bx, bz) { for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) { const k = j * nx + i; if (dirty[k] && cx(i) > ax && cx(i) < bx && cz(j) > az && cz(j) < bz) { dirty[k] = 0; surf.total--; surf.left--; } } },
+    erase(x, z, r) {
+      c.globalCompositeOperation = 'destination-out'; c.beginPath(); c.arc((x - x0) * RES, (z - z0) * RES, r * RES, 0, Math.PI * 2); c.fill(); c.globalCompositeOperation = 'source-over';
+      tex.needsUpdate = true;
+      let n = 0; const i0 = Math.max(0, Math.floor((x - r - x0) / CELL)); const i1 = Math.min(nx - 1, Math.floor((x + r - x0) / CELL));
+      const j0 = Math.max(0, Math.floor((z - r - z0) / CELL)); const j1 = Math.min(nz - 1, Math.floor((z + r - z0) / CELL));
+      for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) { const k = j * nx + i; if (dirty[k] && Math.hypot(cx(i) - x, cz(j) - z) < r + CELL * 0.35) { dirty[k] = 0; surf.left--; n++; } }
+      return n;
+    },
+    ratio() { return surf.total ? 1 - surf.left / surf.total : 1; },
+    isDirty(x, z) { const i = Math.floor((x - x0) / CELL); const j = Math.floor((z - z0) / CELL); return i >= 0 && j >= 0 && i < nx && j < nz && !!dirty[j * nx + i]; },
+    nearestDirty(x, z) { let best = null; let bd = Infinity; for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) if (dirty[j * nx + i]) { const dd = Math.hypot(cx(i) - x, cz(j) - z); if (dd < bd) { bd = dd; best = { x: cx(i), z: cz(j) }; } } return best; },
+    clearAll() { for (let k = 0; k < dirty.length; k++) dirty[k] = 0; surf.left = 0; c.clearRect(0, 0, cw, ch); tex.needsUpdate = true; },
+  };
+  return surf;
+}
+// ヒントの 印（まだ ふいていない ところ）
+function hintMark(W, r) { const m = new THREE.Mesh(new THREE.RingGeometry(r * 0.8, r, 32), new THREE.MeshBasicMaterial({ color: '#ffd23f', transparent: true, opacity: 0.95, side: THREE.DoubleSide, depthTest: false })); m.rotation.x = -Math.PI / 2; m.renderOrder = 9; m.visible = false; W.add(m); return m; }
+// 部屋の 家具（モップの とき よける もの）
+function roomThing(W, o) {
+  const g = new THREE.Group(); g.position.set(o.x, 0.1, o.z); W.add(g);
+  if (o.kind === 'bed') {
+    part(g, box(o.w, 0.3, o.d), '#8a6a46', 0, 0.15, 0); part(g, box(o.w - 0.04, 0.16, o.d - 0.04), '#f2f4f6', 0, 0.38, 0);
+    part(g, box(o.w + 0.02, 0.06, o.d * 0.65), '#cfe0ec', 0, 0.48, -o.d * 0.15); part(g, box(o.w * 0.6, 0.12, 0.34), '#ffffff', 0, 0.52, o.d / 2 - 0.25);
+    part(g, box(o.w, 0.8, 0.06), '#8a6a46', 0, 0.4, o.d / 2 - 0.03);
+  } else if (o.kind === 'cabinet') {
+    part(g, box(o.w, 0.8, o.d), '#d9c4a2', 0, 0.4, 0);
+    [-1, 1].forEach((sd) => { part(g, box(o.w / 2 - 0.05, 0.66, 0.01), '#e3d2b4', sd * o.w / 4, 0.4, -o.d / 2 - 0.006); part(g, ball(0.03, 12, 8), '#8a6a46', sd * 0.06, 0.45, -o.d / 2 - 0.03); });
+  } else if (o.kind === 'chair') {
+    part(g, box(o.w, 0.05, o.d), '#c49a6c', 0, 0.45, 0); part(g, box(o.w, 0.45, 0.04), '#c49a6c', 0, 0.7, o.d / 2 - 0.02);
+    [-1, 1].forEach((sx) => [-1, 1].forEach((sz) => part(g, box(0.04, 0.45, 0.04), '#8a6a46', sx * (o.w / 2 - 0.03), 0.22, sz * (o.d / 2 - 0.03))));
+  } else if (o.kind === 'bucket') {
+    part(g, cyl(0.17, 0.13, 0.3, 18), '#4f8b9b', 0, 0.15, 0);
+  }
+}
+const ROOM = { x0: -2.1, x1: 2.1, z0: 0.15, z1: 4.3 }; // 部屋の ゆか（お店の 中）
+const MOP_ROOMS = [
+  [{ kind: 'bed', x: -1.5, z: 3.1, w: 1.0, d: 2.0 }, { kind: 'cabinet', x: 1.55, z: 3.6, w: 1.0, d: 0.5 }, { kind: 'bucket', x: 1.75, z: 1.0, w: 0.36, d: 0.36 }],
+  [{ kind: 'bed', x: 1.5, z: 3.1, w: 1.0, d: 2.0 }, { kind: 'cabinet', x: -1.55, z: 3.6, w: 1.0, d: 0.5 }, { kind: 'chair', x: -0.3, z: 2.3, w: 0.5, d: 0.5 }, { kind: 'bucket', x: -1.75, z: 1.0, w: 0.36, d: 0.36 }],
+];
 const CLEAN_LAYOUTS = {
   mop(ctx, def) {
-    const { W } = ctx;
-    // モップ（店員の 右手前に 立てかけて、えらぶと よごれの 上へ）
-    const mop = new THREE.Group(); W.add(mop);
-    part(mop, cyl(0.016, 0.016, 1.3, 8), '#c9a46a', 0, 0.75, 0).rotation.x = 0.25;
-    part(mop, box(0.42, 0.05, 0.12), '#3d6f85', 0, 0.12, -0.16);
-    for (let k = 0; k < 9; k++) part(mop, box(0.03, 0.06, 0.1), '#e8eef2', -0.19 + k * 0.047, 0.075, -0.16);
-    mop.position.set(-1.2, 0.1, 2.3); ctx.tool = mop; ctx.toolY = 0.1;
-    // よごれ・もようを ゆかに ちらす（重ならないように）
-    const placed = [];
-    def.items.forEach((spec, idx) => {
-      let x = 0; let z = 0;
-      for (let t = 0; t < 40; t++) { x = -1.4 + Math.random() * 2.8; z = 2.2 + Math.random() * 1.6; if (placed.every(([px, pz]) => Math.hypot(px - x, pz - z) > 0.55)) break; }
-      placed.push([x, z]);
-      const m = makeItemMesh(spec); m.scale.multiplyScalar(1.6);
-      cleanSlot(ctx, idx, spec, m, x, 0.106, z, { ring: 1.7 });
+    const { W } = ctx; const b = ctx.b;
+    const things = MOP_ROOMS[(state.session ? state.session.roundIndex : 0) % MOP_ROOMS.length];
+    things.forEach((o) => roomThing(W, o));
+    const surf = dirtSurface(W, 0, (ROOM.z0 + ROOM.z1) / 2, ROOM.x1 - ROOM.x0, ROOM.z1 - ROOM.z0, 0.106, (c, w, h) => {
+      c.fillStyle = def.winter ? 'rgba(120,160,190,0.45)' : 'rgba(130,100,70,0.42)'; c.fillRect(0, 0, w, h);
+      for (let k = 0; k < 40; k++) { c.fillStyle = def.winter ? 'rgba(90,140,180,0.5)' : 'rgba(95,70,45,0.55)'; c.beginPath(); c.ellipse(Math.random() * w, Math.random() * h, 8 + Math.random() * 26, 6 + Math.random() * 16, Math.random() * 3, 0, Math.PI * 2); c.fill(); }
     });
+    things.forEach((o) => surf.exclude(o.x - o.w / 2, o.z - o.d / 2, o.x + o.w / 2, o.z + o.d / 2));
+    // モップ（店員の 前の ゆかに ヘッド、手もとへ 柄）
+    const mop = new THREE.Group(); W.add(mop);
+    part(mop, box(0.5, 0.05, 0.14), '#3d6f85', 0, 0.03, 0);
+    for (let k = 0; k < 10; k++) part(mop, box(0.035, 0.05, 0.12), '#e8eef2', -0.22 + k * 0.049, 0.01, 0);
+    const handle = part(mop, cyl(0.016, 0.016, 1.2, 8), '#c9a46a', 0, 0.55, -0.3); handle.rotation.x = -0.55;
+    ctx.cover = { kind: 'mop', surf, things, mop, pos: { x: 0, z: STAFF_Z }, lastBump: 0, mark: hintMark(W, 0.28) };
+    // 店員の 立ち位置から はじめる
+    moveRig(b.group.localToWorld(new THREE.Vector3(0, 0, STAFF_Z)), b.yaw + Math.PI, 0.55, 400);
   },
   wipe(ctx, def) {
     const { W } = ctx;
-    // 台（2 まいの とびらと 丸い とって）。上を 6 つに 分けて、S字の 順に ふく
     const cx = 0; const cz = 2.35; const TW = 1.5; const TD = 0.66; const TH = 0.85;
     part(W, box(TW, TH, TD), '#d9c4a2', cx, TH / 2 + 0.1, cz);
     part(W, box(TW + 0.04, 0.04, TD + 0.04), '#c4a87e', cx, TH + 0.12, cz);
@@ -2980,31 +3085,17 @@ const CLEAN_LAYOUTS = {
       part(W, ball(0.035, 14, 10), '#8a6a46', cx + sd * 0.07, TH / 2 + 0.16, cz - TD / 2 - 0.03);
     });
     const topY = TH + 0.142;
-    // 奥（+z）の 右（-x）から：奥 右→左、まん中 左→右、手前 右→左
-    const cells = [[-1, 2], [1, 2], [1, 1], [-1, 1], [-1, 0], [1, 0]].map(([sx, row]) => [cx + sx * TW / 4, cz - TD / 3 + row * TD / 3]);
-    def.items.forEach((spec, idx) => {
-      const [x, z] = cells[idx]; const g = new THREE.Group();
-      const dust = part(g, box(TW / 2 - 0.06, 0.004, TD / 3 - 0.04), '#9d927f', 0, 0.002, 0, { transparent: true, opacity: 0.55 });
-      for (let k = 0; k < 5; k++) part(g, new THREE.CircleGeometry(0.02 + Math.random() * 0.02, 10), '#6b5a44', (Math.random() - 0.5) * 0.55, 0.006, (Math.random() - 0.5) * 0.14).rotation.x = -Math.PI / 2;
-      void dust;
-      cleanSlot(ctx, idx, spec, g, x, topY, z, { ring: 1.6, ringY: 0.012 });
+    const surf = dirtSurface(W, cx, cz, TW, TD, topY + 0.002, (c, w, h) => {
+      c.fillStyle = 'rgba(150,135,110,0.4)'; c.fillRect(0, 0, w, h);
+      for (let k = 0; k < 14; k++) { c.fillStyle = 'rgba(105,85,60,0.6)'; c.beginPath(); c.ellipse(Math.random() * w, Math.random() * h, 6 + Math.random() * 16, 4 + Math.random() * 10, Math.random() * 3, 0, Math.PI * 2); c.fill(); }
+      for (let k = 0; k < 60; k++) { c.fillStyle = 'rgba(90,70,50,0.7)'; c.fillRect(Math.random() * w, Math.random() * h, 3, 3); }
     });
-    // 配慮あり：S字の 矢印（ガイド）
-    if (state.withSupport) {
-      const pts = cells.map(([x, z]) => new THREE.Vector3(x, topY + 0.012, z));
-      for (let k = 0; k < pts.length - 1; k++) {
-        const a = pts[k]; const c = pts[k + 1]; const len = a.distanceTo(c);
-        const seg = part(W, box(0.025, 0.006, len), '#2e9d57', (a.x + c.x) / 2, a.y, (a.z + c.z) / 2, { transparent: true, opacity: 0.8 });
-        seg.rotation.y = Math.atan2(c.x - a.x, c.z - a.z);
-      }
-      const last = pts[pts.length - 1]; const prev = pts[pts.length - 2];
-      const head = part(W, new THREE.ConeGeometry(0.05, 0.12, 12), '#2e9d57', last.x, last.y + 0.01, last.z);
-      head.rotation.z = Math.sign(prev.x - last.x) * Math.PI / 2;
-    }
-    // ふきん（奥の 右に 置いておき、えらぶと そこへ）
+    // 台ふき（右手前に 置いてある。持って 動かすと ふける）
     const cloth = new THREE.Group(); W.add(cloth);
     part(cloth, box(0.2, 0.03, 0.14), '#5aa7d1', 0, 0.015, 0);
-    cloth.position.set(cells[0][0] - 0.28, topY, cells[0][1]); ctx.tool = cloth; ctx.toolY = topY + 0.01;
+    part(cloth, box(0.2, 0.004, 0.02), '#ffffff', 0, 0.032, 0.03);
+    cloth.position.set(cx - TW / 2 + 0.15, topY, cz - TD / 2 + 0.12);
+    ctx.cover = { kind: 'wipe', surf, cloth, topY, bounds: { x0: cx - TW / 2 + 0.08, x1: cx + TW / 2 - 0.08, z0: cz - TD / 2 + 0.06, z1: cz + TD / 2 - 0.06 }, mark: hintMark(W, 0.1) };
   },
   bed(ctx, def) {
     const { W } = ctx;
@@ -3059,13 +3150,73 @@ const CLEAN_LAYOUTS = {
 function startCleaning(b, def) {
   const ctx = { b, W: b.workArea, slots: [] };
   CLEAN_LAYOUTS[def.layout](ctx, def);
-  look.pitch = { mop: 0.5, wipe: 0.3, bed: 0.38 }[def.layout] || look.pitch; // ゆかや ベッドが 見えるように 少し 下を 向く
-  state.round = { def, slots: ctx.slots, pos: 0, lastActionAt: performance.now(), hintShown: false, mistakeThisRound: false, clean: ctx };
+  look.pitch = { mop: 0.55, wipe: 0.35, bed: 0.38 }[def.layout] || look.pitch; // ゆかや ベッドが 見えるように 少し 下を 向く
+  state.round = { def, slots: ctx.slots, pos: 0, lastActionAt: performance.now(), hintShown: false, mistakeThisRound: false, clean: ctx, cover: ctx.cover || null };
   state.feedback = { text: '', kind: '' };
   drawWorkBoard();
   renderHud();
   if (state.withSupport) speak(def.title + '。' + (def.ordered && def.layout === 'bed' ? '最初は、' + stepLabel(def.need[0]) + '。' : ''));
 }
+// 清掃（モップ・台ふき）：毎フレーム。ふいた ところを 消し、ぜんぶ きれいに なったら つぎへ
+const coverTmp = new THREE.Vector3();
+function coverLocalDir(b) { camera.getWorldDirection(coverTmp); const d = coverTmp.clone().applyQuaternion(b.group.quaternion.clone().invert()); d.y = 0; return d.lengthSq() < 1e-6 ? null : d.normalize(); }
+function coverProgress(r, n, now) {
+  if (n > 0) { r.lastActionAt = now; if (r.cover.mark.visible && !r.cover.surf.isDirty(r.cover.mark.position.x, r.cover.mark.position.z)) r.cover.mark.visible = false; }
+  const pct = Math.floor(r.cover.surf.ratio() * 100);
+  if (pct !== r.cover.pct) { r.cover.pct = pct; if (!r.cover.lastDraw || now - r.cover.lastDraw > 250 || r.cover.surf.ratio() >= 0.97) { r.cover.lastDraw = now; drawWorkBoard(); renderHud(); } }
+  if (r.cover.surf.ratio() >= 0.97 && !r.cover.done) {
+    r.cover.done = true; r.cover.surf.clearAll(); r.cover.mark.visible = false;
+    if (r.cover.kind === 'mop') { const b = state.booth; moveRig(b.group.localToWorld(new THREE.Vector3(0, 0, STAFF_Z)), b.yaw + Math.PI, 0.55, 500); }
+    finishRound();
+  }
+}
+function coverMoveCloth(r, x, z, now) {
+  const cv = r.cover; const bd = cv.bounds;
+  x = Math.max(bd.x0, Math.min(bd.x1, x)); z = Math.max(bd.z0, Math.min(bd.z1, z));
+  const from = cv.cloth.position.clone(); const steps = Math.max(1, Math.ceil(Math.hypot(x - from.x, z - from.z) / 0.04)); let n = 0;
+  for (let k = 1; k <= steps; k++) n += cv.surf.erase(from.x + (x - from.x) * k / steps, from.z + (z - from.z) * k / steps, 0.1);
+  cv.cloth.position.set(x, cv.topY, z);
+  coverProgress(r, n, now);
+}
+function coverRayHit(ray) { const r = state.round; const hit = ray.intersectObject(r.cover.surf.mesh, false)[0]; return hit ? state.booth.workArea.worldToLocal(hit.point.clone()) : null; }
+function stepCover(dt, now) {
+  const r = state.round; if (!r || !r.cover || r.cover.done || state.phase !== 'work' || state.where !== 'booth') return;
+  const cv = r.cover; const b = state.booth;
+  let fwd = (walkKeys.fwd ? 1 : 0) - (walkKeys.back ? 1 : 0); let strafe = 0; const turn = (walkKeys.right ? 1 : 0) - (walkKeys.left ? 1 : 0);
+  const xm = xrMove(); if (xm) { fwd = xm.fwd || fwd; strafe = xm.strafe; }
+  if (cv.kind === 'wipe') {
+    // VR：トリガーを 押している コントローラーの 先で ふく
+    if (cv.ctrl) {
+      tempMatrix.identity().extractRotation(cv.ctrl.matrixWorld);
+      raycaster.ray.origin.setFromMatrixPosition(cv.ctrl.matrixWorld); raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
+      const p = coverRayHit(raycaster); if (p) coverMoveCloth(r, p.x, p.z, now);
+    } else if (fwd || turn || strafe) { // キーボード・スマホの ボタンでも 動かせる（▲ 奥・▼ 手前・◀▶ 左右）
+      const sx = (strafe || turn); coverMoveCloth(r, cv.cloth.position.x - sx * 0.6 * dt, cv.cloth.position.z + fwd * 0.4 * dt, now);
+    }
+    return;
+  }
+  // モップ：自分で 歩いて ゆかを ふく（パソコン：W A S D・矢印、スマホ：右下の ボタン、VR：左スティック）
+  if (tween) return;
+  if (turn && !renderer.xr.isPresenting) look.yaw -= turn * 1.8 * dt;
+  const dir = coverLocalDir(b); if (!dir) return;
+  const free = (x, z) => x > ROOM.x0 + 0.3 && x < ROOM.x1 - 0.3 && z > ROOM.z0 + 0.2 && z < ROOM.z1 - 0.35;
+  const hits = (x, z) => cv.things.some((o) => x > o.x - o.w / 2 - 0.25 && x < o.x + o.w / 2 + 0.25 && z > o.z - o.d / 2 - 0.25 && z < o.z + o.d / 2 + 0.25);
+  if (fwd || strafe) {
+    const sp = 1.3 * dt; const dx = (dir.x * fwd - dir.z * strafe) * sp; const dz = (dir.z * fwd + dir.x * strafe) * sp;
+    const nx = cv.pos.x + dx; const nz = cv.pos.z + dz;
+    if (hits(nx, nz)) {
+      if (now - cv.lastBump > 1200) { cv.lastBump = now; state.session.defects++; r.mistakeThisRound = true; state.feedback = { text: 'ものに ぶつかりました。よけて 進もう', kind: 'ng' }; if (state.withSupport) speak('ぶつかりました。よけて 進もう。'); drawWorkBoard(); renderHud(); }
+    } else if (free(nx, nz)) { cv.pos.x = nx; cv.pos.z = nz; } else if (free(nx, cv.pos.z) && !hits(nx, cv.pos.z)) cv.pos.x = nx; else if (free(cv.pos.x, nz) && !hits(cv.pos.x, nz)) cv.pos.z = nz;
+    const w = b.group.localToWorld(new THREE.Vector3(cv.pos.x, 0, cv.pos.z)); rig.position.x = w.x; rig.position.z = w.z;
+  }
+  // モップの ヘッドは 前の ゆかへ（家具の 上には のせない）
+  let hx = cv.pos.x + dir.x * 0.85; let hz = cv.pos.z + dir.z * 0.85;
+  hx = Math.max(ROOM.x0 + 0.2, Math.min(ROOM.x1 - 0.2, hx)); hz = Math.max(ROOM.z0 + 0.1, Math.min(ROOM.z1 - 0.1, hz));
+  const inThing = cv.things.some((o) => hx > o.x - o.w / 2 && hx < o.x + o.w / 2 && hz > o.z - o.d / 2 && hz < o.z + o.d / 2);
+  cv.mop.position.set(hx, 0.1, hz); cv.mop.rotation.y = Math.atan2(dir.x, dir.z); cv.mop.visible = !inThing;
+  if (!inThing) coverProgress(r, cv.surf.erase(hx, hz, 0.28), now);
+}
+
 // 清掃：えらんだ ときの 見た目（道具が 動く・ベッドが ととのう）
 function cleanStep(r, slot) {
   const ctx = r.clean; if (!ctx) return;
@@ -3120,6 +3271,9 @@ function drawWorkBoard() {
         ctx.fillText((done ? '✓ ' : (n + 1) + '. ') + stepLabel(k), 48 + (n % cols) * colW, y + Math.floor(n / cols) * 48);
       });
       y += Math.ceil(r.def.need.length / cols) * 48 + 10;
+    } else if (r.cover) {
+      ctx.font = '700 40px ' + FONT_BODY; ctx.fillStyle = '#33404a';
+      ctx.fillText('きれいに なった ところ ' + Math.floor(r.cover.surf.ratio() * 100) + '%', 48, y); y += 56;
     } else if (state.withSupport) {
       ctx.font = '400 38px ' + FONT_BODY; ctx.fillStyle = '#33404a';
       ctx.fillText('のこり ' + remainingKeys().length + ' こ', 48, y); y += 56;
@@ -3128,7 +3282,7 @@ function drawWorkBoard() {
     ctx.fillStyle = state.feedback.kind === 'ok' ? '#2f7d4f' : '#b93a32';
     if (state.feedback.text) ctx.fillText(state.feedback.text, 48, Math.max(y, H - 150));
     ctx.font = '400 32px ' + FONT_BODY; ctx.fillStyle = '#55626d';
-    const goal = state.withSupport ? ' / ' + ROUNDS_PER_SESSION : '';
+    const goal = state.withSupport ? ' / ' + s.target : '';
     ctx.fillText((state.withSupport ? '配慮あり' : '配慮なし') + '　できた ' + s.completed + goal + '　ミス ' + s.defects, 48, H - 70);
   });
 }
@@ -3142,13 +3296,13 @@ function onSelectItem(slotIndex) {
   if (ok) {
     slot.done = true; if (r.def.ordered) r.pos++;
     slot.ring.visible = false; r.hintShown = false;
-    if (r.def.layout === 'picking') { dropIntoBox(slot, r.inBox++); r.paintSlip(); } else { if (r.clean) cleanStep(r, slot); animateDone(slot); }
+    if (r.def.layout === 'picking') { dropIntoBox(slot, r.inBox++); r.paintSlip(); } else if (r.onPick) r.onPick(slot, true); else { if (r.clean) cleanStep(r, slot); animateDone(slot); }
     state.feedback = { text: 'OK！', kind: 'ok' };
     if (remainingKeys().length === 0) return finishRound();
     if (state.withSupport && r.def.ordered) speak('つぎは、' + stepLabel(nextTargetKey()) + '。');
   } else {
     state.session.defects++; r.mistakeThisRound = true;
-    flashWrong(slot);
+    if (r.onPick) r.onPick(slot, false); else flashWrong(slot);
     state.feedback = { text: r.def.ordered ? 'じゅんばんを たしかめよう' : 'それでは ないかも', kind: 'ng' };
     if (state.withSupport) speak(state.feedback.text);
   }
@@ -3164,7 +3318,7 @@ function finishRound() {
   state.phase = 'between';
   setTimeout(() => {
     if (!state.session || state.session !== s) return;
-    if (s.roundIndex >= ROUNDS_PER_SESSION) showResult(); else nextRound();
+    if (s.roundIndex >= s.target) showResult(); else nextRound();
   }, 900);
 }
 
@@ -3219,6 +3373,13 @@ function fmtDuration(sec) { const m = Math.floor(sec / 60); const s = sec % 60; 
 
 function useHint(auto) {
   const r = state.round; if (!r || state.phase !== 'work') return;
+  if (r.cover) {
+    const cv = r.cover; const from = cv.kind === 'mop' ? cv.mop.position : cv.cloth.position; const t = cv.surf.nearestDirty(from.x, from.z); if (!t) return;
+    if (auto) state.session.promptCount++; else state.session.questionCount++;
+    cv.mark.position.set(t.x, (cv.kind === 'mop' ? 0.11 : cv.topY + 0.01), t.z); cv.mark.visible = true; r.hintShown = true; r.lastActionAt = performance.now();
+    state.feedback = { text: 'ヒント：まだ ふいていない ところが 光っています', kind: 'ok' }; speak('まだ ふいていない ところが あります。');
+    drawWorkBoard(); renderHud(); return;
+  }
   const key = nextTargetKey(); const slot = r.slots.find((s) => s.key === key && !s.done);
   if (!slot) return;
   if (auto) state.session.promptCount++; else state.session.questionCount++;
@@ -3284,16 +3445,27 @@ const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
 let drag = null;
 
+const coverPointer = (e) => { const rect = renderer.domElement.getBoundingClientRect(); pointer.set(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1); raycaster.setFromCamera(pointer, camera); return coverRayHit(raycaster); };
+let wiping = false; // 台ふきを 持って 動かしている あいだ（見回しは しない）
 renderer.domElement.addEventListener('pointerdown', (e) => {
-  drag = { x: e.clientX, y: e.clientY, yaw: look.yaw, pitch: look.pitch, moved: 0 };
   renderer.domElement.setPointerCapture(e.pointerId);
+  const r = state.round;
+  if (r && r.cover && r.cover.kind === 'wipe' && state.phase === 'work') { const p = coverPointer(e); if (p) { wiping = true; drag = null; coverMoveCloth(r, p.x, p.z, performance.now()); return; } }
+  drag = { x: e.clientX, y: e.clientY, yaw: look.yaw, pitch: look.pitch, moved: 0 };
 });
 renderer.domElement.addEventListener('pointermove', (e) => {
+  const wr = state.round; const wipeNow = wr && wr.cover && wr.cover.kind === 'wipe' && state.phase === 'work';
+  if (wiping || (drag && wipeNow && e.buttons)) { // 台の 外から ドラッグを はじめても、台の 上に 来たら ふける
+    if (!wipeNow) { wiping = false; return; }
+    const p = coverPointer(e); if (p) { wiping = true; drag = null; coverMoveCloth(wr, p.x, p.z, performance.now()); }
+    if (wiping) return;
+  }
   if (!drag) return;
   const dx = e.clientX - drag.x; const dy = e.clientY - drag.y; drag.moved = Math.max(drag.moved, Math.abs(dx) + Math.abs(dy));
   look.yaw = drag.yaw + dx * 0.005; look.pitch = Math.max(-1.1, Math.min(0.9, drag.pitch + dy * 0.004));
 });
 renderer.domElement.addEventListener('pointerup', (e) => {
+  if (wiping) { wiping = false; return; }
   if (drag && drag.moved < 8) {
     const rect = renderer.domElement.getBoundingClientRect();
     pointer.set(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
@@ -3338,6 +3510,8 @@ for (let i = 0; i < 2; i++) {
   const c = renderer.xr.getController(i);
   const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, -4)]), new THREE.LineBasicMaterial({ color: '#ffd23f' }));
   c.add(line);
+  c.addEventListener('selectstart', () => { const r = state.round; if (r && r.cover && r.cover.kind === 'wipe') r.cover.ctrl = c; });
+  c.addEventListener('selectend', () => { const r = state.round; if (r && r.cover && r.cover.ctrl === c) r.cover.ctrl = null; });
   c.addEventListener('select', () => {
     tempMatrix.identity().extractRotation(c.matrixWorld);
     raycaster.ray.origin.setFromMatrixPosition(c.matrixWorld);
@@ -3514,7 +3688,7 @@ function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 function renderHud() {
   $('btn-home').hidden = !home.group;
   $('place').textContent = state.where === 'plaza' ? '島ぜんたい' : state.where === 'walk' ? '島を 歩いています' : state.where === 'home' ? profile.name + 'さんの 家（' + home.site.name + '）' : state.where === 'opening' ? 'フェリーで 入港中' : state.where === 'play' ? PLAY_NAME[state.play.kind] : state.booth.job.area + '　' + state.booth.job.name + '・' + state.booth.job.work;
-  $('pad').hidden = !(state.where === 'walk' || (state.where === 'play' && state.play && state.play.kind !== 'sun'));
+  $('pad').hidden = !(state.where === 'walk' || (state.where === 'play' && state.play && state.play.kind !== 'sun') || (state.where === 'booth' && state.phase === 'work' && state.round && state.round.cover));
   $('btn-walk').textContent = state.where === 'walk' ? '見わたす' : '島を歩く';
   chipsEl.querySelectorAll('.chip').forEach((el, i) => el.setAttribute('aria-current', String(i === 0 ? state.where === 'plaza' : state.booth === booths[i - 1])));
   // いまの 場所の チップが 画面の外なら 見える ところまで 送る
@@ -3606,6 +3780,8 @@ function renderHud() {
   let steps = '';
   if (state.withSupport && r.def.ordered) {
     steps = '<ol>' + r.def.need.map((k, n) => '<li class="' + (n < r.pos ? 'done' : n === r.pos ? 'now' : '') + '">' + esc(stepLabel(k)) + '</li>').join('') + '</ol>';
+  } else if (r.cover) {
+    steps = '<div>きれいに なった ところ ' + Math.floor(r.cover.surf.ratio() * 100) + '%' + (r.cover.kind === 'mop' ? '（W A S D・矢印 ／ 右下の ボタン ／ VR は 左スティックで 動く）' : '（台ふきを つかんで 動かす ／ VR は トリガーを 押したまま）') + '</div>';
   } else if (state.withSupport) {
     steps = '<div>のこり ' + remainingKeys().length + ' こ</div>';
   }
@@ -3613,7 +3789,7 @@ function renderHud() {
     '<h2>' + esc(state.withSupport ? r.def.title : r.def.shortTitle) + '</h2>' +
     (r.def.carryText ? '<div>' + esc(r.def.carryText) + '</div>' : '') + steps +
     '<div class="feedback ' + state.feedback.kind + '">' + esc(state.feedback.text) + '</div>' +
-    '<div class="meta"><span>できた ' + s.completed + (state.withSupport ? ' / ' + ROUNDS_PER_SESSION : '') + '</span><span>ミス ' + s.defects + '</span><span>ヒント ' + s.questionCount + '</span></div>' +
+    '<div class="meta"><span>できた ' + s.completed + (state.withSupport ? ' / ' + s.target : '') + '</span><span>ミス ' + s.defects + '</span><span>ヒント ' + s.questionCount + '</span></div>' +
     '<div class="row"><button type="button" id="h-hint">ヒント</button><button type="button" id="h-back">島ぜんたいへ</button>' + exitBtn + '</div>';
   $('h-hint').onclick = () => useHint(false); $('h-back').onclick = goPlaza; $('h-exit').onclick = exitToWalk;
 }
@@ -3960,11 +4136,13 @@ renderer.setAnimationLoop((now) => {
   if (!renderer.xr.isPresenting) { camera.rotation.y = look.yaw; camera.rotation.x = -look.pitch; }
   walkStep(dt);
   stepPlay(dt, now);
+  stepCover(dt, now);
   stepOpening(now);
   updateSnow(dt, now);
   // 配慮あり：しばらく手が止まったら、つぎに選ぶものを光らせる（声かけ 1 回として数える）
   const r = state.round;
-  if (r && state.phase === 'work' && state.withSupport && !r.hintShown && (now - r.lastActionAt) / 1000 > AUTO_HINT_SEC) useHint(true);
+  if (r && state.phase === 'work' && state.withSupport && (!r.hintShown || (r.cover && !r.cover.mark.visible)) && (now - r.lastActionAt) / 1000 > AUTO_HINT_SEC) useHint(true);
+  if (r && r.cover && r.cover.mark.visible) { const k = 1 + Math.sin(now / 180) * 0.15; r.cover.mark.scale.set(k, k, k); }
   if (r) r.slots.forEach((s) => { if (s.ring.visible) { const k = 1 + Math.sin(now / 180) * 0.12; s.ring.scale.set(k, k, k); } });
   if (!reduceMotion) windRotors.forEach((r) => { r.rotation.z = -(now / 1000) * 1.4 - r.userData.phase; });
   stepAnims(now);
@@ -3991,7 +4169,7 @@ $('btn-home').addEventListener('click', () => goHome());
 $('btn-settings').addEventListener('click', openSettings);
 window.hopeTown = {
   state, goBooth, startSession, select: onSelectItem, nextTargetKey, setSeason, startWalk, exitToWalk, walkKeys, rig, booths, goHome, exitHome, goPlaza,
-  get profile() { return profile; }, home, FURN, goFurniture, seasonal, LAKE, toWorld, nearbyActions, openShop, openBadgeBook, openSettings, openAreaPicker,
+  get profile() { return profile; }, home, FURN, goFurniture, cheatCover() { const r = state.round; if (r && r.cover) { r.cover.surf.clearAll(); coverProgress(r, 1, performance.now()); } }, seasonal, LAKE, toWorld, nearbyActions, openShop, openBadgeBook, openSettings, openAreaPicker,
   // テスト用：オープニングを とばして 家を 用意する
   quickStart(homeKey, mode) { profile = { name: 'テスト', gender: 'n', mode: mode || 'money', home: homeKey || 'downtown', money: 0, badges: {}, owned: [], since: new Date().toISOString() }; saveProfile(); closeModal(); buildHome(); renderWallet(); goPlaza(); },
 };
