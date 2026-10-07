@@ -3217,24 +3217,34 @@ function startPaddy(b, def) {
 function startOrchard(b, def) {
   const F = FIELDS.orchard; const s = state.session; const W = F.work; const slots = [];
   const t = F.trees[s.roundIndex % F.trees.length];
-  const basket = new THREE.Vector3(t.x + 0.7, 0, t.z + 1.9);
-  const bk = fitInto(ITEM_MODELS['検品かご']({ color: '#a8865a' }), 0.6, 0.3, 0.6); bk.position.copy(basket); W.add(bk);
+  // とった りんごを 入れる かご（目の 前の 台の 上。木を 見ながら 手もとに 見える）
+  const STAND = 0.75; const basket = new THREE.Vector3(t.x + 0.35, STAND, t.z + 1.55);
+  part(W, box(0.8, 0.04, 0.62), '#8a6a46', basket.x, STAND - 0.02, basket.z);                       // 台の 板
+  [-1, 1].forEach((sx) => [-1, 1].forEach((sz) => part(W, box(0.05, STAND - 0.04, 0.05), '#6b4a2a', basket.x + sx * 0.34, (STAND - 0.04) / 2, basket.z + sz * 0.26)));
+  const bk = ITEM_MODELS['検品かご']({ color: '#a8865a' }); bk.scale.set(2.6, 2.4, 2.6); bk.position.copy(basket); W.add(bk); // はば 約 0.68m
+  const bkSign = labelSprite('とった りんごを 入れる かご', { h: 0.09, bg: 'rgba(255,240,200,0.95)' }); bkSign.position.set(basket.x, STAND + 0.55, basket.z); W.add(bkSign);
+  // かごの 中で りんごを ならべる ところ（下の だんに 6 こ、上の だんに 4 こ）
+  const SPOTS = [];
+  [[6, 0.17, 0.05], [4, 0.09, 0.15]].forEach(([n, rr, y]) => { for (let k = 0; k < n; k++) { const a = k / n * TAU + y * 10; SPOTS.push([Math.cos(a) * rr, y, Math.sin(a) * rr]); } });
   let inBasket = 0;
   def.items.forEach((spec, idx) => {
     const col = idx % 4; const row = Math.floor(idx / 4);
     const holder = new THREE.Group(); holder.position.set(t.x - 0.75 + col * 0.5 + (row ? 0.25 : 0), 1.95 - row * 0.3 + (col % 2) * 0.06, t.z + 0.9 - row * 0.15); W.add(holder);
     const mesh = new THREE.Group(); const ap = ITEM_MODELS['りんご']({ color: spec.apple }); ap.position.y = -0.14; mesh.add(ap);
-    part(mesh, cyl(0.004, 0.004, 0.16, 5), '#6b4a2a', 0, 0.0, 0); // 枝から さがる 軸
+    const stalk = part(mesh, cyl(0.004, 0.004, 0.16, 5), '#6b4a2a', 0, 0.0, 0); holder.userData.stalk = stalk; // 枝から さがる 軸
     holder.add(mesh); mesh.traverse((o) => { o.userData.slotIndex = idx; });
     const ring = makeGlowRing(); ring.position.y = -0.2; holder.add(ring);
     slots.push({ spec, key: itemKey(spec), mesh, ring, holder, done: false });
   });
-  goField(b, F, new THREE.Vector3(t.x, 0, t.z + 2.7), -0.05, [t.x - 2.1, t.z + 0.9, 0.7]);
+  goField(b, F, new THREE.Vector3(t.x, 0, t.z + 2.75), 0.26, [t.x - 2.1, t.z + 0.9, 0.7]); // 木の りんごと 手前の かごが 両方 見えるように
   state.round = { def, slots, pos: 0, lastActionAt: performance.now(), hintShown: false, mistakeThisRound: false,
     onPick(slot, ok) {
       if (!ok) { flashWrong(slot); return; }
-      const to = basket.clone().add(new THREE.Vector3(-0.12 + (inBasket % 3) * 0.12, 0.12 + Math.floor(inBasket / 3) * 0.08, (inBasket % 2) * 0.08 - 0.04)); inBasket++;
-      anims.push({ kind: 'box', obj: slot.holder, from: slot.holder.position.clone(), to, t0: performance.now() }); // かごへ
+      // もいだら 枝の 軸は 外して、かごの 中へ（ひかりの 輪も 消す）
+      const h = slot.holder; h.userData.stalk.visible = false; slot.ring.visible = false;
+      const [dx, dy, dz] = SPOTS[inBasket % SPOTS.length]; inBasket++;
+      const to = basket.clone().add(new THREE.Vector3(dx, 0.14 + dy, dz)); // りんごは holder より 0.14 下に ある
+      anims.push({ kind: 'box', obj: h, from: h.position.clone(), to, t0: performance.now() });
     } };
   state.feedback = { text: '', kind: '' };
   drawWorkBoard(); renderHud();
