@@ -312,23 +312,9 @@ const JOBS = [
   },
   {
     id: 'cafe', area: '繁華街', name: 'カフェ', work: 'ドリンクづくり', color: '#8a5a3c', category: '実務',
-    intro: '注文の ドリンクを 手順どおりに つくって わたします。',
-    defect: '手順ちがい・ちがう カップ',
-    round() {
-      const items = [
-        { label: 'ホット用カップ', shape: 'cup', color: '#f3efe6' }, { label: 'アイス用カップ', shape: 'cup', color: '#cfe8f3', opacity: 0.7 },
-        { label: 'コーヒーマシン', shape: 'box', color: '#3b3330' }, { label: '紅茶', shape: 'cyl', color: '#b5652d' },
-        { label: '氷', shape: 'box', color: '#e4f4fb', opacity: 0.8 }, { label: 'ふた', shape: 'disc', color: '#ffffff' },
-        { label: 'ストロー', shape: 'stick', color: '#3c9a5f' }, { label: 'お客さま', shape: 'person', color: '#e0a07a' },
-      ];
-      const recipes = [
-        { name: 'ホットコーヒー', need: ['ホット用カップ', 'コーヒーマシン', 'ふた', 'お客さま'] },
-        { name: 'アイスティー', need: ['アイス用カップ', '氷', '紅茶', 'ストロー', 'お客さま'] },
-        { name: 'アイスコーヒー', need: ['アイス用カップ', '氷', 'コーヒーマシン', 'ストロー', 'お客さま'] },
-      ];
-      const r = pick(recipes);
-      return { title: '注文：' + r.name, shortTitle: r.name + ' を つくる', items: shuffle(items), need: r.need, ordered: true };
-    },
+    intro: 'うしろの 台で、手順書を 見ながら ドリンクを つくります。できたら ふりかえって、お客さまに わたします。',
+    defect: '手順ちがい・ちがう 材料',
+    round() { return cafeRound('summer'); },
   },
   {
     id: 'care', area: '住宅地', name: '介護施設', work: '配膳の手伝い', color: '#c4577a', category: '実務',
@@ -517,6 +503,42 @@ function laptopRound(pool, rightTitle) {
 }
 // 店員の 動作の 名前。台の 上の 道具には、品名ではなく「何を するか」を 出す。
 //   関数は 品名から 作る（数や 名前が 毎回 かわる もの）、表は 品名ごと。ないものは 品名の まま。
+// カフェ：うしろの 台で つくる ドリンク（夏は コーヒー、冬は あたたかい ドリンク）。need の 順に つくって、最後に お客さまへ。
+const CAFE_MENU = {
+  summer: {
+    items: ['コーヒーマシン', 'カップ', 'さとう', '牛乳', '氷', 'お客さま'],
+    drinks: [
+      { name: 'ホットコーヒー', need: ['カップ', 'コーヒーマシン', 'お客さま'] },
+      { name: 'ホットコーヒー（さとう入り）', need: ['カップ', 'コーヒーマシン', 'さとう', 'お客さま'] },
+      { name: 'カフェオレ', need: ['カップ', 'コーヒーマシン', '牛乳', 'お客さま'] },
+      { name: 'アイスコーヒー', need: ['カップ', '氷', 'コーヒーマシン', 'お客さま'] },
+      { name: 'アイスカフェオレ', need: ['カップ', '氷', 'コーヒーマシン', '牛乳', 'お客さま'] },
+    ],
+  },
+  winter: {
+    items: ['コーヒーマシン', 'カップ', 'ココア', 'はちみつ', 'レモン', '牛乳', 'お客さま'],
+    drinks: [
+      { name: 'ホットココア', need: ['カップ', 'ココア', '牛乳', 'お客さま'] },
+      { name: 'はちみつレモン', need: ['カップ', 'レモン', 'はちみつ', 'お客さま'] },
+      { name: 'カフェオレ', need: ['カップ', 'コーヒーマシン', '牛乳', 'お客さま'] },
+    ],
+  },
+};
+function cafeRound(when) {
+  const m = CAFE_MENU[when]; const d = pick(m.drinks);
+  return { title: '注文：' + d.name, shortTitle: d.name + ' を つくる', items: m.items.map((label) => ({ label })), need: d.need, ordered: true, layout: 'cafe', drink: d.name };
+}
+// カップの 中身（材料を 入れるたびに かわる）。手順書の 写真も これで 描く。
+const CAFE_MIX = {
+  '氷': (m) => { m.ice = true; },
+  'コーヒーマシン': (m) => { m.base = 'coffee'; m.level = m.ice ? 0.7 : 0.6; m.color = '#3b2416'; },
+  'ココア': (m) => { m.base = 'cocoa'; m.level = 0.55; m.color = '#6b3c26'; },
+  'レモン': (m) => { m.lemon = true; m.level = Math.max(m.level, 0.6); m.color = '#f2e08a'; },
+  'はちみつ': (m) => { m.level = Math.min(0.85, Math.max(m.level, 0.45) + 0.15); m.color = m.lemon ? '#ecc65a' : '#e0a23a'; },
+  '牛乳': (m) => { m.level = Math.min(0.88, m.level + 0.25); m.color = m.base === 'coffee' ? '#a87a52' : m.base === 'cocoa' ? '#9a6a48' : '#f6f6f2'; },
+  'さとう': (m) => { m.sugar = true; },
+};
+const cafeMix = (keys) => { const m = { level: 0, color: '#ffffff', ice: false }; keys.forEach((k) => { if (CAFE_MIX[k]) CAFE_MIX[k](m); }); return m; };
 const HUT_ACTS = {
   'お皿': 'お皿を とる', 'おわん': 'おわんを とる', 'マグカップ': 'マグカップを とる', 'カレー': 'カレーを かける', '豚汁': '豚汁を よそう',
   'ココア': 'ココアを そそぐ', 'スプーン': 'スプーンを そえる', 'はし': 'はしを そえる', 'お客さま': 'お客さまに わたす',
@@ -532,8 +554,8 @@ const ACTIONS = {
   logi: (l) => l + 'を ひろう',
   store: (l) => l + 'の たなに 置く',
   cafe: {
-    'ホット用カップ': 'ホットの カップを とる', 'アイス用カップ': 'アイスの カップを とる', 'コーヒーマシン': 'コーヒーを いれる',
-    '紅茶': '紅茶を そそぐ', '氷': '氷を 入れる', 'ふた': 'ふたを する', 'ストロー': 'ストローを さす', 'お客さま': 'お客さまに わたす',
+    'カップ': 'カップを とる', '氷': '氷を 入れる', 'コーヒーマシン': 'コーヒーを いれる', 'さとう': 'さとうを 入れる', '牛乳': '牛乳を 入れる',
+    'ココア': 'ココアを 入れる', 'レモン': 'レモンを しぼる', 'はちみつ': 'はちみつを 入れる', 'お客さま': 'お客さまに わたす',
   },
   care: (l) => (/さん$/.test(l) ? l + 'に 運ぶ' : l + 'の おぜんを とる'),
   office: (l) => l + 'の トレーに 入れる',
@@ -550,7 +572,6 @@ const ACTIONS = {
 // 季節・お店ごとに 足した 動作（ACTIONS より 先に 見る）
 const EXTRA_ACTS = {
   store: { '包み紙': '包み紙を とる', '肉まん': '肉まんを つつむ', 'あんまん': 'あんまんを つつむ', 'ピザまん': 'ピザまんを つつむ', 'お客さま': 'お客さまに わたす' },
-  cafe: { 'ミルク': 'ミルクを 入れる', 'ココア': 'ココアを 入れる', 'レモン': 'レモンを しぼる', 'はちみつ': 'はちみつを 入れる' },
   care: { 'ほうじ茶': 'ほうじ茶を とる', '白湯': '白湯を とる', 'とろみ茶': 'とろみ茶を とる' },
   craft: { 'わら': 'わらを なう', '紙垂': '紙垂を つける', 'だいだい': 'だいだいを かざる' },
   forest: { '手袋': '手袋を はめる', 'のこぎり': 'のこぎりで 丸太を 切る', 'おの': 'おので 薪を わる', '薪だな': '薪を つむ' },
@@ -677,16 +698,8 @@ const WINTER = {
     },
   },
   cafe: {
-    work: '冬のドリンクづくり', intro: '冬の あたたかい ドリンクを 手順どおりに つくって わたします。', defect: '手順ちがい・ちがう 材料',
-    round() {
-      const items = ['ホット用カップ', 'コーヒーマシン', 'ミルク', 'ココア', 'レモン', 'はちみつ', 'ふた', 'お客さま'].map((label) => ({ label, color: label === 'お客さま' ? '#e0a07a' : label === 'ホット用カップ' ? '#f3efe6' : '#3b3330' }));
-      const r = pick([
-        { name: 'ホットココア', need: ['ホット用カップ', 'ココア', 'ミルク', 'ふた', 'お客さま'] },
-        { name: 'はちみつレモン', need: ['ホット用カップ', 'レモン', 'はちみつ', 'ふた', 'お客さま'] },
-        { name: 'カフェオレ', need: ['ホット用カップ', 'コーヒーマシン', 'ミルク', 'ふた', 'お客さま'] },
-      ]);
-      return { title: '注文：' + r.name, shortTitle: r.name + ' を つくる', items: shuffle(items), need: r.need, ordered: true };
-    },
+    work: '冬のドリンクづくり', intro: 'うしろの 台で、手順書を 見ながら 冬の あたたかい ドリンクを つくります。できたら ふりかえって、お客さまに わたします。', defect: '手順ちがい・ちがう 材料',
+    round() { return cafeRound('winter'); },
   },
   care: {
     work: '温かい飲み物の配ぜん', intro: '名札と 飲み物の 形（とろみ など）を たしかめて、温かい 飲み物を 運びます。', defect: '飲み物の 形・人の まちがい',
@@ -1750,13 +1763,6 @@ const ITEM_MODELS = {
     part(g, new THREE.TorusGeometry(0.05, 0.003, 6, 24), s.color, 0, 0.12, 0).rotation.x = Math.PI / 2;
     return g;
   },
-  'アイス用カップ'() {
-    const g = new THREE.Group();
-    part(g, new THREE.CylinderGeometry(0.052, 0.038, 0.14, 24, 1, true), '#d8eef8', 0, 0.07, 0, { transparent: true, opacity: 0.45, roughness: 0.1, side: THREE.DoubleSide });
-    part(g, cyl(0.038, 0.038, 0.003), '#d8eef8', 0, 0.0015, 0, { transparent: true, opacity: 0.5 });
-    part(g, new THREE.TorusGeometry(0.052, 0.003, 6, 24), '#eef8fc', 0, 0.14, 0).rotation.x = Math.PI / 2;
-    return g;
-  },
   'コーヒーマシン'(s) {
     const g = new THREE.Group();
     part(g, box(0.16, 0.025, 0.14), '#55504c', 0, 0.0125, 0.01);            // 台
@@ -1768,42 +1774,34 @@ const ITEM_MODELS = {
     [-0.05, 0.05].forEach((x) => part(g, cyl(0.008, 0.008, 0.006, 12), '#e0662f', x, 0.235, 0.081).rotation.x = Math.PI / 2);
     return g;
   },
-  '紅茶'(s) {
-    // ガラスの ピッチャーに 入った 紅茶
-    const g = new THREE.Group();
-    part(g, new THREE.CylinderGeometry(0.045, 0.048, 0.17, 24, 1, true), '#eef6f8', 0, 0.085, 0, { transparent: true, opacity: 0.35, roughness: 0.1, side: THREE.DoubleSide });
-    part(g, cyl(0.043, 0.046, 0.12), s.color, 0, 0.062, 0, { transparent: true, opacity: 0.85, roughness: 0.2 });
-    const handle = part(g, new THREE.TorusGeometry(0.035, 0.006, 8, 20, Math.PI), '#eef6f8', 0.048, 0.09, 0, { transparent: true, opacity: 0.6 });
-    handle.rotation.z = -Math.PI / 2;
-    part(g, ball(0.01, 8, 6), '#e9d36a', -0.015, 0.125, 0.02); // レモン
-    return g;
-  },
-  '氷'() {
-    const g = new THREE.Group();
-    part(g, box(0.17, 0.06, 0.12), '#b8c4cc', 0, 0.03, 0, { metalness: 0.4, roughness: 0.35 });
-    for (let i = 0; i < 8; i++) {
-      const c = part(g, box(0.03, 0.03, 0.03), '#e8f7fd', -0.06 + (i % 4) * 0.04, 0.07 + Math.floor(i / 4) * 0.012, -0.025 + Math.floor(i / 4) * 0.045, { transparent: true, opacity: 0.8, roughness: 0.1 });
-      c.rotation.set(i * 0.7, i * 1.3, i * 0.4);
-    }
-    return g;
-  },
-  'ふた'() {
-    const g = new THREE.Group();
-    part(g, cyl(0.055, 0.055, 0.012, 24), '#ffffff', 0, 0.006, 0);
-    part(g, new THREE.SphereGeometry(0.045, 24, 8, 0, TAU, 0, Math.PI / 2), '#f4f4f4', 0, 0.012, 0).scale.y = 0.35;
-    part(g, box(0.014, 0.004, 0.006), '#555555', 0, 0.028, 0.025); // 飲み口
-    return g;
-  },
-  'ストロー'(s) {
-    // ストロー立て
-    const g = new THREE.Group();
-    part(g, cyl(0.03, 0.03, 0.09, 18), '#e6eef1', 0, 0.045, 0, { transparent: true, opacity: 0.5 });
-    [[-0.012, 0, 0.12], [0.012, 0.01, -0.1], [0, -0.012, 0.04], [0.006, 0.014, -0.02]].forEach(([x, z, tilt]) => {
-      const st = part(g, cyl(0.004, 0.004, 0.2, 8), s.color, x, 0.1, z); st.rotation.z = tilt;
-    });
-    return g;
-  },
   'お客さま'(s) { return person(s.color, '#3f4a7a'); },
+  'カップ'() {
+    // すきとおった カップ（中身が 見える）
+    const g = new THREE.Group();
+    part(g, new THREE.CylinderGeometry(0.048, 0.036, 0.13, 24, 1, true), '#eef6f8', 0, 0.065, 0, { transparent: true, opacity: 0.4, roughness: 0.1, side: THREE.DoubleSide });
+    part(g, cyl(0.036, 0.036, 0.004), '#eef6f8', 0, 0.002, 0, { transparent: true, opacity: 0.5 });
+    part(g, new THREE.TorusGeometry(0.048, 0.003, 6, 24), '#ffffff', 0, 0.13, 0).rotation.x = Math.PI / 2;
+    return g;
+  },
+  'さとう'() {
+    // ガラスの びんに 入った さとう
+    const g = new THREE.Group();
+    part(g, cyl(0.045, 0.045, 0.1, 20), '#eef6f8', 0, 0.05, 0, { transparent: true, opacity: 0.4, roughness: 0.1 });
+    part(g, cyl(0.042, 0.042, 0.07, 20), '#fbfbf7', 0, 0.037, 0);
+    part(g, cyl(0.048, 0.048, 0.018, 20), '#c8463d', 0, 0.109, 0); // ふた
+    return g;
+  },
+  'レジ'() {
+    const g = new THREE.Group();
+    part(g, box(0.36, 0.1, 0.32), '#3d4a54', 0, 0.05, 0);                   // 引き出し
+    const top = part(g, box(0.32, 0.06, 0.2), '#55626d', 0, 0.12, 0.04); top.rotation.x = 0.3; // キー（店員がわ +z）
+    for (let i = 0; i < 4; i++) for (let j = 0; j < 3; j++) part(top, box(0.04, 0.012, 0.035), i === 3 && j === 2 ? '#2e9d57' : '#eef1f3', -0.09 + i * 0.06, 0.034, -0.05 + j * 0.05);
+    part(g, box(0.18, 0.12, 0.02), '#2b2f36', 0, 0.22, -0.08);              // 店員の 画面
+    part(g, box(0.15, 0.09, 0.004), '#7fd1ff', 0, 0.22, -0.069, { emissive: '#2a6c8f' });
+    part(g, cyl(0.012, 0.012, 0.2, 10), '#8a8f96', 0.12, 0.2, -0.12);       // お客さまの 表示の 柱
+    part(g, box(0.14, 0.07, 0.02), '#2b2f36', 0.12, 0.33, -0.12);
+    return g;
+  },
 
   // --- 作業所（お守り） ------------------------------------------------------
   'ふくろ'(s) {
@@ -2053,7 +2051,6 @@ Object.assign(ITEM_MODELS, {
   'あんまん'() { return bun('#fbfaf4', '#c8463d'); },
   'ピザまん'() { return bun('#f2c27a'); },
   // カフェ（冬）
-  'ミルク'() { return ITEM_MODELS['牛乳'](); },
   'レモン'() { const g = new THREE.Group(); part(g, ball(0.035, 16, 12), '#f6d24a', 0, 0.03, 0).scale.set(1.35, 0.85, 0.9); return g; },
   'はちみつ'() { const g = new THREE.Group(); part(g, cyl(0.04, 0.04, 0.08, 18), '#e0a23a', 0, 0.04, 0, { transparent: true, opacity: 0.85, roughness: 0.2 }); part(g, cyl(0.042, 0.042, 0.02, 18), '#7a4a2a', 0, 0.09, 0); part(g, box(0.05, 0.025, 0.002), '#f6e27a', 0, 0.045, 0.041); return g; },
   // 作業所（冬）
@@ -2199,6 +2196,8 @@ function makeItemMesh(spec) {
 //   作業台・掲示板・ボタンを かくさない 範囲に おさめる。
 // ===========================================================================
 const DECO_X = 1.97;
+// カフェの 奥の 作業台（奥の 壁ぞい）。店員は ふりかえって（-z を 向いて）つくる。手順書は 作業台の 上の 壁に はる。
+const CAFE = { backW: 3.2, backD: 0.6, topY: 0.93, standZ: 1.8, spot: [0.05, 0.4], panel: { x: -0.95, y: 2.08, scale: 0.7 }, sheet: { x: 0.9, y: 1.86, w: 0.7, h: 0.92 } };
 // コンビニの 壁の たな（店員から 見て 左＝+x、右＝-x）。真ん中の 段に 品出しする すきまを あけておく。
 const STORE_GOODS = { '飲み物': ['お茶', '水', 'ジュース'], 'お菓子': ['ポテトチップス', 'チョコ', 'あめ'], 'パン': ['食パン', 'メロンパン'], '日用品': ['歯ブラシ', '電池', 'マスク'] };
 const STORE_SHELVES = [
@@ -2312,7 +2311,15 @@ function decorateInterior(b) {
     // 客室：奥（入口の 横）に 窓、すみに バケツ
     part(g, cyl(0.14, 0.11, 0.26, 18), '#4f8b9b', 1.4, 0.16, 2.9); // バケツ
   } else if (id === 'cafe') {
-    wallShelf(g, 1, ['ホット用カップ', 'アイス用カップ', '紅茶'], '#8a5a3c');
+    wallShelf(g, 1, ['カップ', 'ホット用カップ', '牛乳'], '#8a5a3c');
+    // 奥の 作業台（ドリンクを つくる）。前の 扉が ならぶ
+    part(g, box(CAFE.backW, 0.9, CAFE.backD), '#7a5236', 0, 0.45, CAFE.backD / 2);
+    part(g, box(CAFE.backW + 0.04, 0.03, CAFE.backD + 0.04), '#ece5d8', 0, CAFE.topY - 0.015, CAFE.backD / 2);
+    for (let x = -CAFE.backW / 2 + 0.4; x < CAFE.backW / 2 - 0.1; x += 0.4) part(g, box(0.012, 0.7, 0.006), '#5a3a24', x, 0.5, CAFE.backD + 0.003);
+    // 手順書の わく（中身は 作業の とき 描く）
+    part(g, box(CAFE.sheet.w + 0.06, CAFE.sheet.h + 0.06, 0.02), '#5a3a24', CAFE.sheet.x, CAFE.sheet.y, 0.012);
+    // レジ（前の 台の 左はし。店員から 見て 左が +x）
+    const reg = ITEM_MODELS['レジ'](); reg.position.set(0.95, 0.9, COUNTER_Z - 0.1); reg.rotation.y = Math.PI; g.add(reg);
     tableSet(g, -1, 1.5, '#6b4630', '#c9a27a');
     // 黒板メニュー（壁）
     part(g, box(0.03, 0.6, 0.9), '#2f3a33', -(SHOP_W / 2 - 0.02), 1.15, 2.6);
@@ -3004,7 +3011,7 @@ function clearWork() {
   while (b.workArea.children.length) b.workArea.remove(b.workArea.children[0]);
   b.counter.visible = true; // 倉庫整理の 間は 台を かくしている
   Object.values(FIELDS).forEach((f) => { while (f.work.children.length) f.work.remove(f.work.children[0]); });
-  if (b.panelOut) { b.group.add(b.panel); b.panel.position.set(0, 0, PANEL_Z); b.panel.rotation.y = Math.PI; b.panelOut = false; } // 指示モニターを お店に もどす
+  if (b.panelOut) { b.group.add(b.panel); b.panel.position.set(0, 0, PANEL_Z); b.panel.rotation.y = Math.PI; b.panel.scale.setScalar(1); b.panelOut = false; } // 指示モニターを お店に もどす
   b.inField = false;
 }
 // 外の 作業：指示モニター（ボタンつき）を 畑へ 持って いき、自分も その 場所へ 行く
@@ -3088,6 +3095,157 @@ function startOrchard(b, def) {
   if (state.withSupport) speak(def.title + '。');
 }
 
+// カフェ：うしろの 台で 手順書を 見ながら ドリンクを つくり、ふりかえって 前の 台の お客さまに わたす
+//   左から コーヒーマシン・カップ、右に 材料、手前に 氷の 箱。カップは まん中に 置いて 材料を 入れていく。
+function cafeSheetPaint(sheet, def, doneN) {
+  const finalMix = cafeMix(def.need);
+  const hot = !finalMix.ice;
+  sheet.draw((ctx, w, h) => {
+    ctx.fillStyle = '#fffef8'; ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = '#5a3a24'; ctx.font = '700 ' + Math.round(w * 0.1) + 'px ' + FONT_DISPLAY; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('手順書', w / 2, h * 0.06);
+    // 写真（できあがりの ドリンク）
+    const px = w * 0.08; const py = h * 0.12; const pw = w * 0.84; const ph = h * 0.36;
+    ctx.fillStyle = '#efe4d2'; ctx.fillRect(px, py, pw, ph); ctx.strokeStyle = '#5a3a24'; ctx.lineWidth = 4; ctx.strokeRect(px, py, pw, ph);
+    const cx = px + pw / 2; const top = py + ph * 0.2; const bot = py + ph * 0.92; const tw = pw * 0.17; const bw = pw * 0.12;
+    const at = (u) => ({ y: bot - (bot - top) * u, half: bw + (tw - bw) * u });
+    const lv = at(finalMix.level);
+    ctx.fillStyle = finalMix.color; ctx.beginPath(); ctx.moveTo(cx - bw, bot); ctx.lineTo(cx + bw, bot); ctx.lineTo(cx + lv.half, lv.y); ctx.lineTo(cx - lv.half, lv.y); ctx.closePath(); ctx.fill();
+    if (finalMix.ice) { ctx.fillStyle = 'rgba(232,247,253,0.85)'; [[-0.5, 0.55], [0.25, 0.62], [-0.1, 0.4]].forEach(([dx, u]) => { const p = at(u); ctx.fillRect(cx + dx * p.half - 10, p.y - 10, 22, 22); }); }
+    if (finalMix.lemon) { ctx.fillStyle = '#f6d24a'; ctx.beginPath(); ctx.ellipse(cx + lv.half * 0.3, lv.y, 18, 6, 0, 0, TAU); ctx.fill(); }
+    ctx.strokeStyle = '#7a8a92'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(cx - tw, top); ctx.lineTo(cx - bw, bot); ctx.lineTo(cx + bw, bot); ctx.lineTo(cx + tw, top); ctx.stroke();
+    if (hot) { ctx.strokeStyle = '#b9a58a'; ctx.lineWidth = 4; [-1, 0, 1].forEach((k) => { ctx.beginPath(); const x0 = cx + k * 22; ctx.moveTo(x0, top - 8); ctx.bezierCurveTo(x0 - 12, top - 22, x0 + 12, top - 34, x0, top - 50); ctx.stroke(); }); }
+    ctx.fillStyle = '#1f2a33'; ctx.font = '700 ' + Math.round(w * 0.075) + 'px ' + FONT_BODY;
+    let fs = Math.round(w * 0.075); while (fs > 20 && ctx.measureText(def.drink).width > w * 0.86) { fs -= 2; ctx.font = '700 ' + fs + 'px ' + FONT_BODY; }
+    ctx.fillText(def.drink, w / 2, h * 0.53);
+    // 説明（配慮ありは 手順を 1 つずつ。配慮なしは 口頭のみなので 書かない）
+    ctx.fillStyle = '#5a3a24'; ctx.fillRect(w * 0.08, h * 0.575, w * 0.84, 3);
+    ctx.textAlign = 'left';
+    if (!state.withSupport) {
+      ctx.fillStyle = '#55626d'; ctx.font = '400 ' + Math.round(w * 0.055) + 'px ' + FONT_BODY;
+      ctx.fillText('手順は 口で 聞いた とおりに', w * 0.1, h * 0.64);
+      return;
+    }
+    const n = def.need.length; const rowH = Math.min(h * 0.075, (h * 0.4) / n);
+    ctx.font = '700 ' + Math.round(rowH * 0.62) + 'px ' + FONT_BODY;
+    def.need.forEach((k, i) => {
+      const done = i < doneN; const now = i === doneN;
+      ctx.fillStyle = done ? '#9aa4ab' : now ? '#8a5a3c' : '#1f2a33';
+      ctx.fillText((done ? '✓ ' : (i + 1) + '. ') + actionText(state.booth.job, { label: k }), w * 0.1, h * 0.62 + rowH * (i + 0.5));
+    });
+  });
+}
+function startCafe(b, def) {
+  const W = b.workArea; const slots = []; const T = CAFE.topY;
+  // 指示モニターは 奥の 壁へ（手順書の となり）
+  const P = CAFE.panel;
+  b.group.add(b.panel); b.panel.position.set(P.x, P.y - P.scale * PANEL_Y, 0.06); b.panel.rotation.y = 0; b.panel.scale.setScalar(P.scale); b.panelOut = true;
+  // 手順書（写真と 説明）
+  const sheet = new Board(CAFE.sheet.w, CAFE.sheet.h, 700); sheet.mesh.position.set(CAFE.sheet.x, CAFE.sheet.y, 0.025); W.add(sheet.mesh);
+  const paintSheet = (doneN) => cafeSheetPaint(sheet, def, doneN);
+  paintSheet(0);
+  const right = def.items.map((s) => s.label).filter((l) => !['コーヒーマシン', 'カップ', '氷', 'お客さま'].includes(l));
+  const rx = right.length > 2 ? [0.28, 0.66, 1.04, 1.42] : [0.42, 0.92];
+  const SCALE = { 'コーヒーマシン': 1.9, 'カップ': 1.4, '牛乳': 1.5, 'さとう': 1.4, 'ココア': 1.4, 'はちみつ': 1.4, 'レモン': 1.5 };
+  let cup = null; let machine = null;
+  def.items.forEach((spec, idx) => {
+    const k = spec.label; const holder = new THREE.Group(); W.add(holder);
+    let mesh; let ringScale = 1; let labelY;
+    if (k === 'お客さま') {
+      // 前の 台の 向こう（ふりかえった 先）。にこにこ 顔
+      mesh = person('#c4577a', '#3d4a54');
+      part(mesh, ball(0.006, 8, 6), '#2b2b2b', -0.018, 0.31, 0.047); part(mesh, ball(0.006, 8, 6), '#2b2b2b', 0.018, 0.31, 0.047);
+      part(mesh, new THREE.TorusGeometry(0.016, 0.003, 6, 12, Math.PI), '#9a3b3b', 0, 0.292, 0.047).rotation.z = Math.PI;
+      mesh.scale.setScalar(4.6); holder.position.set(0, 0.1, COUNTER_Z + 0.8); holder.rotation.y = Math.PI; ringScale = 2.2; labelY = 1.85;
+    } else if (k === '氷') {
+      // 台の 手前に 下げた 氷の 箱（スコップ つき）
+      mesh = new THREE.Group(); const z = CAFE.backD + 0.17;
+      part(mesh, box(0.56, 0.8, 0.34), '#b8c4cc', 0, 0.5, 0, { metalness: 0.4, roughness: 0.35 });
+      part(mesh, box(0.5, 0.01, 0.28), '#dfeef5', 0, 0.86, 0);
+      for (let i = 0; i < 14; i++) { const c = part(mesh, box(0.05, 0.05, 0.05), '#e8f7fd', -0.2 + (i % 5) * 0.1, 0.875 + Math.floor(i / 5) * 0.012, -0.09 + Math.floor(i / 5) * 0.09, { transparent: true, opacity: 0.85, roughness: 0.1 }); c.rotation.set(i * 0.7, i * 1.3, i * 0.4); }
+      const scoop = new THREE.Group(); scoop.position.set(0.17, 0.9, 0.02); scoop.rotation.set(0.5, 0, -0.5); mesh.add(scoop);
+      part(scoop, box(0.08, 0.1, 0.06), '#f4f6f6', 0, 0, 0, { transparent: true, opacity: 0.9 });
+      part(scoop, cyl(0.012, 0.012, 0.12, 10), '#f4f6f6', 0, 0.11, 0);
+      holder.position.set(0, 0, z); ringScale = 2.2; labelY = 1.08;
+    } else {
+      mesh = ITEM_MODELS[k]({ color: k === 'コーヒーマシン' ? '#3b3330' : '#ffffff' }); mesh.scale.multiplyScalar(SCALE[k] || 1.4);
+      const x = k === 'コーヒーマシン' ? -0.95 : k === 'カップ' ? -0.42 : rx[right.indexOf(k)];
+      holder.position.set(x, T, CAFE.backD / 2 + (k === 'コーヒーマシン' ? -0.02 : 0.04));
+      ringScale = k === 'コーヒーマシン' ? 1.9 : 1;
+      const top = new THREE.Box3().setFromObject(mesh).max.y;
+      labelY = top + 0.12 + (right.length > 2 && right.indexOf(k) % 2 ? 0.14 : 0);
+      if (k === 'さとう' || k === '牛乳') {
+        // びん・パックの 字（手順書の 絵と 同じ）
+        const plate = new Board(0.09, 0.05, 1200);
+        plate.draw((ctx, w, h) => { ctx.fillStyle = '#ffffff'; roundRect(ctx, 0, 0, w, h, 10); ctx.fill(); ctx.fillStyle = k === '牛乳' ? '#2f5f9e' : '#c8463d'; ctx.font = '700 ' + Math.round(h * 0.6) + 'px ' + FONT_BODY; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(k, w / 2, h * 0.55); });
+        plate.mesh.position.set(0, k === '牛乳' ? 0.15 : 0.08, k === '牛乳' ? 0.065 : 0.07); holder.add(plate.mesh);
+      }
+    }
+    mesh.traverse((o) => { o.userData.slotIndex = idx; });
+    holder.add(mesh);
+    const ring = makeGlowRing(); ring.scale.setScalar(ringScale); ring.position.y = k === '氷' ? 0.9 : 0.005; holder.add(ring);
+    const sp = labelSprite(actionText(b.job, spec)); sp.position.y = labelY; holder.add(sp);
+    const slot = { spec, key: itemKey(spec), mesh, ring, holder, label: sp, done: false };
+    if (k === 'カップ') cup = slot; if (k === 'コーヒーマシン') machine = slot;
+    slots.push(slot);
+  });
+  // カップの 中身（液体・氷・さとう）
+  const cupMesh = cup.mesh;
+  const liquid = part(cupMesh, cyl(0.044, 0.037, 1, 20), '#3b2416', 0, 0.5, 0, { roughness: 0.3 }); liquid.visible = false;
+  const ice = new THREE.Group(); ice.visible = false; cupMesh.add(ice);
+  [[-0.015, 0.06, 0.01], [0.016, 0.075, -0.008], [0, 0.095, 0.012]].forEach(([x, y, z], n) => { const c = part(ice, box(0.026, 0.026, 0.026), '#e8f7fd', x, y, z, { transparent: true, opacity: 0.85, roughness: 0.1 }); c.rotation.set(n, n * 1.7, 0.4); });
+  const sugar = new THREE.Group(); sugar.visible = false; cupMesh.add(sugar);
+  for (let i = 0; i < 7; i++) part(sugar, box(0.006, 0.006, 0.006), '#ffffff', Math.cos(i) * 0.025, 0, Math.sin(i * 1.7) * 0.025);
+  const lemon = part(cupMesh, cyl(0.022, 0.022, 0.004, 16), '#f6d24a', 0.01, 0, 0); lemon.visible = false;
+  const mix = { level: 0, color: '#ffffff', ice: false };
+  const setLevel = (u) => {
+    const hgt = Math.max(0.001, u * 0.125); liquid.scale.y = hgt; liquid.position.y = 0.004 + hgt / 2; liquid.visible = u > 0.001;
+    sugar.position.y = lemon.position.y = 0.006 + hgt;
+  };
+  const pour = (to) => { const from = mix.shown || 0; mix.shown = to; anims.push({ kind: 'fill', set: setLevel, from, to, t0: performance.now() }); };
+  const spot = new THREE.Vector3(CAFE.spot[0], T, CAFE.spot[1]);
+  const underSpout = new THREE.Vector3(machine.holder.position.x, T + 0.025 * 1.9, machine.holder.position.z + 0.06);
+  const r = { def, slots, pos: 0, lastActionAt: performance.now(), hintShown: false, mistakeThisRound: false,
+    onPick(slot, ok) {
+      if (!ok) { flashWrong(slot); return; }
+      const k = slot.spec.label; slot.label.visible = false; paintSheet(r.pos);
+      const ch = cup.holder;
+      if (k === 'カップ') anims.push({ kind: 'box', obj: ch, from: ch.position.clone(), to: spot.clone(), t0: performance.now() });
+      else if (k === 'コーヒーマシン') {
+        // カップを マシンの 下へ → コーヒーが たまる → まん中へ もどす
+        anims.push({ kind: 'box', obj: ch, from: ch.position.clone(), to: underSpout.clone(), t0: performance.now() });
+        setTimeout(() => { if (state.round !== r) return; CAFE_MIX[k](mix); liquid.material.color.set(mix.color); pour(mix.level); }, 550);
+        setTimeout(() => { if (state.round !== r || r.handing) return; anims.push({ kind: 'box', obj: ch, from: ch.position.clone(), to: spot.clone(), t0: performance.now() }); }, 1300);
+      } else if (k === 'お客さま') {
+        const to = new THREE.Vector3(0, 1.02, COUNTER_Z + 0.42);
+        anims.push({ kind: 'box', obj: ch, from: ch.position.clone(), to, t0: performance.now() });
+      } else {
+        if (CAFE_MIX[k]) CAFE_MIX[k](mix);
+        if (k === '氷') ice.visible = true;
+        if (k === 'さとう') { sugar.visible = true; setTimeout(() => { sugar.visible = false; }, 900); } // とけて 見えなくなる
+        if (k === 'レモン') lemon.visible = true;
+        if (mix.level > 0) { liquid.material.color.set(mix.color); pour(mix.level); }
+      }
+      // つぎが お客さまなら、できあがり。ふりかえって 前の 台へ
+      if (nextTargetKey() === 'お客さま') {
+        r.handing = true;
+        setTimeout(() => {
+          if (state.round !== r || state.phase !== 'work') return;
+          b.group.add(b.panel); b.panel.position.set(0, 0, PANEL_Z); b.panel.rotation.y = Math.PI; b.panel.scale.setScalar(1); b.panelOut = false;
+          for (let i = anims.length - 1; i >= 0; i--) if (anims[i].obj === ch) anims.splice(i, 1);
+          ch.position.set(0, 0.9, COUNTER_Z - 0.28);
+          moveRig(b.group.localToWorld(new THREE.Vector3(0, 0, STAFF_Z)), b.yaw + Math.PI, 0.12, 900);
+          state.feedback = { text: 'できあがり！ ふりかえって わたそう', kind: 'ok' }; drawWorkBoard();
+        }, k === 'コーヒーマシン' ? 1500 : 800);
+      }
+    } };
+  state.round = r;
+  moveRig(b.group.localToWorld(new THREE.Vector3(0, 0, CAFE.standZ)), b.yaw, 0.1, state.session.roundIndex ? 900 : undefined); // 奥の 台を 向く
+  state.feedback = { text: '', kind: '' };
+  drawWorkBoard(); renderHud();
+  if (state.withSupport) speak(def.title + '。最初は、' + stepLabel(def.need[0]) + '。');
+}
+
 function nextRound() {
   const b = state.booth;
   clearWork();
@@ -3104,6 +3262,7 @@ function nextRound() {
   if (def.layout === 'stock') return startStock(b, def);
   if (def.layout === 'paddy') return startPaddy(b, def);
   if (def.layout === 'orchard') return startOrchard(b, def);
+  if (def.layout === 'cafe') return startCafe(b, def);
   if (CLEAN_LAYOUTS[def.layout]) return startCleaning(b, def);
   def.items.forEach((spec, idx) => {
     const col = idx % cols; const row = Math.floor(idx / cols);
@@ -3693,7 +3852,8 @@ function finishRound() {
   drawWorkBoard(); renderHud();
   if (state.withSupport) speak('できました。');
   state.phase = 'between';
-  const wait = state.round && state.round.def.layout === 'wallShelf' ? 1400 : 900; // たなに 入る ところを 見せる
+  const lay = state.round && state.round.def.layout;
+  const wait = lay === 'wallShelf' || lay === 'cafe' ? 1400 : 900; // たなに 入る ところ・お客さまに わたす ところを 見せる
   setTimeout(() => {
     if (!state.session || state.session !== s) return;
     if (s.roundIndex >= s.target) showResult(); else nextRound();
@@ -3813,6 +3973,9 @@ function stepAnims(now) {
       const u = Math.min(1, t / (reduceMotion ? 0.01 : 0.8)); const e = u * u * (3 - 2 * u);
       a.obj.position.lerpVectors(a.from, a.to, e); a.obj.position.y += Math.sin(Math.PI * e) * 0.25;
       a.obj.rotation.y = a.r0 + (a.r1 - a.r0) * e; a.obj.scale.setScalar(a.s0 + (a.s1 - a.s0) * e);
+      if (u >= 1) anims.splice(i, 1);
+    } else if (a.kind === 'fill') {
+      const u = Math.min(1, t / 0.6); a.set(a.from + (a.to - a.from) * u);
       if (u >= 1) anims.splice(i, 1);
     } else if (a.kind === 'wrong') {
       a.slot.holder.position.x += Math.sin(t * 60) * 0.003;
