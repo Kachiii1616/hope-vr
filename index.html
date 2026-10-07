@@ -1208,7 +1208,7 @@ function addCyl(x, y, z, rt, rb, h, color, seg) {
     if (!FIELDS.paddy) {
       const g = new THREE.Group(); g.position.copy(c); g.rotation.y = -a; scene.add(g);
       const work = new THREE.Group(); const planted = new THREE.Group(); g.add(work); g.add(planted);
-      FIELDS.paddy = { g, work, planted, yaw: -a, rows: [-1.3, 0, 1.3] };
+      FIELDS.paddy = { g, work, planted, yaw: -a, rows: [-1.7, -1.1, -0.5] }; // まん中の あぜ（z=0）を よけて 片がわの 田に。奥の 列から 植えて、うしろへ さがる
     }
   });
   // 湖：町の 家や 木は 5.8m よけるが、歩く ときは 季節で かわる（夏は 岸まで、冬は 氷の 上も 歩ける）
@@ -2298,8 +2298,8 @@ const DECO_X = 1.97;
 // 清掃の 台ふき（下の CLEAN_LAYOUTS.wipe）
 //   台ふきは 利用者さんの 家（リビング・ダイニング・キッチン）。家具は 部屋に 置いた まま 動かさない
 const WIPE_FURN = [
-  { name: 'キッチンの 台', kind: 'counter', x: 0, z: 2.2, w: 1.4, d: 0.6, h: 0.85 },
-  { name: '机', kind: 'desk', x: 1.3, z: 3.55, w: 1.1, d: 0.6, h: 0.72 },
+  { name: 'キッチンの 台', kind: 'counter', x: 1.77, z: 2.65, w: 0.6, d: 1.0, h: 0.85, face: 'x' }, // 左の かべに つけて ある。かべを 向いて ふく
+  { name: '机', kind: 'desk', x: 1.3, z: 3.65, w: 1.1, d: 0.6, h: 0.72 },
   { name: '食卓', kind: 'table', x: -1.25, z: 3.4, w: 1.0, d: 0.8, h: 0.7 },
   { name: 'ローテーブル', kind: 'low', x: 1.35, z: 1.6, w: 0.9, d: 0.55, h: 0.4, back: true }, // ソファの 前。入口がわから ふく
 ];
@@ -2981,7 +2981,7 @@ booths.forEach((b) => {
   const guests = { rink: ['#e07fa4', '#3c7fc4'], yatai: ['#3c7fc4', '#f2c230'], super: ['#4f9a45', '#c4577a'], store: ['#3b6fb6', '#e3a33c'], cafe: ['#c4577a'], ski: ['#d0453a', '#3c7fc4'], hut: ['#4f9a45'] }[b.job.id];
   if (!guests) return;
   guests.forEach((c, k) => {
-    const p = person(c, '#3d4a54'); p.scale.setScalar(4.6); p.rotation.y = Math.PI;
+    const p = person(c, '#3d4a54'); p.scale.setScalar(4.6); p.rotation.y = Math.PI; (b.guests = b.guests || []).push(p);
     p.position.set((k ? 1.35 : -1.3), 0.1, COUNTER_Z + 2.0 + k * 0.3); b.group.add(p); // 台と モニターを かくさない よう はしに
     if (b.job.id === 'store') p.position.set(k ? 0.75 : -0.7, 0.1, SHOP_DEPTH - 0.35); // コンビニは 両がわが たなの 売り場なので 入口の そばに
   });
@@ -3400,6 +3400,7 @@ function clearWork() {
   Object.values(FIELDS).forEach((f) => { while (f.work.children.length) f.work.remove(f.work.children[0]); });
   if (b.panelOut) { b.group.add(b.panel); b.panel.position.set(0, 0, PANEL_Z); b.panel.rotation.y = Math.PI; b.panel.scale.setScalar(1); b.panelOut = false; } // 指示モニターを お店に もどす
   b.inField = false; b.away = false;
+  if (b.guests) b.guests.forEach((p) => { p.visible = true; }); // 倉庫整理の 間は お客さんを 出さない
   applyRoomMode(b); // 部屋の ようすを 作業に 合わせて もどす
   if (b.counter.userData.base) b.counter.material.color.copy(b.counter.userData.base);
 }
@@ -3434,7 +3435,7 @@ function startPaddy(b, def) {
       for (let k = 0; k < 6; k++) { const sm = seedlingMesh(spec.seedling === 'wilt'); sm.position.set(-0.12 + (k % 3) * 0.12, 0.05, k < 3 ? -0.06 : 0.06); mesh.add(sm); }
       const sp = labelSprite(actionText(b.job, spec)); sp.position.y = 0.45; holder.add(sp);
     } else { // 植える ところ（ひもの 印と、印の ない ところ）
-      const x = spec.spot === 'line' ? -0.9 + spec.k * 0.6 : -0.6 + spec.k * 1.2; const z = spec.spot === 'line' ? zr : zr + (spec.k ? -0.4 : 0.38);
+      const x = spec.spot === 'line' ? -0.9 + spec.k * 0.6 : -0.6 + spec.k * 1.2; const z = spec.spot === 'line' ? zr : zr + (spec.k ? -0.3 : 0.3);
       holder.position.set(x, 0.08, z);
       mesh = new THREE.Group(); part(mesh, cyl(0.11, 0.11, 0.015, 16), '#7d6646', 0, 0.01, 0, { transparent: true, opacity: 0.55 });
       if (spec.spot === 'line') part(mesh, box(0.03, 0.02, 0.03), '#d0453a', 0, 0.025, 0); // ひもの 赤い 印
@@ -4487,7 +4488,9 @@ function startLaptop(b, def) {
 // 倉庫整理（スーパー）：左に 4 だんの たな（上から A・B・C・D の 札）、右に 箱を つんだ 台車。
 //   台車の 箱は 上から 順に おろして、同じ 記号の たなの あいている ところへ 置く。たなを えらぶと 箱が 動く。
 //   店員は +z を 向くので、+x が 店員の 左。札・箱の 文字は 店員がわ（-z）に 向ける。
-const STOCK = { x: 0.25, z: 2.55, w: 1.7, d: 0.45, boards: [1.1, 0.78, 0.46, 0.14], spotX: 0.58, cartX: -1.35, cartZ: 2.3 };
+// 倉庫の たなは 右の かべ（入口がわ。売り場の たなの 手前）に つける。たな・台車は wall の 中で 組み、wall ごと かべへ 向ける
+//   wall：お店の 中の 位置と 向き（ローカルの -z が たなの 正面＝部屋の まん中）。stand：店員の 立つ ところ（かべの 方を 向く）
+const STOCK = { x: 0.25, z: 2.55, w: 1.7, d: 0.45, boards: [1.1, 0.78, 0.46, 0.14], spotX: 0.58, cartX: -0.75, cartZ: 1.325, wall: { x: 0.625, z: 3.05, ry: -Math.PI / 2 }, stand: [0.5, 3.3] };
 function stockBox(W, label, w, h, d, x, y, z) {
   const g = new THREE.Group(); g.position.set(x, y, z); W.add(g);
   part(g, box(w, h, d), '#c49a6c', 0, h / 2, 0);
@@ -4499,7 +4502,9 @@ function stockBox(W, label, w, h, d, x, y, z) {
   return g;
 }
 function startStock(b, def) {
-  const W = b.workArea; const slots = []; const { x: sx, z: sz, w: sw, d: sd } = STOCK;
+  const W = new THREE.Group(); W.position.set(STOCK.wall.x, 0, STOCK.wall.z); W.rotation.y = STOCK.wall.ry; b.workArea.add(W); const slots = [];
+  if (b.guests) b.guests.forEach((p) => { p.visible = false; }); // 倉庫に お客さんは いない
+  const { x: sx, z: sz, w: sw, d: sd } = STOCK;
   b.counter.visible = false; // 作業台の かわりに たなと 台車
   const metal = '#8f99a3';
   // たな（柱 4 本と 板 5 まい）
@@ -4531,7 +4536,8 @@ function startStock(b, def) {
   [-1, 1].forEach((ex) => part(W, box(0.025, 0.85, 0.025), '#3d5a80', cx + ex * (CW / 2 - 0.02), 0.65, cz + CD / 2 - 0.02));
   part(W, box(CW, 0.03, 0.03), '#3d5a80', cx, 1.07, cz + CD / 2 - 0.02);
   const cartBoxes = def.need.map((k, n) => stockBox(W, '商品' + k, BW, BH, BD, cx, 0.24 + (def.need.length - 1 - n) * (BH + 0.005), cz - 0.06));
-  look.pitch = 0.2; // たなの 下の だんと 台車が 見えるように 少し 下を 向く
+  moveRig(b.group.localToWorld(new THREE.Vector3(STOCK.stand[0], 0, STOCK.stand[1])), b.yaw + Math.PI / 2, 0.17, state.session.roundIndex ? 500 : undefined); // かべの たなの 方を 向く。下の だんと 台車が 見えるように 少し 下を 向く
+  b.panel.position.set(-SHOP_W / 2 + 0.12, 0.28, 3.3); b.panel.rotation.y = Math.PI / 2; b.panelOut = true; // 指示モニターは たなの 上の かべに
   state.round = { def, slots, pos: 0, lastActionAt: performance.now(), hintShown: false, mistakeThisRound: false, stock: { cartBoxes, next: 0 } };
   state.feedback = { text: '', kind: '' };
   drawWorkBoard();
@@ -4734,7 +4740,7 @@ function buildCleanHome(g) {
   part(g, box(0.42, 0.02, 0.34), '#8a8f96', -1.05, 0.975, 0.42); part(g, cyl(0.015, 0.015, 0.28, 8), '#c9cdd2', -1.05, 1.12, 0.2); // 流しと 蛇口
   [-0.6, -0.4].forEach((x) => part(g, cyl(0.08, 0.08, 0.01, 16), '#2b2f33', x, 0.985, 0.42)); // コンロ
   // 食卓の いす（左右に 1 つずつ）
-  [-1, 1].forEach((sd) => { const cx = -1.25 + sd * 0.72; const c = new THREE.Group(); c.position.set(cx, 0.1, 3.4); c.rotation.y = sd * Math.PI / 2; g.add(c);
+  [-1, 1].forEach((sd) => { const cx = -1.25 + sd * 0.72; const c = new THREE.Group(); c.position.set(cx, 0.1, 3.4); c.rotation.y = -sd * Math.PI / 2; g.add(c); // せもたれは 食卓の 反対がわ
     part(c, box(0.4, 0.04, 0.4), '#c98f5a', 0, 0.45, 0); part(c, box(0.4, 0.42, 0.04), '#c98f5a', 0, 0.68, -0.19); [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([a, cc]) => part(c, box(0.03, 0.45, 0.03), '#8a6a46', a * 0.17, 0.22, cc * 0.17)); });
   // 観葉植物・時計・絵・カーテン
   part(g, cyl(0.16, 0.12, 0.3, 14), '#d9d4c8', 2.0, 0.25, 4.15); [[0, 0.65, 0, 0.22], [0.08, 0.85, 0.05, 0.16], [-0.07, 0.8, -0.05, 0.15]].forEach(([dx, y, dz, r]) => part(g, new THREE.IcosahedronGeometry(r, 0), '#4f8a34', 2.0 + dx, y, 4.15 + dz, { flatShading: true }));
@@ -4742,8 +4748,10 @@ function buildCleanHome(g) {
   part(g, box(0.02, 0.5, 0.7), '#8a6a46', 2.17, 1.6, 2.6); part(g, box(0.01, 0.42, 0.62), '#9fc3e0', 2.155, 1.6, 2.6); part(g, box(0.008, 0.18, 0.4), '#6fae5e', 2.15, 1.5, 2.6); // 絵
   [-1, 1].forEach((sd) => [-1, 1].forEach((k) => part(g, box(0.25, 1.5, 0.04), '#e8d8b8', sd * (1.45 + k * 0.42), 1.45, SHOP_DEPTH - 0.09))); // まどの カーテン
 }
-function wipeFurniture(W, o) {
-  const g = new THREE.Group(); g.position.set(o.x, 0.1, o.z); W.add(g);
+function wipeFurniture(W, f) {
+  const g = new THREE.Group(); g.position.set(f.x, 0.1, f.z); W.add(g);
+  // face 'x'：かべ（+x）ぞいに 置く。前（とびらの がわ）を -x に 向ける（w・d は 部屋での はば・おくゆき）
+  const o = f.face === 'x' ? Object.assign({}, f, { w: f.d, d: f.w }) : f; if (f.face === 'x') g.rotation.y = Math.PI / 2;
   const leg = (h) => [-1, 1].forEach((sx) => [-1, 1].forEach((sz) => part(g, box(0.05, h, 0.05), '#8a6a46', sx * (o.w / 2 - 0.05), h / 2, sz * (o.d / 2 - 0.05))));
   if (o.kind === 'counter') {
     part(g, box(o.w, o.h - 0.04, o.d), '#d9c4a2', 0, (o.h - 0.04) / 2, 0);
@@ -4824,15 +4832,17 @@ const CLEAN_LAYOUTS = {
     const cloth = new THREE.Group(); W.add(cloth);
     part(cloth, box(0.2, 0.03, 0.14), '#5aa7d1', 0, 0.015, 0);
     part(cloth, box(0.2, 0.004, 0.02), '#ffffff', 0, 0.032, 0.03);
-    const fs = f.back ? -1 : 1; // 立つ がわ（back：入口がわから 奥を 向いて ふく）
-    cloth.position.set(cx - fs * (TW / 2 - 0.15), topY, cz - fs * (TD / 2 - 0.12));
+    // 向く 方向（fc）と 左（lf）。ふつうは +z を 向く。back：入口がわから 奥を 向く。face 'x'：かべ（+x）を 向く
+    const fc = f.face === 'x' ? { x: 1, z: 0 } : { x: 0, z: f.back ? -1 : 1 }; const lf = { x: fc.z, z: -fc.x };
+    const depth = fc.x ? TW : TD; const width = fc.x ? TD : TW;
+    cloth.position.set(cx - fc.x * (depth / 2 - 0.12) - lf.x * (width / 2 - 0.15), topY, cz - fc.z * (depth / 2 - 0.12) - lf.z * (width / 2 - 0.15)); // 手前の 右はし
     // よごれた 家具の 上に 名札
     const tag = labelSprite('この ' + f.name + 'を ふく', { h: 0.1, bg: 'rgba(255,240,200,0.95)' }); tag.position.set(cx, topY + 0.35, cz); W.add(tag);
     def.title = '台ふきで ' + f.name + 'の 上を ぜんぶ ふく'; def.shortTitle = f.name + 'の 上を ぜんぶ ふく';
     // その 家具の 前に 立って、上が 見えるように 下を 向く
-    const dist = 0.62 + TD / 2;
-    moveRig(b.group.localToWorld(new THREE.Vector3(cx, 0, cz - fs * dist)), b.yaw + (f.back ? 0 : Math.PI), Math.atan2(1.6 - topY, dist) * 0.95, s.roundIndex ? 900 : undefined);
-    ctx.cover = { kind: 'wipe', surf, cloth, topY, bounds: { x0: cx - TW / 2 + 0.08, x1: cx + TW / 2 - 0.08, z0: cz - TD / 2 + 0.06, z1: cz + TD / 2 - 0.06 }, mark: hintMark(W, 0.1) };
+    const dist = 0.62 + depth / 2;
+    moveRig(b.group.localToWorld(new THREE.Vector3(cx - fc.x * dist, 0, cz - fc.z * dist)), b.yaw + Math.atan2(-fc.x, -fc.z), Math.atan2(1.6 - topY, dist) * 0.95, s.roundIndex ? 900 : undefined);
+    ctx.cover = { kind: 'wipe', surf, cloth, topY, bounds: { x0: cx - TW / 2 + 0.08, x1: cx + TW / 2 - 0.08, z0: cz - TD / 2 + 0.06, z1: cz + TD / 2 - 0.06 }, face: fc, left: lf, mark: hintMark(W, 0.1) };
   },
 };
 function startCleaning(b, def) {
@@ -4879,7 +4889,8 @@ function stepCover(dt, now) {
       raycaster.ray.origin.setFromMatrixPosition(cv.ctrl.matrixWorld); raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
       const p = coverRayHit(raycaster); if (p) coverMoveCloth(r, p.x, p.z, now);
     } else if (fwd || turn || strafe) { // キーボード・スマホの ボタンでも 動かせる（▲ 奥・▼ 手前・◀▶ 左右）
-      const sx = (strafe || turn); coverMoveCloth(r, cv.cloth.position.x - sx * 0.6 * dt, cv.cloth.position.z + fwd * 0.4 * dt, now);
+      const sx = (strafe || turn); const fc = cv.face; const lf = cv.left; // 自分から 見た 奥・左右
+      coverMoveCloth(r, cv.cloth.position.x + (fc.x * fwd * 0.4 - lf.x * sx * 0.6) * dt, cv.cloth.position.z + (fc.z * fwd * 0.4 - lf.z * sx * 0.6) * dt, now);
     }
     return;
   }
