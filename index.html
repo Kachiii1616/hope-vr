@@ -917,6 +917,10 @@ const camera = new THREE.PerspectiveCamera(70, stage.clientWidth / stage.clientH
 camera.position.set(0, 1.6, 0);
 camera.rotation.order = 'YXZ';
 rig.add(camera);
+// 場所を 飛ぶ ときの ホワイトアウト（目の 前を おおう 白い 球。VR でも 見える）
+const whiteout = new THREE.Mesh(new THREE.SphereGeometry(0.2, 16, 12), new THREE.MeshBasicMaterial({ color: '#ffffff', side: THREE.BackSide, transparent: true, opacity: 0, depthTest: false, depthWrite: false, fog: false }));
+whiteout.renderOrder = 9999; whiteout.visible = false; whiteout.frustumCulled = false;
+camera.add(whiteout);
 
 scene.add(new THREE.HemisphereLight('#ffffff', '#8aa07a', 0.62));
 const sun = new THREE.DirectionalLight('#fff4e0', 0.72);
@@ -3018,8 +3022,31 @@ function moveRig(pos, yaw, pitch, dur) {
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   // 島は広いので、遠いほど ゆっくり（それでも 2 秒まで）
   const auto = Math.min(2000, 700 + from.p.distanceTo(to.p) * 14);
+  // 遠くへ 飛ぶ ときは 壁を つきぬけて 見えないよう、いったん 白く して から 着いた 先で はじめる
+  if (!dur && from.p.distanceTo(to.p) > WHITEOUT_DIST) {
+    tween = { fade: true, from, to, pitch: pitch || 0, t0: performance.now(), dur: reduce ? 300 : WHITEOUT_MS, snapped: false };
+    return;
+  }
   tween = { from, to, t0: performance.now(), dur: reduce ? 1 : (dur || auto) };
   look.yaw = 0; look.pitch = pitch || 0;
+}
+const WHITEOUT_DIST = 6; // これより 遠い 移動は ホワイトアウト
+const WHITEOUT_MS = 900; // 白く なる → 着く → もどる
+function stepTween(now) {
+  const t = Math.min(1, (now - tween.t0) / tween.dur);
+  if (tween.fade) {
+    const IN = 0.35; const HOLD = 0.5;
+    if (t >= IN && !tween.snapped) {
+      tween.snapped = true;
+      rig.position.copy(tween.to.p); rig.rotation.y = tween.to.yaw; look.yaw = 0; look.pitch = tween.pitch;
+    }
+    whiteout.material.opacity = t < IN ? t / IN : t < HOLD ? 1 : 1 - (t - HOLD) / (1 - HOLD);
+    whiteout.visible = t < 1;
+  } else {
+    const e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    rig.position.lerpVectors(tween.from.p, tween.to.p, e); rig.rotation.y = tween.from.yaw + (tween.to.yaw - tween.from.yaw) * e;
+  }
+  if (t >= 1) tween = null;
 }
 
 function goHome(instant) {
@@ -5913,11 +5940,8 @@ const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').match
 let lastFrame = performance.now();
 renderer.setAnimationLoop((now) => {
   const dt = Math.min(0.1, (now - lastFrame) / 1000); lastFrame = now;
-  if (tween) {
-    const t = Math.min(1, (now - tween.t0) / tween.dur); const e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-    rig.position.lerpVectors(tween.from.p, tween.to.p, e); rig.rotation.y = tween.from.yaw + (tween.to.yaw - tween.from.yaw) * e;
-    if (t >= 1) tween = null;
-  }
+  if (tween) stepTween(now);
+  else if (whiteout.visible) whiteout.visible = false;
   if (!renderer.xr.isPresenting) { camera.rotation.y = look.yaw; camera.rotation.x = -look.pitch; }
   walkStep(dt);
   stepFurn(dt);
