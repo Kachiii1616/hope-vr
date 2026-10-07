@@ -562,7 +562,7 @@ const EXTRA_ACTS = {
     'レモン シロップ': 'レモン シロップを かける', 'スプーン': 'スプーンを さす', 'お客さま': 'お客さまに わたす',
     '紙袋': '紙袋を とる', '焼きいも': '焼きいもを 入れる', '紙コップ': '紙コップを とる', '甘酒': '甘酒を そそぐ', 'おわん': 'おわんを とる', 'おしるこ': 'おしるこを よそう',
   },
-  super: { 'レジ袋': 'レジ袋を ひろげる' },
+  super: { 'レジ袋': 'レジ袋を ひろげる', 'A': '商品Aを Aの たなへ', 'B': '商品Bを Bの たなへ', 'C': '商品Cを Cの たなへ', 'D': '商品Dを Dの たなへ' },
   clean: { '使ったシーツ': '使った シーツを はがす', '新しいシーツ': '新しい シーツを しく', 'シーツのはし': 'シーツの はしを 入れこむ', '掛け布団': '掛け布団を かける', 'まくら': 'まくらを おく', 'バスタオル': 'バスタオルを おく', 'ぞうきん': 'ぞうきんで ふく' },
   school: {
     '新聞紙': '新聞紙を しく', '下じき': '下じきを しく', '半紙': '半紙を おく', '文鎮': '文鎮で おさえる', 'すずり': 'すずりに すみを 入れる', '筆': '筆を おく', 'クレヨン': 'クレヨンを 出す',
@@ -783,6 +783,22 @@ const WINTER = {
 JOBS.forEach((job) => {
   if (job.variants || !WINTER[job.id]) return;
   job.variants = { summer: [{ work: job.work, intro: job.intro, defect: job.defect, round: job.round }], winter: [WINTER[job.id]] };
+});
+// スーパーの 倉庫整理（夏も 冬も）：台車の 箱を 上から 順に、同じ 記号（A〜D）の たなへ 置く。
+const STOCKROOM = {
+  work: '倉庫整理', short: '倉庫整理',
+  intro: '台車に つんだ 箱を 上から 順に おろし、箱の 記号（A・B・C・D）と 同じ 札の たなに 置きます。',
+  defect: 'ちがう たなに 置く',
+  round() {
+    const tiers = ['A', 'B', 'C', 'D'];
+    const cart = sample(tiers, 3); // 上から 順
+    const items = tiers.map((label) => ({ label, color: '#c49a6c' }));
+    return { title: '台車の 箱を 上から 順に、同じ 記号の たなへ', shortTitle: '箱を たなに しまう', items, need: cart, ordered: true, layout: 'stock', carryText: '台車（上から）：' + cart.map((k) => '商品' + k).join('・') };
+  },
+};
+JOBS.filter((job) => job.id === 'super').forEach((job) => {
+  job.variants.summer[0].short = '袋づめ'; job.variants.winter[0].short = '袋づめ';
+  job.variants.summer.push(STOCKROOM); job.variants.winter.push(STOCKROOM);
 });
 
 // hope-work の SUPPORT_METHODS と同じ言い方にそろえる（記録をそのまま貼れるように）。
@@ -1229,7 +1245,7 @@ JOBS.forEach((job, i) => {
   ['v0', 'v1', 'v2'].forEach((k, n) => { if (btns[k]) btns[k].position.set(-bx - 0.32, PANEL_Y + 0.17 - n * 0.2, 0.01); });
   Object.values(btns).forEach((m) => { m.scale.setScalar(0.85); panel.add(m); m.visible = false; });
 
-  booths.push({ job, group: g, yaw, front, door, board, workArea, btns, pin, paintSign });
+  booths.push({ job, group: g, yaw, front, door, board, workArea, btns, pin, paintSign, counter });
 });
 
 // 自分の 家を 建てられる 場所（地域ごと）。町の 家や 木が 重ならないよう、先に 場所を とって おく（家が ない 間は 歩いて 通れる）
@@ -2861,6 +2877,7 @@ function startSession(withSupport) {
 function clearWork() {
   const b = state.booth; if (!b) return;
   while (b.workArea.children.length) b.workArea.remove(b.workArea.children[0]);
+  b.counter.visible = true; // 倉庫整理の 間は 台を かくしている
 }
 
 function nextRound() {
@@ -2876,6 +2893,7 @@ function nextRound() {
   if (def.layout === 'picking') return startPicking(b, def);
   if (def.layout === 'laptop') return startLaptop(b, def);
   if (def.layout === 'wallShelf') return startWallShelf(b, def);
+  if (def.layout === 'stock') return startStock(b, def);
   if (CLEAN_LAYOUTS[def.layout]) return startCleaning(b, def);
   def.items.forEach((spec, idx) => {
     const col = idx % cols; const row = Math.floor(idx / cols);
@@ -3078,6 +3096,66 @@ function startLaptop(b, def) {
   drawWorkBoard();
   renderHud();
   if (state.withSupport) speak(def.title + '。');
+}
+
+// 倉庫整理（スーパー）：左に 4 だんの たな（上から A・B・C・D の 札）、右に 箱を つんだ 台車。
+//   台車の 箱は 上から 順に おろして、同じ 記号の たなの あいている ところへ 置く。たなを えらぶと 箱が 動く。
+//   店員は +z を 向くので、+x が 店員の 左。札・箱の 文字は 店員がわ（-z）に 向ける。
+const STOCK = { x: 0.25, z: 2.55, w: 1.7, d: 0.45, boards: [1.1, 0.78, 0.46, 0.14], spotX: 0.58, cartX: -1.35, cartZ: 2.3 };
+function stockBox(W, label, w, h, d, x, y, z) {
+  const g = new THREE.Group(); g.position.set(x, y, z); W.add(g);
+  part(g, box(w, h, d), '#c49a6c', 0, h / 2, 0);
+  part(g, box(w + 0.004, 0.02, d * 0.3), '#d9c08f', 0, h, 0); // ガムテープ
+  const tag = new Board(w * 0.78, h * 0.42, 900);
+  tag.draw((ctx, cw, ch) => { ctx.fillStyle = '#ffffff'; roundRect(ctx, 0, 0, cw, ch, 12); ctx.fill(); ctx.fillStyle = '#1f2a33'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    let px = Math.round(ch * 0.72); ctx.font = '700 ' + px + 'px ' + FONT_BODY; while (px > 16 && ctx.measureText(label).width > cw * 0.9) { px -= 4; ctx.font = '700 ' + px + 'px ' + FONT_BODY; } ctx.fillText(label, cw / 2, ch * 0.54); });
+  tag.mesh.position.set(0, h * 0.5, -d / 2 - 0.004); tag.mesh.rotation.y = Math.PI; g.add(tag.mesh);
+  return g;
+}
+function startStock(b, def) {
+  const W = b.workArea; const slots = []; const { x: sx, z: sz, w: sw, d: sd } = STOCK;
+  b.counter.visible = false; // 作業台の かわりに たなと 台車
+  const metal = '#8f99a3';
+  // たな（柱 4 本と 板 5 まい）
+  [-1, 1].forEach((ex) => [-1, 1].forEach((ez) => part(W, box(0.04, 1.36, 0.04), metal, sx + ex * (sw / 2 - 0.02), 0.1 + 0.68, sz + ez * (sd / 2 - 0.02))));
+  STOCK.boards.concat([1.42]).forEach((y) => part(W, box(sw, 0.03, sd), '#b9c1c8', sx, y, sz));
+  // 箱の 大きさ（たなに ある 箱と 台車の 箱は 同じ）
+  const BW = 0.3; const BH = 0.22; const BD = 0.32;
+  const already = { A: 1, B: 2, C: 3, D: 1 }; // 絵の とおり：もとから ある 箱の 数
+  def.items.forEach((spec, idx) => {
+    const y = STOCK.boards[idx] + 0.015; const k = spec.label;
+    const tier = new THREE.Group(); W.add(tier);
+    // えらびやすい 当たり（だん ぜんたい）
+    part(tier, box(sw - 0.06, 0.28, sd - 0.04), '#ffffff', sx, y + 0.14, sz, { transparent: true, opacity: 0.01 });
+    // 札（左の はし）
+    const plate = new Board(0.3, 0.12, 900);
+    plate.draw((ctx, cw, ch) => { ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, cw, ch); ctx.strokeStyle = '#1f2a33'; ctx.lineWidth = 8; ctx.strokeRect(4, 4, cw - 8, ch - 8);
+      ctx.fillStyle = '#1f2a33'; ctx.font = '700 ' + Math.round(ch * 0.72) + 'px ' + FONT_BODY; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(k, cw / 2, ch * 0.54); });
+    plate.mesh.position.set(sx + sw / 2 - 0.2, y + 0.22, sz - sd / 2 - 0.006); plate.mesh.rotation.y = Math.PI; tier.add(plate.mesh);
+    // もとから ある 箱（右から つめて ならぶ）
+    for (let n = 0; n < already[k]; n++) stockBox(tier, '商品' + k, BW, BH, BD, sx - sw / 2 + 0.2 + n * (BW + 0.03), y, sz);
+    tier.traverse((o) => { o.userData.slotIndex = idx; });
+    const ring = makeGlowRing(); ring.scale.setScalar(1.5); ring.position.set(STOCK.spotX, y + 0.01, sz); W.add(ring);
+    slots.push({ spec, key: itemKey(spec), mesh: tier, ring, holder: tier, done: false, spot: new THREE.Vector3(STOCK.spotX, y, sz) });
+  });
+  // 台車（車輪・持ち手）と、上から 順に つんだ 箱
+  const { cartX: cx, cartZ: cz } = STOCK; const CW = 0.5; const CD = 0.62;
+  part(W, box(CW, 0.04, CD), '#3d5a80', cx, 0.22, cz);
+  [-1, 1].forEach((ex) => [-1, 1].forEach((ez) => part(W, cyl(0.045, 0.045, 0.03, 14), '#2b2f33', cx + ex * (CW / 2 - 0.06), 0.145, cz + ez * (CD / 2 - 0.07)).rotation.z = Math.PI / 2));
+  [-1, 1].forEach((ex) => part(W, box(0.025, 0.85, 0.025), '#3d5a80', cx + ex * (CW / 2 - 0.02), 0.65, cz + CD / 2 - 0.02));
+  part(W, box(CW, 0.03, 0.03), '#3d5a80', cx, 1.07, cz + CD / 2 - 0.02);
+  const cartBoxes = def.need.map((k, n) => stockBox(W, '商品' + k, BW, BH, BD, cx, 0.24 + (def.need.length - 1 - n) * (BH + 0.005), cz - 0.06));
+  look.pitch = 0.2; // たなの 下の だんと 台車が 見えるように 少し 下を 向く
+  state.round = { def, slots, pos: 0, lastActionAt: performance.now(), hintShown: false, mistakeThisRound: false, stock: { cartBoxes, next: 0 } };
+  state.feedback = { text: '', kind: '' };
+  drawWorkBoard();
+  renderHud();
+  if (state.withSupport) speak(def.title + '。最初は、' + stepLabel(def.need[0]) + '。');
+}
+// 台車の いちばん 上の 箱を、えらんだ たなの あいている ところへ
+function shelveBox(st, slot) {
+  const obj = st.cartBoxes[st.next++]; if (!obj) return;
+  anims.push({ kind: 'box', obj, from: obj.position.clone(), to: slot.spot.clone(), t0: performance.now() });
 }
 
 // ---- 清掃（客室）：モップかけ・台ふき・ベッドメイキング。作業台は なく、部屋の 中の ものを えらぶ。
@@ -3385,7 +3463,7 @@ function onSelectItem(slotIndex) {
   if (ok) {
     slot.done = true; if (r.def.ordered) r.pos++;
     slot.ring.visible = false; r.hintShown = false;
-    if (r.def.layout === 'picking') { dropIntoBox(slot, r.inBox++); r.paintSlip(); } else if (r.def.layout === 'wallShelf') { putOnShelf(r, slot); } else if (r.onPick) r.onPick(slot, true); else { if (r.clean) cleanStep(r, slot); animateDone(slot); }
+    if (r.def.layout === 'picking') { dropIntoBox(slot, r.inBox++); r.paintSlip(); } else if (r.def.layout === 'wallShelf') { putOnShelf(r, slot); } else if (r.stock) { shelveBox(r.stock, slot); } else if (r.onPick) r.onPick(slot, true); else { if (r.clean) cleanStep(r, slot); animateDone(slot); }
     state.feedback = { text: 'OK！', kind: 'ok' };
     if (remainingKeys().length === 0) return finishRound();
     if (state.withSupport && r.def.ordered) speak('つぎは、' + stepLabel(nextTargetKey()) + '。');
@@ -4271,7 +4349,7 @@ $('btn-season').addEventListener('click', () => setSeason(season === 'winter' ? 
 $('btn-home').addEventListener('click', () => goHome());
 $('btn-settings').addEventListener('click', openSettings);
 window.hopeTown = {
-  state, goBooth, startSession, select: onSelectItem, nextTargetKey, setSeason, startWalk, exitToWalk, walkKeys, rig, booths, goHome, exitHome, goPlaza,
+  state, goBooth, pickVariant, startSession, select: onSelectItem, nextTargetKey, setSeason, startWalk, exitToWalk, walkKeys, rig, booths, goHome, exitHome, goPlaza,
   get profile() { return profile; }, home, FURN, goFurniture, cheatCover() { const r = state.round; if (r && r.cover) { r.cover.surf.clearAll(); coverProgress(r, 1, performance.now()); } }, seasonal, LAKE, toWorld, nearbyActions, openShop, openBadgeBook, openSettings, openAreaPicker,
   // テスト用：オープニングを とばして 家を 用意する
   quickStart(homeKey, mode) { profile = { name: 'テスト', gender: 'n', mode: mode || 'money', home: homeKey || 'downtown', money: 0, badges: {}, owned: [], since: new Date().toISOString() }; saveProfile(); closeModal(); buildHome(); renderWallet(); goPlaza(); },
