@@ -484,6 +484,33 @@ function laptopRound(pool, rightTitle) {
     items, need: checks.concat(['done']), free: checks, ordered: true, hideSteps: true, layout: 'laptop', rows, rightTitle,
   };
 }
+// 図書館：ジャンルごとの 本だな（横に ジャンルの 札）。だんは 上から あ行・か行・さ行・た行、見出し板の あとに 作者の あいうえお順。
+const LIB = {
+  genres: { 'ミステリー': '#2f5f9e', 'ファンタジー': '#8a4fa8' },
+  rows: ['あいうえお', 'かきくけこ', 'さしすせそ', 'たちつてと'],
+  authors: { 'あ': 'あおき', 'い': 'いとう', 'う': 'うえだ', 'え': 'えんどう', 'お': 'おかだ', 'か': 'かとう', 'き': 'きむら', 'く': 'くどう', 'け': 'けやき', 'こ': 'こばやし',
+    'さ': 'さとう', 'し': 'しみず', 'す': 'すずき', 'せ': 'せきぐち', 'そ': 'そのだ', 'た': 'たなか', 'ち': 'ちば', 'つ': 'つじ', 'て': 'てらだ', 'と': 'とみた' },
+  titles: { 'ミステリー': ['きえた たからばこ', 'ふしぎな てがみ', 'よるの としょかん', 'なぞの あしあと', 'ひみつの ちず'], 'ファンタジー': ['ほしの まほうつかい', 'りゅうの たまご', 'くもの うえの くに', 'ひかる もりの なか', 'こびとの ぼうけん'] },
+};
+function libraryRound() {
+  const genre = pick(Object.keys(LIB.genres)); const r = Math.floor(Math.random() * LIB.rows.length); const kana = pick([...LIB.rows[r]]);
+  const title = pick(LIB.titles[genre]); const author = LIB.authors[kana];
+  // たなに もう ある 本（だんごとに 4 さつ。もどす 本の だんは もどす 本の 頭文字を ぬく）
+  const shelf = {};
+  Object.keys(LIB.genres).forEach((g) => { shelf[g] = LIB.rows.map((row, i) => { const ks = [...row]; const drop = g === genre && i === r ? kana : pick(ks); return ks.filter((k) => k !== drop); }); });
+  const k = shelf[genre][r].filter((x) => x < kana).length; // 何ばんめの すきまか
+  const gyo = LIB.rows[r][0] + '行';
+  const before = shelf[genre][r][k - 1]; const after = shelf[genre][r][k];
+  const where = before && after ? '「' + before + '」と 「' + after + '」の あいだに 入れる' : before ? '「' + before + '」の あとに 入れる' : '「' + after + '」の 前に 入れる';
+  const items = [{ label: '', id: 'cart', name: 'ブックトラックの 本を とる' }]
+    .concat(Object.keys(LIB.genres).map((g) => ({ label: '', id: g, name: g + 'の たなへ 行く' })))
+    .concat(LIB.rows.flatMap((row, i) => [0, 1, 2, 3, 4].map((j) => ({ label: '', id: 'gap' + i + '_' + j, row: i, k: j, name: row[0] + '行の ' + (i === r && j === k ? where : (j + 1) + 'ばんめの すきま') }))));
+  return {
+    title: '返ってきた 本を ジャンルの たなへ。作者の あいうえお順に もどす', shortTitle: '本を たなに もどす',
+    carryText: '返ってきた 本：「' + title + '」　作者：' + author + '（' + kana + '）・' + genre,
+    items, need: ['cart', genre, 'gap' + r + '_' + k], ordered: true, layout: 'library', genre, kana, row: r, shelf, title: '返ってきた 本を ジャンルの たなへ。作者の あいうえお順に もどす',
+  };
+}
 // 店員の 動作の 名前。台の 上の 道具には、品名ではなく「何を するか」を 出す。
 //   関数は 品名から 作る（数や 名前が 毎回 かわる もの）、表は 品名ごと。ないものは 品名の まま。
 // カフェ：うしろの 台で つくる ドリンク（夏は コーヒー、冬は あたたかい ドリンク）。need の 順に つくって、最後に お客さまへ。
@@ -645,15 +672,10 @@ JOBS.push(
     round() { return bagRound([['牛乳', 5], ['じゃがいも', 4], ['お茶', 3], ['パン', 2], ['たまご', 1]]); },
   },
   {
-    id: 'school', area: '学校エリア', name: '学校', work: '図書の整理', color: '#9a5b3c', category: '事務',
-    intro: '返ってきた 本を、本の 種類の たな（えほん・ずかん・ものがたり・じしょ）に もどします。', defect: 'ちがう たなに 入れる',
-    round() {
-      const books = { 'えほん': ['はらぺこ くま', 'ねこの おさんぽ'], 'ずかん': ['こんちゅう ずかん', 'さかな ずかん'], 'ものがたり': ['ふしぎな 森の 話', 'うみの ぼうけん'], 'じしょ': ['こくご じしょ', 'かんじ じしょ'] };
-      const colors = { 'えほん': '#e3a33c', 'ずかん': '#4f9a45', 'ものがたり': '#3c7fc4', 'じしょ': '#c8463d' };
-      const shelves = Object.keys(books).map((label) => ({ label, shape: 'bookShelf', color: colors[label] }));
-      const k = pick(Object.keys(books)); const title = pick(books[k]);
-      return { title: '「' + title + '」を たなに もどす', shortTitle: '本を たなに もどす', items: shuffle(shelves), need: [k], ordered: false, carryText: '返ってきた 本：「' + title + '」' };
-    },
+    id: 'school', area: '学校エリア', name: '学校', work: '図書の整理', color: '#9a5b3c', category: '事務', rounds: 3,
+    intro: '返ってきた 本を ブックトラックから とって、本の ジャンルの たなへ 行き、作者の 名前の あいうえお順に なるように もどします。',
+    defect: 'ちがう ジャンルの たな・あいうえお順の まちがい',
+    round() { return libraryRound(); },
   },
   {
     id: 'rice', area: '農村の 北', season: 'summer', name: '田んぼ', work: '田植えの苗受け', color: '#6f9a2e', category: '実務',
@@ -3491,6 +3513,7 @@ function nextRound() {
   if (def.layout === 'orchard') return startOrchard(b, def);
   if (def.layout === 'cafe') return startCafe(b, def);
   if (def.layout === 'care') return startCare(b, def);
+  if (def.layout === 'library') return startLibrary(b, def);
   if (CLEAN_LAYOUTS[def.layout]) return startCleaning(b, def);
   def.items.forEach((spec, idx) => {
     const col = idx % cols; const row = Math.floor(idx / cols);
@@ -3937,6 +3960,112 @@ function startStock(b, def) {
   renderHud();
   if (state.withSupport) speak(def.title + '。最初は、' + stepLabel(def.need[0]) + '。');
 }
+// 図書館（学校）：左に ミステリー、まん中に ファンタジーの 本だな、右に ブックトラック（店員から 見て 左が +x）。
+//   本だなの 中は 店員がわ（-z）が 正面。だんの 左はしに 見出し板（あ・か・さ・た）、その あとに 作者の 頭文字の 順に 本が ならぶ。
+const LIBRARY = { cases: { 'ミステリー': 0.78, 'ファンタジー': -0.62 }, caseZ: 2.75, w: 1.3, d: 0.34, rowY: [1.33, 0.93, 0.53, 0.13], top: 1.75, cart: [-1.2, 2.0], start: 0.55, standGap: 1.25 };
+const LIB_BOOK_COLORS = ['#c8463d', '#3c7fc4', '#e3a33c', '#4f9a45', '#6b4f9e', '#d9824a', '#2f8f8a'];
+// 本（背を 店員がわに 向ける）。背の 下に ラベル（頭文字）、その 上に ジャンルの 色の テープ
+function libBook(kana, genreColor, color) {
+  const g = new THREE.Group(); const BW = 0.07; const BH = 0.3; const BD = 0.22;
+  part(g, box(BW, BH, BD), color, 0, BH / 2, 0);
+  part(g, box(BW + 0.002, 0.02, 0.004), genreColor, 0, 0.12, -BD / 2 - 0.002);
+  const lab = new Board(0.06, 0.06, 1400);
+  lab.draw((c, w, h) => { c.fillStyle = '#ffffff'; c.fillRect(0, 0, w, h); c.strokeStyle = genreColor; c.lineWidth = 6; c.strokeRect(3, 3, w - 6, h - 6); c.fillStyle = '#1f2a33'; c.font = '700 ' + Math.round(h * 0.7) + 'px ' + FONT_BODY; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(kana, w / 2, h * 0.55); });
+  lab.mesh.position.set(0, 0.06, -BD / 2 - 0.004); lab.mesh.rotation.y = Math.PI; g.add(lab.mesh);
+  return g;
+}
+const libGapX = (j) => -0.42 + j * 0.2; // すきまの 位置（本だなの 中。店員から 見て 左→右が -x→ ではなく、本だなの ローカルで 左はしが 正）
+function startLibrary(b, def) {
+  const W = b.workArea; const slots = []; const L = LIBRARY;
+  b.counter.visible = false; // 台の かわりに 本だなと ブックトラック
+  b.panel.position.y = 0.3; b.panelOut = true; // 指示モニターを 本だなより 上へ
+  const toW = (x, z) => b.group.localToWorld(new THREE.Vector3(x, 0, z));
+  const idx = (id) => def.items.findIndex((it) => it.id === id);
+  const addSlot = (id, mesh, holder, ringAt, ringScale) => {
+    const i = idx(id); mesh.traverse((o) => { o.userData.slotIndex = i; });
+    const ring = makeGlowRing(); ring.scale.setScalar(ringScale || 1); ring.position.copy(ringAt); W.add(ring);
+    const sl = { spec: def.items[i], key: itemKey(def.items[i]), mesh, ring, holder, done: false }; slots[i] = sl; return sl;
+  };
+  // 本だな（2 つ）
+  const gaps = {};
+  Object.keys(L.cases).forEach((g) => {
+    const cx = L.cases[g]; const col = LIB.genres[g];
+    const c = new THREE.Group(); c.position.set(cx, 0.1, L.caseZ); W.add(c); // 正面（-z）が 店員がわ
+    const wood = '#9a6b44';
+    part(c, box(L.w, L.top, 0.02), wood, 0, L.top / 2, L.d / 2);                                    // 背板
+    [-1, 1].forEach((sd) => part(c, box(0.03, L.top, L.d), wood, sd * (L.w / 2 - 0.015), L.top / 2, 0)); // 側板
+    L.rowY.concat([L.top - 0.02]).forEach((y) => part(c, box(L.w, 0.025, L.d), wood, 0, y - 0.0125, 0)); // 棚板
+    // ジャンルの 札（店員から 見て 左がわの 上に つき出す。スケッチの とおり）
+    const sign = new Board(0.16, 0.62, 900);
+    sign.draw((ctx, w, h) => { ctx.fillStyle = col; roundRect(ctx, 0, 0, w, h, 20); ctx.fill(); ctx.fillStyle = '#ffffff'; ctx.font = '700 ' + Math.round(Math.min(w * 0.62, h / g.length * 0.85)) + 'px ' + FONT_BODY; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; [...g].forEach((ch, n) => ctx.fillText(ch === 'ー' ? '｜' : ch, w / 2, h * (n + 0.5) / g.length)); });
+    sign.mesh.position.set(L.w / 2 + 0.1, L.top - 0.36, -L.d / 2); sign.mesh.rotation.y = Math.PI; c.add(sign.mesh);
+    // だん：左はしに 見出し板、本は 作者の 頭文字の 順（本だなの ローカル +x が 店員から 見て 左）
+    L.rowY.forEach((y, r) => {
+      const plate = new Board(0.07, 0.22, 900);
+      plate.draw((ctx, w, h) => { ctx.fillStyle = '#fffaf0'; ctx.fillRect(0, 0, w, h); ctx.strokeStyle = col; ctx.lineWidth = 8; ctx.strokeRect(4, 4, w - 8, h - 8); ctx.fillStyle = '#1f2a33'; ctx.font = '700 ' + Math.round(w * 0.75) + 'px ' + FONT_BODY; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(LIB.rows[r][0], w / 2, h * 0.32); ctx.font = '700 ' + Math.round(w * 0.42) + 'px ' + FONT_BODY; ctx.fillText('行', w / 2, h * 0.68); });
+      plate.mesh.position.set(-libGapX(0) + 0.1, y + 0.13, -L.d / 2 + 0.02); plate.mesh.rotation.y = Math.PI; c.add(plate.mesh); // 左はし（店員から 見て）
+      def.shelf[g][r].forEach((kana, n) => {
+        const bk = libBook(kana, col, LIB_BOOK_COLORS[(r * 3 + n + (g === 'ミステリー' ? 0 : 2)) % LIB_BOOK_COLORS.length]);
+        bk.position.set(-(libGapX(n) + 0.1), y, 0.02); c.add(bk);
+      });
+      if (g === def.genre) for (let j = 0; j < 5; j++) {
+        // すきま（えらべる ところ）。本だなを えらぶまで かくす
+        const holder = new THREE.Group(); holder.position.set(-libGapX(j), y, 0); holder.visible = false; c.add(holder);
+        const hit = new THREE.Group(); holder.add(hit);
+        part(hit, box(0.08, 0.3, L.d - 0.04), '#ffe27a', 0, 0.15, 0, { transparent: true, opacity: 0.28, depthWrite: false });
+        const sl = addSlot('gap' + r + '_' + j, hit, holder, new THREE.Vector3(0, 0, 0), 0.7);
+        W.remove(sl.ring); sl.ring.position.set(0, 0.01, -0.05); holder.add(sl.ring);
+        gaps[r + '_' + j] = holder;
+      }
+    });
+    // 本だなを えらぶ 当たり（本だな ぜんたい）
+    const hitAll = new THREE.Group(); c.add(hitAll);
+    part(hitAll, box(L.w, L.top, L.d), '#ffffff', 0, L.top / 2, 0, { transparent: true, opacity: 0.01, depthWrite: false });
+    const sl = addSlot(g, hitAll, c, new THREE.Vector3(cx, 0.12, L.caseZ - L.d / 2 - 0.3), 2.4);
+    sl.case = c; sl.cx = cx;
+  });
+  // ブックトラック（2 だん。本が たって ならぶ。車輪と 持ち手）
+  const [tx, tz] = L.cart; const truck = new THREE.Group(); truck.position.set(tx, 0.1, tz); W.add(truck);
+  const TW = 0.7; const TD = 0.42; const steel = '#8a8f96';
+  [0.18, 0.62].forEach((y) => { part(truck, box(TW, 0.03, TD), '#b98a5a', 0, y, 0); part(truck, box(0.012, 0.012, TD), steel, 0, y + 0.012, 0); });
+  [-1, 1].forEach((sx) => { part(truck, box(0.03, 0.9, TD), '#b98a5a', sx * (TW / 2 - 0.015), 0.5, 0); });
+  [-1, 1].forEach((sx) => [-1, 1].forEach((sz) => part(truck, cyl(0.05, 0.05, 0.03, 14), '#2b2f36', sx * (TW / 2 - 0.08), 0.05, sz * (TD / 2 - 0.06)).rotation.z = Math.PI / 2));
+  part(truck, cyl(0.014, 0.014, 0.75, 8), steel, -TW / 2 - 0.06, 0.95, 0).rotation.x = Math.PI / 2; // 持ち手（かべがわ）
+  [0.2, 0.64].forEach((y, t) => { for (let n = 0; n < 8; n++) { const kana = pick(Object.keys(LIB.authors)); const g = pick(Object.keys(LIB.genres)); const bk = libBook(kana, LIB.genres[g], LIB_BOOK_COLORS[(n + t * 3) % LIB_BOOK_COLORS.length]); bk.position.set(-TW / 2 + 0.08 + n * 0.077, y, 0.06); bk.scale.setScalar(0.9); truck.add(bk); } });
+  // もどす 本（ブックトラックの 上に ねかせて おく）
+  const book = libBook(def.kana, LIB.genres[def.genre], '#e07b39'); book.rotation.z = Math.PI / 2; book.position.set(tx + 0.12, 1.06, tz - 0.05); W.add(book);
+  const bookTag = labelSprite('返ってきた 本を とる', { h: 0.1 }); bookTag.position.set(tx, 1.42, tz); W.add(bookTag);
+  addSlot('cart', book, book, new THREE.Vector3(tx, 1.04, tz), 1.8);
+  // 本だなの 名札（えらぶ ところ）
+  const caseTags = Object.keys(L.cases).map((g) => { const t = labelSprite(g + 'の たなへ', { h: 0.1 }); t.position.set(L.cases[g], L.top + 0.1, L.caseZ - L.d / 2 - 0.05); W.add(t); return t; });
+  const hand = (sx, sz) => new THREE.Vector3(sx - 0.3, 0.98, sz + 0.5); // 右手に 持つ（店員から 見て 右が -x）
+  const r = { def, slots, pos: 0, lastActionAt: performance.now(), hintShown: false, mistakeThisRound: false,
+    onPick(slot, ok) {
+      if (!ok) { flashWrong(slot); return; }
+      const now = performance.now(); const id = slot.spec.id;
+      if (id === 'cart') {
+        bookTag.visible = false; book.rotation.z = 0; book.scale.setScalar(0.75); // 手に 持つ ときは 小さく 見える
+        anims.push({ kind: 'box', obj: book, from: book.position.clone(), to: hand(0, L.start), t0: now }); // 手に 持つ
+      } else if (LIB.genres[id]) {
+        // 本だなの 前へ 行き、すきまを 出す
+        caseTags.forEach((t) => { t.visible = false; });
+        const sz = L.caseZ - L.d / 2 - L.standGap;
+        moveRig(toW(slot.cx, sz), b.yaw + Math.PI, 0.32, 800);
+        anims.push({ kind: 'box', obj: book, from: book.position.clone(), to: hand(slot.cx, sz), t0: now });
+        Object.values(gaps).forEach((h) => { h.visible = true; });
+      } else {
+        // えらんだ すきまへ 本を 入れる
+        const target = slot.holder.getWorldPosition(new THREE.Vector3()); W.worldToLocal(target); target.z += 0.02;
+        book.scale.setScalar(1); anims.push({ kind: 'box', obj: book, from: book.position.clone(), to: target, t0: now });
+        Object.values(gaps).forEach((h) => { h.visible = false; });
+      }
+    } };
+  state.round = r;
+  moveRig(toW(0, L.start), b.yaw + Math.PI, 0.18, state.session.roundIndex ? 800 : undefined); // 本だなと ブックトラックが 見える ところ
+  state.feedback = { text: '', kind: '' };
+  drawWorkBoard(); renderHud();
+  if (state.withSupport) speak(def.title + '。最初は、' + stepLabel(def.need[0]) + '。');
+}
 // 台車の いちばん 上の 箱を、えらんだ たなの あいている ところへ
 function shelveBox(st, slot) {
   const obj = st.cartBoxes[st.next++]; if (!obj) return;
@@ -4220,7 +4349,7 @@ function onSelectItem(slotIndex) {
   } else {
     state.session.defects++; r.mistakeThisRound = true;
     if (r.onPick) r.onPick(slot, false); else flashWrong(slot);
-    const ngText = r.def.layout === 'laptop' ? (slot.key === 'done' ? 'まだ まちがいが のこっています' : 'その 行は 合っています') : r.def.ordered ? 'じゅんばんを たしかめよう' : 'それでは ないかも';
+    const ngText = r.def.layout === 'library' ? (slot.key.startsWith('gap') ? 'あいうえお順を たしかめよう' : LIB.genres[slot.key] ? 'ジャンルの 札を たしかめよう' : 'じゅんばんを たしかめよう') : r.def.layout === 'laptop' ? (slot.key === 'done' ? 'まだ まちがいが のこっています' : 'その 行は 合っています') : r.def.ordered ? 'じゅんばんを たしかめよう' : 'それでは ないかも';
     state.feedback = { text: ngText, kind: 'ng' };
     if (state.withSupport) speak(state.feedback.text);
   }
@@ -4235,7 +4364,7 @@ function finishRound() {
   if (state.withSupport) speak('できました。');
   state.phase = 'between';
   const lay = state.round && state.round.def.layout;
-  const wait = lay === 'wallShelf' || lay === 'cafe' || lay === 'care' ? 1400 : 900; // たなに 入る ところ・お客さまに わたす ところを 見せる
+  const wait = lay === 'wallShelf' || lay === 'cafe' || lay === 'care' || lay === 'library' ? 1400 : 900; // たなに 入る ところ・お客さまに わたす ところを 見せる
   setTimeout(() => {
     if (!state.session || state.session !== s) return;
     if (s.roundIndex >= s.target) showResult(); else nextRound();
