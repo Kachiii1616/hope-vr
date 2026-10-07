@@ -317,19 +317,10 @@ const JOBS = [
     round() { return cafeRound('summer'); },
   },
   {
-    id: 'care', area: '住宅地', name: '介護施設', work: '配膳の手伝い', color: '#c4577a', category: '実務',
-    intro: '名札と 食事の形を たしかめて、おぜんを 運びます。',
-    defect: '食事の形・人の まちがい',
-    round() {
-      const forms = [
-        { label: '普通食', shape: 'mealTray', color: '#f0d9a8' }, { label: 'きざみ食', shape: 'mealTray', color: '#cfe0a8' }, { label: 'おかゆ', shape: 'mealTray', color: '#f6f1e3' },
-      ];
-      const people = [
-        { label: '田中さん', shape: 'resident', color: '#f7c6a3' }, { label: '佐藤さん', shape: 'resident', color: '#bcd8f2' }, { label: '鈴木さん', shape: 'resident', color: '#d6c6ef' },
-      ];
-      const f = pick(forms).label; const p = pick(people).label;
-      return { title: p + '（' + f + '）の おぜんを 運ぶ', shortTitle: 'おぜんを 運ぶ', items: shuffle(forms).concat(shuffle(people)), need: [f, p], ordered: true, carryText: '名札：' + p + '（' + f + '）' };
-    },
+    id: 'care', area: '住宅地', name: '介護施設', work: '配膳の手伝い', color: '#c4577a', category: '実務', rounds: 2,
+    intro: '配膳車の おぜんを 上の だんから 順に とって、おぜんの 名札と 同じ 名前の 席へ 運びます。',
+    defect: '順番・人の まちがい',
+    round() { return careRound('summer'); },
   },
   {
     id: 'office', area: 'IT街', name: '事務所', work: '書類の仕分け', color: '#5a5f9e', category: '事務',
@@ -538,6 +529,24 @@ const CAFE_MIX = {
   '牛乳': (m) => { m.level = Math.min(0.88, m.level + 0.25); m.color = m.base === 'coffee' ? '#a87a52' : m.base === 'cocoa' ? '#9a6a48' : '#f6f6f2'; },
   'さとう': (m) => { m.sugar = true; },
 };
+// 介護施設：配膳車（3 だん）の おぜんを 上の だんから 順に とり、おぜんの 名札と 同じ 名前の 席へ 運ぶ（絵の とおり）。
+//   食卓には 4 人。おぜんは 3 つなので、1 人は まだ 来ない（運ばない）。
+const CARE_PEOPLE = ['田中さん', '佐藤さん', '鈴木さん', '高橋さん'];
+const CARE_TIERS = ['上の だん', 'まん中の だん', '下の だん'];
+const CARE_MENU = {
+  summer: { shape: 'mealTray', forms: [['普通食', '#f0d9a8'], ['きざみ食', '#cfe0a8'], ['おかゆ', '#f6f1e3']] },
+  winter: { shape: 'drinkTray', forms: [['ほうじ茶', '#b07a3c'], ['白湯', '#eef3f4'], ['とろみ茶', '#7f9a3c']] },
+};
+function careRound(when) {
+  const m = CARE_MENU[when]; const eaters = shuffle(CARE_PEOPLE).slice(0, 3); const forms = shuffle(m.forms);
+  const trays = CARE_TIERS.map((label, i) => ({ label, person: eaters[i], form: forms[i][0], shape: m.shape, color: forms[i][1], thick: forms[i][0] === 'とろみ茶' }));
+  const people = CARE_PEOPLE.map((label) => ({ label, shape: 'resident' }));
+  const need = []; trays.forEach((t) => need.push(t.label, t.person));
+  return {
+    title: '配膳車の ' + (when === 'winter' ? '飲み物' : 'おぜん') + 'を 上の だんから 順に、名札の 席へ 運ぶ', shortTitle: (when === 'winter' ? '飲み物' : 'おぜん') + 'を 運ぶ',
+    items: trays.concat(people), need, ordered: true, layout: 'care', seats: shuffle(CARE_PEOPLE),
+  };
+}
 const cafeMix = (keys) => { const m = { level: 0, color: '#ffffff', ice: false }; keys.forEach((k) => { if (CAFE_MIX[k]) CAFE_MIX[k](m); }); return m; };
 const HUT_ACTS = {
   'お皿': 'お皿を とる', 'おわん': 'おわんを とる', 'マグカップ': 'マグカップを とる', 'カレー': 'カレーを かける', '豚汁': '豚汁を よそう',
@@ -557,7 +566,7 @@ const ACTIONS = {
     'カップ': 'カップを とる', '氷': '氷を 入れる', 'コーヒーマシン': 'コーヒーを いれる', 'さとう': 'さとうを 入れる', '牛乳': '牛乳を 入れる',
     'ココア': 'ココアを 入れる', 'レモン': 'レモンを しぼる', 'はちみつ': 'はちみつを 入れる', 'お客さま': 'お客さまに わたす',
   },
-  care: (l) => (/さん$/.test(l) ? l + 'に 運ぶ' : l + 'の おぜんを とる'),
+  care: (l) => (/さん$/.test(l) ? l + 'に 運ぶ' : l.replace('の だん', '') + 'の おぜんを とる'),
   office: (l) => l + 'の トレーに 入れる',
   craft: { 'ふくろ': 'ふくろを 用意する', '中紙': '中紙を 入れる', 'ひも': 'ひもを むすぶ', '検品かご': '検品かごに 入れる', 'ハサミ': 'ハサミで 切る', 'のり': 'のりで はる' },
   fish: (l) => l + 'の 箱に 入れる',
@@ -572,7 +581,6 @@ const ACTIONS = {
 // 季節・お店ごとに 足した 動作（ACTIONS より 先に 見る）
 const EXTRA_ACTS = {
   store: { '包み紙': '包み紙を とる', '肉まん': '肉まんを つつむ', 'あんまん': 'あんまんを つつむ', 'ピザまん': 'ピザまんを つつむ', 'お客さま': 'お客さまに わたす' },
-  care: { 'ほうじ茶': 'ほうじ茶を とる', '白湯': '白湯を とる', 'とろみ茶': 'とろみ茶を とる' },
   craft: { 'わら': 'わらを なう', '紙垂': '紙垂を つける', 'だいだい': 'だいだいを かざる' },
   forest: { '手袋': '手袋を はめる', 'のこぎり': 'のこぎりで 丸太を 切る', 'おの': 'おので 薪を わる', '薪だな': '薪を つむ' },
   wind: { 'ヒーター': 'ヒーターで 氷を とかす' },
@@ -702,15 +710,8 @@ const WINTER = {
     round() { return cafeRound('winter'); },
   },
   care: {
-    work: '温かい飲み物の配ぜん', intro: '名札と 飲み物の 形（とろみ など）を たしかめて、温かい 飲み物を 運びます。', defect: '飲み物の 形・人の まちがい',
-    round() {
-      const forms = [{ label: 'ほうじ茶', shape: 'drinkTray', color: '#b07a3c' }, { label: '白湯', shape: 'drinkTray', color: '#eef3f4' }, { label: 'とろみ茶', shape: 'drinkTray', color: '#7f9a3c', thick: true }];
-      const people = [
-        { label: '田中さん', shape: 'resident', color: '#f7c6a3' }, { label: '佐藤さん', shape: 'resident', color: '#bcd8f2' }, { label: '鈴木さん', shape: 'resident', color: '#d6c6ef' },
-      ];
-      const f = pick(forms).label; const p = pick(people).label;
-      return { title: p + '（' + f + '）に 運ぶ', shortTitle: '飲み物を 運ぶ', items: shuffle(forms).concat(shuffle(people)), need: [f, p], ordered: true, carryText: '名札：' + p + '（' + f + '）' };
-    },
+    work: '温かい飲み物の配ぜん', rounds: 2, intro: '配膳車の 飲み物を 上の だんから 順に とって、名札と 同じ 名前の 席へ 運びます。とろみ などの 形も 名札で たしかめます。', defect: '順番・人の まちがい',
+    round() { return careRound('winter'); },
   },
   office: {
     work: '年賀状の仕分け', intro: '年賀状の あて先の 地域を 見て、正しい トレーに 入れます。', defect: 'ちがう トレーに 入れる',
@@ -795,7 +796,7 @@ const WINTER = {
 // 夏の しごと（もとの 定義）と 冬の しごとを 季節の 切りかえに のせる（山小屋は 自分の variants を 持つ）
 JOBS.forEach((job) => {
   if (job.variants || !WINTER[job.id]) return;
-  job.variants = { summer: [{ work: job.work, intro: job.intro, defect: job.defect, round: job.round }], winter: [WINTER[job.id]] };
+  job.variants = { summer: [{ work: job.work, intro: job.intro, defect: job.defect, round: job.round, rounds: job.rounds }], winter: [WINTER[job.id]] };
 });
 // スーパーの 倉庫整理（夏も 冬も）：台車の 箱を 上から 順に、同じ 記号（A〜D）の たなへ 置く。
 const STOCKROOM = {
@@ -1285,7 +1286,7 @@ JOBS.forEach((job, i) => {
 
   // カウンター（作業台）。店員は 奥の壁と 台の あいだ（STAFF_Z）に 立ち、入口（お客さま）の 方を 向く。
   const counter = new THREE.Mesh(new THREE.BoxGeometry(3.0, 0.9, 0.9), mat('#d9c4a2'));
-  counter.position.set(0, 0.45, COUNTER_Z); if (job.id !== 'clean') g.add(counter);
+  counter.position.set(0, 0.45, COUNTER_Z); if (job.id !== 'clean' && job.id !== 'care') g.add(counter); // 介護施設は 台の かわりに 配膳車と 食卓
 
   // 掲示板（指示）
   const board = new Board(2.4, 1.35, 420);
@@ -2273,6 +2274,49 @@ function deskSet(g, sd, z) {
   part(g, box(0.45, 0.9, 0.45), '#9aa1aa', x, 0.45, z - 0.8); // 書類だな
   [0.2, 0.45, 0.7].forEach((y) => part(g, box(0.01, 0.2, 0.3), '#c9ced4', x - sd * 0.23, y, z - 0.8));
 }
+// 介護施設の 食堂：店員から 見て 左（+x）に 配膳車、右に 食卓。席は 左はし・奥の 2 つ・右はし（絵の A〜D）。
+//   seat：人の 場所と 向き（yaw）、おぜんを 置く ところ（tray）、名札（plate）。
+const CARE = {
+  stand: [0.0, 0.45], pitch: 0.25,
+  cart: { x: 0.72, z: 1.75, w: 0.62, d: 0.46, tiers: [1.2, 0.83, 0.46] },
+  table: { x: -0.75, z: 2.95, w: 1.5, d: 0.8, y: 0.74 },
+  hand: [0.1, 0.98, 1.15],
+  seats: [
+    { at: [0.27, 2.95], yaw: -Math.PI / 2, tray: [-0.18, 2.86], plate: [-0.12, 2.62] },
+    { at: [-0.35, 3.62], yaw: Math.PI, tray: [-0.35, 3.12], plate: [-0.35, 3.31] },
+    { at: [-1.15, 3.62], yaw: Math.PI, tray: [-1.15, 3.12], plate: [-1.15, 3.31] },
+    { at: [-1.77, 2.95], yaw: Math.PI / 2, tray: [-1.32, 2.86], plate: [-1.38, 2.62] },
+  ],
+};
+// いす（yaw の 向きに すわる）
+function careChair(g, x, z, yaw) {
+  const c = new THREE.Group(); c.position.set(x, 0.1, z); c.rotation.y = yaw; g.add(c);
+  part(c, box(0.42, 0.05, 0.42), '#c4577a', 0, 0.36, 0);
+  part(c, box(0.42, 0.42, 0.05), '#c4577a', 0, 0.6, -0.19);
+  [[-0.18, -0.18], [0.18, -0.18], [-0.18, 0.18], [0.18, 0.18]].forEach(([dx, dz]) => part(c, box(0.03, 0.36, 0.03), '#8a6a46', dx, 0.18, dz));
+}
+function careRoom(g) {
+  // 配膳車（前が あいた 3 だんの たな・車輪・持ち手）
+  const { x, z, w, d, tiers } = CARE.cart; const frame = '#d8d4cc';
+  [-1, 1].forEach((sx) => part(g, box(0.03, 1.32, d), frame, x + sx * (w / 2 - 0.015), 0.1 + 0.08 + 0.66, z));
+  part(g, box(w, 1.32, 0.02), frame, x, 0.1 + 0.08 + 0.66, z + d / 2 - 0.01);
+  tiers.concat([1.5]).forEach((y) => part(g, box(w, 0.025, d), '#efece6', x, y, z));
+  part(g, box(w, 0.025, d), '#efece6', x, 0.2, z);
+  part(g, box(w + 0.02, 0.04, 0.03), '#c4577a', x, 1.52, z - d / 2 + 0.01); // ふちの 色
+  [-1, 1].forEach((sx) => [-1, 1].forEach((sz) => part(g, cyl(0.045, 0.045, 0.03, 14), '#3a3a3a', x + sx * (w / 2 - 0.06), 0.145, z + sz * (d / 2 - 0.07)).rotation.z = Math.PI / 2));
+  const bar = part(g, cyl(0.016, 0.016, d - 0.08, 10), '#8a8f96', x + w / 2 + 0.06, 1.15, z); bar.rotation.x = Math.PI / 2; // 持ち手
+  [-1, 1].forEach((sz) => part(g, box(0.06, 0.02, 0.02), '#8a8f96', x + w / 2 + 0.03, 1.15, z + sz * (d / 2 - 0.06)));
+  // 食卓（長い テーブル）と いす
+  const t = CARE.table;
+  part(g, box(t.w, 0.04, t.d), '#f4eadc', t.x, t.y - 0.02, t.z);
+  [-1, 1].forEach((sx) => [-1, 1].forEach((sz) => part(g, box(0.05, t.y - 0.14, 0.05), '#8a6a46', t.x + sx * (t.w / 2 - 0.06), (t.y - 0.04 + 0.1) / 2 + 0.0, t.z + sz * (t.d / 2 - 0.06))));
+  CARE.seats.forEach((st) => {
+    const back = 0.12; careChair(g, st.at[0] - Math.sin(st.yaw) * back, st.at[1] - Math.cos(st.yaw) * back, st.yaw);
+  });
+  // かべの 時計
+  part(g, cyl(0.16, 0.16, 0.03, 24), '#ffffff', -(SHOP_W / 2 - 0.03), 1.9, 1.5).rotation.z = Math.PI / 2;
+  part(g, new THREE.TorusGeometry(0.16, 0.012, 6, 24), '#c4577a', -(SHOP_W / 2 - 0.05), 1.9, 1.5).rotation.y = Math.PI / 2;
+}
 // 手すり（介護施設）
 function handrail(g, sd) {
   const x = sd * (SHOP_W / 2 - 0.06);
@@ -2326,8 +2370,7 @@ function decorateInterior(b) {
     [1.32, 1.18, 1.04].forEach((y) => part(g, box(0.01, 0.025, 0.6), '#f2efe6', -(SHOP_W / 2 - 0.04), y, 2.6));
   } else if (id === 'care') {
     handrail(g, -1); handrail(g, 1);
-    tableSet(g, -1, 1.5, '#f4eadc', '#c4577a');
-    tableSet(g, 1, 1.5, '#f4eadc', '#c4577a');
+    careRoom(g);
   } else if (id === 'office') {
     deskSet(g, -1, 1.7); deskSet(g, 1, 1.7);
   } else if (id === 'farm') {
@@ -3095,6 +3138,80 @@ function startOrchard(b, def) {
   if (state.withSupport) speak(def.title + '。');
 }
 
+// 介護施設：配膳車の おぜんを とり（手もとへ）、名札の 席の 人を えらぶと その 前に 置く
+function careCard(lines, w, h) {
+  const card = new Board(w, h, 1400);
+  card.draw((ctx, cw, ch) => {
+    ctx.fillStyle = '#ffffff'; roundRect(ctx, 0, 0, cw, ch, 14); ctx.fill(); ctx.strokeStyle = '#c4577a'; ctx.lineWidth = 8; roundRect(ctx, 4, 4, cw - 8, ch - 8, 12); ctx.stroke();
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    lines.forEach(([text, size, color], n) => {
+      let px = Math.round(ch * size); ctx.font = '700 ' + px + 'px ' + FONT_BODY;
+      while (px > 12 && ctx.measureText(text).width > cw * 0.88) { px -= 2; ctx.font = '700 ' + px + 'px ' + FONT_BODY; }
+      ctx.fillStyle = color; ctx.fillText(text, cw / 2, ch * (lines.length === 1 ? 0.54 : n ? 0.74 : 0.36));
+    });
+  });
+  return card.mesh;
+}
+function startCare(b, def) {
+  const W = b.workArea; const slots = []; const s = state.session;
+  // 席は 体験の 間 かえない（だれが どこに すわるかは 1 回めで きめる）
+  if (!s.careSeats) s.careSeats = def.seats;
+  const seatOf = (p) => CARE.seats[s.careSeats.indexOf(p)];
+  const { x: cx, z: cz } = CARE.cart; const t = CARE.table;
+  def.items.forEach((spec, idx) => {
+    const holder = new THREE.Group(); W.add(holder);
+    const mesh = new THREE.Group(); holder.add(mesh);
+    let labelPos; let ringScale = 1.6; let ringY = 0.005;
+    if (spec.shape === 'resident') {
+      const st = seatOf(spec.label);
+      const pm = person(['#f7c6a3', '#bcd8f2', '#d6c6ef', '#cfe3b8'][CARE_PEOPLE.indexOf(spec.label)], '#6f6a64', true); pm.scale.setScalar(3.3); mesh.add(pm);
+      holder.position.set(st.at[0], 0.1, st.at[1]); holder.rotation.y = st.yaw;
+      // 席の 名札（店員から 読めるように 手前へ 向ける）
+      const plate = careCard([[spec.label, 0.6, '#1f2a33']], 0.2, 0.07);
+      plate.position.set(st.plate[0], t.y + 0.045, st.plate[1]); plate.rotation.y = Math.PI; plate.rotation.x = 0.25; W.add(plate);
+      holder.userData.plate = plate;
+      labelPos = [0, 1.42, 0]; ringScale = 2.4; ringY = 0.01;
+    } else {
+      const y = CARE.cart.tiers[CARE_TIERS.indexOf(spec.label)] + 0.0125;
+      const tray = SHAPE_MODELS[spec.shape](Object.assign({}, spec, { label: spec.form })); mesh.add(tray);
+      // おぜんの 名札（名前と 食事の 形）。店員がわ（-z）の ふちに 立てる
+      const front = new THREE.Box3().setFromObject(tray).min.z;
+      const card = careCard([[spec.person, 0.46, '#1f2a33'], [spec.form, 0.32, '#c4577a']], 0.2, 0.1);
+      card.position.set(0.02, 0.06, front - 0.006); card.rotation.y = Math.PI; mesh.add(card);
+      holder.position.set(cx, y, cz - 0.02);
+      labelPos = null;
+      const sp = labelSprite(actionText(b.job, spec)); sp.position.set(cx - CARE.cart.w / 2 - 0.24, y + 0.1, cz - 0.3); W.add(sp);
+      holder.userData.label = sp;
+    }
+    mesh.traverse((o) => { o.userData.slotIndex = idx; });
+    const ring = makeGlowRing(); ring.scale.setScalar(ringScale); ring.position.y = ringY; holder.add(ring);
+    if (labelPos) { const sp = labelSprite(actionText(b.job, spec)); sp.position.set(...labelPos); holder.add(sp); holder.userData.label = sp; }
+    if (holder.userData.plate) holder.userData.plate.userData.slotIndex = idx;
+    slots.push({ spec, key: itemKey(spec), mesh, ring, holder, extra: holder.userData.plate, done: false });
+  });
+  let carrying = null;
+  const r = { def, slots, pos: 0, lastActionAt: performance.now(), hintShown: false, mistakeThisRound: false,
+    onPick(slot, ok) {
+      if (!ok) { flashWrong(slot); return; }
+      const h = slot.holder; const now = performance.now();
+      if (slot.spec.shape === 'resident') {
+        if (!carrying) return;
+        const st = seatOf(slot.spec.label); const to = new THREE.Vector3(st.tray[0], t.y, st.tray[1]);
+        anims.push({ kind: 'box', obj: carrying, from: carrying.position.clone(), to, t0: now });
+        carrying = null; h.userData.label.visible = false;
+      } else {
+        h.userData.label.visible = false;
+        anims.push({ kind: 'box', obj: h, from: h.position.clone(), to: new THREE.Vector3(...CARE.hand), t0: now });
+        carrying = h;
+      }
+    } };
+  state.round = r;
+  moveRig(b.group.localToWorld(new THREE.Vector3(CARE.stand[0], 0, CARE.stand[1])), b.yaw + Math.PI, CARE.pitch, s.roundIndex ? 700 : undefined); // 配膳車の 下の だんと 食卓が 見えるように 少し 下を 向く
+  state.feedback = { text: '', kind: '' };
+  drawWorkBoard(); renderHud();
+  if (state.withSupport) speak(def.title + '。最初は、' + stepLabel(def.need[0]) + '。');
+}
+
 // カフェ：うしろの 台で 手順書を 見ながら ドリンクを つくり、ふりかえって 前の 台の お客さまに わたす
 //   左から コーヒーマシン・カップ、右に 材料、手前に 氷の 箱。カップは まん中に 置いて 材料を 入れていく。
 function cafeSheetPaint(sheet, def, doneN) {
@@ -3263,6 +3380,7 @@ function nextRound() {
   if (def.layout === 'paddy') return startPaddy(b, def);
   if (def.layout === 'orchard') return startOrchard(b, def);
   if (def.layout === 'cafe') return startCafe(b, def);
+  if (def.layout === 'care') return startCare(b, def);
   if (CLEAN_LAYOUTS[def.layout]) return startCleaning(b, def);
   def.items.forEach((spec, idx) => {
     const col = idx % cols; const row = Math.floor(idx / cols);
@@ -3853,7 +3971,7 @@ function finishRound() {
   if (state.withSupport) speak('できました。');
   state.phase = 'between';
   const lay = state.round && state.round.def.layout;
-  const wait = lay === 'wallShelf' || lay === 'cafe' ? 1400 : 900; // たなに 入る ところ・お客さまに わたす ところを 見せる
+  const wait = lay === 'wallShelf' || lay === 'cafe' || lay === 'care' ? 1400 : 900; // たなに 入る ところ・お客さまに わたす ところを 見せる
   setTimeout(() => {
     if (!state.session || state.session !== s) return;
     if (s.roundIndex >= s.target) showResult(); else nextRound();
