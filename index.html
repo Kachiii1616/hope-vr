@@ -1031,7 +1031,7 @@ const ISLAND = [
   [110, 320], [130, 270], [200, 210], [300, 150], [380, 115], [430, 110], [480, 130], [520, 170], [560, 190],
   [620, 200], [700, 200], [665, 270], [670, 310], [710, 335], [870, 340], [880, 350], [890, 480], [940, 630],
   [900, 650], [820, 750], [680, 790], [560, 770], [480, 730], [400, 720], [300, 700], [200, 700], [110, 680],
-  [90, 630], [100, 570], [140, 530], [160, 480], [155, 440], [120, 390],
+  [90, 630], [100, 570], [140, 530], [150, 508], [107, 502], [106, 426], [128, 410], [120, 390], // フェリー乗り場は 海へ 広げた 岸壁（港の 広場）
 ];
 
 // お店の場所。near（地図 px）の いちばん 近くを 通る 道に 正面を 向けて、道ぞいに 建てる（向き・場所は 下の placeSites で きめる）。
@@ -1059,6 +1059,8 @@ const SITES = {
   rice: { near: [805, 445] },               // 田んぼの 向かい（夏だけ。田植えの 苗受け）
 };
 const SHOP_SET = 6.2;
+// フェリー乗り場（地図 px）：ターミナル・噴水・とまっている フェリー・入港して おりる ところ・ようこその 門
+const PORT = { terminal: [168, 448], fountain: [148, 464], docked: [78, 488], arrive: [110, 461], gate: [131, 461], ferryTo: [77, 458] };
 
 // 道。漁港 → 山の南 → 学校 → 首都 → 繁華街 が島の目抜き通り。
 const ROAD_W = 2.4;
@@ -1069,7 +1071,7 @@ const ROADS = [
   [[400, 505], [400, 560], [392, 640], [330, 686]],
   [[640, 520], [707, 652], [820, 690]],
   [[742, 425], [800, 470], [860, 560]],
-  [[244, 455], [202, 468]], // 首都 → フェリー乗り場
+  [[244, 455], [202, 468], [166, 464]], // 首都 → フェリー乗り場（港の 広場まで）
   [[503, 541], [503, 735]],                                   // IT街の 通り（目抜き通り → 南の 海）
   [[160, 688], [238, 693], [330, 688]],                       // カフェ → スーパー（南の 海ぞい）
   [[575, 470], [595, 520], [585, 600], [604, 700], [625, 779]], // 川ぞいの 道（山の ふもと → 南の 海まで）
@@ -1426,7 +1428,7 @@ const FURN = { near: [412, 636], W: 5.8, H: 3.4 }; // 中を 歩いて 家具を
 
 // 地域の名前（お店のない地域・目じるし）
 [['ビーチ', [250, 205]], ['カフェの テラス', [195, 660]], ['りんご畑', [745, 700]], ['湖（冬は スケート場）', [265, 592]], ['表：夏山登山　裏：冬スキー', [520, 392]],
-  ['フェリー乗り場（となりの国へ）', [125, 458]]].forEach(([text, at]) => {
+  ['フェリー乗り場（となりの国へ）', [140, 452]]].forEach(([text, at]) => {
   const p = toWorld(...at);
   const s = overviewSign(text, '', '', text.length > 10 ? 11 : text.length > 4 ? 7.5 : 4.5);
   s.position.set(p.x, text.startsWith('表：') ? 26 : 7, p.z); s.lookAt(OVERVIEW.pos);
@@ -1549,13 +1551,59 @@ function tree(x, z, kind) {
   addBox(capitol.x + 0.5, 8.4, capitol.z, 1.0, 0.6, 0.04, '#e0662f');
   block(capitol.x, capitol.z, 6);
   // フェリー乗り場：むかし栄えた港のなごり。となりの国が首都の側（西）にあるので、玄関口として残った。
-  const terminal = toWorld(180, 470);
-  addBox(terminal.x, 1.4, terminal.z, 5, 2.8, 3, '#f4f6f8'); addBox(terminal.x, 2.95, terminal.z, 5.4, 0.3, 3.4, '#2d6fa3');
-  block(terminal.x, terminal.z, 3.2);
-  const pierW = toWorld(122, 470); addBox(pierW.x, -0.05, pierW.z, 7.6, 0.4, 2, '#b8b3a8');
-  const ferry = toWorld(116, 492);
-  addBox(ferry.x, -0.05, ferry.z, 9, 1.0, 2.6, '#f4f4f0'); addBox(ferry.x + 0.8, 0.9, ferry.z, 5, 0.9, 2.2, '#2d6fa3');
-  addCyl(ferry.x - 0.8, 1.8, ferry.z, 0.3, 0.3, 1.0, '#d0453a', 12);
+  //   海へ 広げた 岸壁に 石だたみの 港の 広場。ターミナル・ようこその 門・噴水・花だん・並木・街灯・旗・バス停、沖に 灯台
+  (() => {
+    const P = PORT; const w = (px, py) => toWorld(px, py);
+    block(w(146, 464).x, w(146, 464).z, 7.2, 0); // 広場には 町の ビルや 木を 建てない（歩ける）
+    patch([[107, 502], [106, 426], [128, 411], [180, 424], [188, 500], [150, 508]], '#e6dfd0', 0.06); // 石だたみ
+    patch([[112, 497], [111, 431], [176, 431], [182, 497]], '#ddd4c1', 0.065);
+    // 岸壁（石の かべ）・係船柱・岸の 白い ふち
+    const q0 = w(107, 426); const q1 = w(107, 502); const qx = (q0.x + q1.x) / 2; const qz = (q0.z + q1.z) / 2; const qL = q1.z - q0.z;
+    addBox(qx - 0.15, -0.4, qz, 0.5, 0.9, qL, '#b8b3a8'); addBox(qx + 0.1, 0.075, qz, 0.25, 0.05, qL, '#f4f2ec');
+    for (let k = 0; k < 6; k++) { const z = q0.z + 0.8 + k * (qL - 1.6) / 5; addCyl(qx + 0.25, 0.25, z, 0.12, 0.15, 0.32, '#3d4a54', 10); }
+    // 防波堤と 灯台（港の 入口の 北）
+    const bw0 = w(106, 428); const bw1 = w(80, 412); const bdx = bw1.x - bw0.x; const bdz = bw1.z - bw0.z; const bL = Math.hypot(bdx, bdz);
+    addBox((bw0.x + bw1.x) / 2, -0.05, (bw0.z + bw1.z) / 2, 1.4, 0.5, bL, '#c9c4b8', Math.atan2(bdx, bdz));
+    addCyl(bw1.x, 1.6, bw1.z, 0.45, 0.6, 3.2, '#ffffff', 16); [0.9, 2.2].forEach((y) => addCyl(bw1.x, y, bw1.z, 0.55, 0.55, 0.35, '#d0453a', 16));
+    addCyl(bw1.x, 3.45, bw1.z, 0.42, 0.42, 0.5, '#fff1c2', 16); addCyl(bw1.x, 3.85, bw1.z, 0.05, 0.5, 0.35, '#d0453a', 16);
+    // ターミナル（ガラスの 正面を 海へ。屋根は 青い ひさし）
+    const t = w(P.terminal[0], P.terminal[1]); block(t.x, t.z, 3.4);
+    addBox(t.x + 0.6, 1.5, t.z, 3.6, 3.0, 7.0, '#f4f6f8'); addBox(t.x - 1.21, 1.35, t.z, 0.04, 2.3, 6.4, mat('#bfe3f2', { transparent: true, opacity: 0.8, roughness: 0.1, emissive: '#3d6f85', emissiveIntensity: 0.2 }));
+    for (let k = -3; k <= 3; k++) addBox(t.x - 1.2, 1.35, t.z + k * 1.05, 0.08, 2.3, 0.08, '#d5dbe0');
+    addBox(t.x, 3.15, t.z, 5.2, 0.25, 7.8, '#2d6fa3'); addBox(t.x - 2.2, 2.75, t.z, 0.15, 0.1, 7.6, '#2d6fa3');
+    [-3.4, 3.4].forEach((dz) => addCyl(t.x - 2.2, 1.4, t.z + dz, 0.08, 0.08, 2.8, '#d5dbe0', 8));
+    const ts = new Board(3.6, 0.5, 200); ts.draw((ctx, W, H) => { ctx.fillStyle = '#2d6fa3'; ctx.fillRect(0, 0, W, H); ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = '700 ' + Math.round(H * 0.6) + 'px ' + FONT_DISPLAY; ctx.fillText('フェリーターミナル', W / 2, H * 0.55); });
+    ts.mesh.position.set(t.x - 2.33, 3.15, t.z); ts.mesh.rotation.y = -Math.PI / 2; scene.add(ts.mesh);
+    const clock = addCyl(t.x - 1.24, 2.62, t.z + 2.6, 0.3, 0.3, 0.05, '#ffffff', 24); clock.rotation.z = Math.PI / 2;
+    // 噴水（広場の まん中）
+    const f = w(P.fountain[0], P.fountain[1]); block(f.x, f.z, 1.6);
+    addCyl(f.x, 0.2, f.z, 1.5, 1.6, 0.3, '#d9d2c3', 32); addCyl(f.x, 0.33, f.z, 1.35, 1.35, 0.04, '#7fc4e8', 32);
+    addCyl(f.x, 0.7, f.z, 0.25, 0.35, 0.8, '#d9d2c3', 16); addCyl(f.x, 1.15, f.z, 0.6, 0.6, 0.08, '#d9d2c3', 20); addCyl(f.x, 1.2, f.z, 0.52, 0.52, 0.04, '#7fc4e8', 20);
+    const jet = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.9, 12), mat('#e8f7fd', { transparent: true, opacity: 0.7 })); jet.position.set(f.x, 1.6, f.z); jet.rotation.x = Math.PI; scene.add(jet);
+    // 花だん と 並木（広場の 北と 南の へり）・ベンチ・街灯
+    [431, 497].forEach((py, side) => {
+      for (let px = 120; px <= 170; px += 10) {
+        const c = w(px, py); const flower = ['#e07fa4', '#f2c230', '#d0453a', '#ffffff'][(px / 10 + side) % 4];
+        addBox(c.x, 0.2, c.z, 1.2, 0.3, 0.7, '#b8b3a8'); addBox(c.x, 0.38, c.z, 1.1, 0.06, 0.6, '#5f9a42');
+        for (let k = 0; k < 5; k++) addCyl(c.x - 0.44 + k * 0.22, 0.44, c.z + ((k % 2) - 0.5) * 0.2, 0.07, 0.07, 0.06, flower, 8);
+        if ((px / 10) % 2 === 0) { tree(c.x, c.z + (side ? 1.0 : -1.0)); block(c.x, c.z + (side ? 1.0 : -1.0), 0.7); }
+        else { const lz = c.z + (side ? -0.9 : 0.9); addCyl(c.x, 1.6, lz, 0.05, 0.06, 3.2, '#3d4a54', 8); addCyl(c.x, 3.25, lz, 0.18, 0.18, 0.12, '#3d4a54', 12);
+          const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 8), mat('#fff6d6', { emissive: '#ffe7a3', emissiveIntensity: 0.8 })); bulb.position.set(c.x, 3.08, lz); scene.add(bulb);
+          const bz = c.z + (side ? -1.6 : 1.6); addBox(c.x, 0.42, bz, 1.4, 0.06, 0.45, '#a0784a'); addBox(c.x, 0.68, bz + (side ? -0.2 : 0.2), 1.4, 0.4, 0.06, '#a0784a'); [-0.6, 0.6].forEach((dx) => addBox(c.x + dx, 0.2, bz, 0.06, 0.4, 0.4, '#3d4a54')); }
+      }
+    });
+    // 旗（となりの 国と 島の 旗）
+    [[140, 438, '#e0662f'], [140, 445, '#2d6fa3'], [140, 483, '#4f9a45'], [140, 490, '#f2c230']].forEach(([px, py, c]) => { const q = w(px, py); addCyl(q.x, 2.4, q.z, 0.04, 0.04, 4.8, '#e9ecef', 8); addBox(q.x + 0.02, 4.4, q.z + 0.45, 0.02, 0.6, 0.9, c); });
+    // バス停と タクシー（広場の 東の 出口）
+    const bs = w(176, 490); addCyl(bs.x, 1.1, bs.z, 0.04, 0.04, 2.2, '#3d4a54', 8); addCyl(bs.x, 2.2, bs.z, 0.28, 0.28, 0.05, '#2f7d4f', 20).rotation.x = Math.PI / 2;
+    addBox(bs.x + 1.2, 1.2, bs.z + 0.6, 2.2, 0.06, 1.0, '#2f7d4f'); addBox(bs.x + 1.2, 0.42, bs.z + 0.5, 1.6, 0.06, 0.4, '#a0784a');
+    const tx = w(178, 476); addBox(tx.x, 0.45, tx.z, 1.6, 0.5, 3.2, '#f2c230'); addBox(tx.x, 0.95, tx.z - 0.2, 1.4, 0.5, 1.8, '#f2c230'); addBox(tx.x, 0.98, tx.z - 0.2, 1.42, 0.3, 1.6, '#3d4a54');
+    [-1, 1].forEach((sx) => [-1, 1].forEach((sz) => addCyl(tx.x + sx * 0.75, 0.3, tx.z + sz * 1.0, 0.3, 0.3, 0.2, '#2b2f33', 12).rotation.z = Math.PI / 2)); block(tx.x, tx.z, 1.7);
+    // とまっている フェリー（岸壁の 南）
+    const fe = w(P.docked[0], P.docked[1]);
+    addBox(fe.x, -0.05, fe.z, 9, 1.0, 2.6, '#f4f4f0'); addBox(fe.x + 0.8, 0.9, fe.z, 5, 0.9, 2.2, '#2d6fa3');
+    addCyl(fe.x - 0.8, 1.8, fe.z, 0.3, 0.3, 1.0, '#d0453a', 12);
+  })();
   // 風の丘：北西の季節風がいちばん強く当たる丘に、風車
   const hill = toWorld(150, 368); const HR = 3.6; const HH = 1.6;
   const mound = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 10, 0, Math.PI * 2, 0, Math.PI / 2), cmat('#8fbc6e'));
@@ -3004,7 +3052,7 @@ function homeStand() { return home.group.localToWorld(new THREE.Vector3(0, 0, ho
 // ---- フェリーの 入港（オープニング）と 港の「ようこそ」看板
 const opening = { ferry: null, t0: 0, dur: 6000, from: null, to: null };
 (function buildWelcomeSign() {
-  const p = toWorld(140, 461);
+  const p = toWorld(...PORT.gate); // 岸壁から 広場への 入口の 門（海の 方を 向く）
   const b = new Board(3.6, 1.5, 300);
   b.draw((ctx, W, H) => {
     ctx.fillStyle = '#2d6fa3'; roundRect(ctx, 0, 0, W, H, 34); ctx.fill();
@@ -3013,8 +3061,9 @@ const opening = { ferry: null, t0: 0, dur: 6000, from: null, to: null };
     ctx.font = '700 92px ' + FONT_DISPLAY; ctx.fillText('Work Island へ', W / 2, H * 0.55);
     ctx.font = '400 38px ' + FONT_BODY; ctx.fillText('フェリー乗り場（首都）', W / 2, H * 0.83);
   });
-  b.mesh.position.set(p.x, 2.4, p.z); b.mesh.rotation.y = -Math.PI / 2; scene.add(b.mesh); // 海（西）から 来る 人に 向ける
-  [-1.4, 1.4].forEach((dz) => addCyl(p.x + 0.05, 0.85, p.z + dz, 0.07, 0.07, 1.7, '#2d6fa3', 8));
+  b.mesh.position.set(p.x, 3.05, p.z); b.mesh.rotation.y = -Math.PI / 2; scene.add(b.mesh); // 海（西）から 来る 人に 向ける
+  [-2.1, 2.1].forEach((dz) => { addCyl(p.x + 0.05, 1.9, p.z + dz, 0.16, 0.18, 3.8, '#2d6fa3', 12); addCyl(p.x + 0.05, 3.85, p.z + dz, 0.22, 0.22, 0.12, '#f2c230', 12); }); // 門の 柱
+  addBox(p.x + 0.05, 3.9, p.z, 0.25, 0.18, 4.6, '#2d6fa3');
 })();
 function playFerry() {
   closeModal();
@@ -3025,7 +3074,7 @@ function playFerry() {
     const fun = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 1.0, 12), mat('#d0453a')); fun.position.set(2.2, 1.8, 0); f.add(fun);
     scene.add(f); opening.ferry = f;
   }
-  opening.from = toWorld(-20, 455); opening.to = toWorld(96, 455);
+  opening.from = toWorld(-20, PORT.ferryTo[1]); opening.to = toWorld(...PORT.ferryTo); // 岸壁に 横づけ
   opening.ferry.position.copy(opening.from); opening.ferry.visible = true;
   state.where = 'opening'; tween = null; look.yaw = 0; look.pitch = 0.05;
   overviewOnly.forEach((m) => { m.visible = false; });
@@ -3040,7 +3089,7 @@ function stepOpening(now) {
   if (t >= 1) { opening.t0 = 0; arriveAtPort(); }
 }
 function arriveAtPort() {
-  const p = toWorld(100, 466); rig.position.set(p.x, 0.15, p.z); rig.rotation.y = -Math.PI / 2; look.yaw = 0.1; look.pitch = -0.08;
+  const p = toWorld(...PORT.arrive); rig.position.set(p.x, 0.06, p.z); rig.rotation.y = -Math.PI / 2; look.yaw = 0; look.pitch = -0.04; // 岸壁に おりて、門と 港の 広場を 見る
   toast(profile.name + 'さん、Work Island へ ようこそ！');
   setTimeout(() => openAreaPicker(true), 1600);
 }
