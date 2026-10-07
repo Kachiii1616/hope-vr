@@ -3788,6 +3788,80 @@ const STAGES = {
       '漁村': [0.16, 1.19, 2.42, { model: (sp) => SM.slotBox(sp), lx: 0.55, ly: -0.25 }], '農村': [-0.16, 1.19, 2.42, { model: (sp) => SM.slotBox(sp), lx: -0.55, ly: -0.25 }] },
   },
 };
+// ---- 第 2 弾：山小屋・スキー場・スケート場・屋台 ----------------------------
+Object.assign(SM, {
+  raincoat() { const g = new THREE.Group(); part(g, box(0.3, 0.07, 0.22), '#3c7fc4', 0, 0.035, 0); part(g, box(0.3, 0.01, 0.04), '#2f5f9e', 0, 0.072, 0.05); return g; },
+  light() { const g = new THREE.Group(); const b = part(g, cyl(0.03, 0.03, 0.2, 12), '#f2c230', 0, 0.035, 0); b.rotation.z = Math.PI / 2; const h = part(g, cyl(0.045, 0.03, 0.06, 12), '#3d4a54', 0.12, 0.04, 0); h.rotation.z = Math.PI / 2; return g; },
+  bottle() { const g = new THREE.Group(); part(g, cyl(0.045, 0.045, 0.24, 14), '#c9cdd2', 0, 0.12, 0, { metalness: 0.5, roughness: 0.3 }); part(g, cyl(0.03, 0.03, 0.04, 12), '#3d4a54', 0, 0.26, 0); return g; },
+  map() { const g = new THREE.Group(); part(g, box(0.24, 0.012, 0.32), '#e8f0d8', 0, 0.006, 0); part(g, box(0.12, 0.002, 0.08), '#6fae5e', -0.03, 0.013, -0.05); part(g, box(0.02, 0.002, 0.2), '#3c7fc4', 0.06, 0.013, 0.02); return g; },
+  aid() { const g = new THREE.Group(); part(g, box(0.24, 0.14, 0.16), '#d0453a', 0, 0.07, 0); part(g, box(0.06, 0.02, 0.002), '#ffffff', 0, 0.08, 0.081); part(g, box(0.02, 0.06, 0.002), '#ffffff', 0, 0.08, 0.081); return g; },
+  hat() { const g = new THREE.Group(); part(g, cyl(0.17, 0.17, 0.01, 20), '#d9c49a', 0, 0.005, 0); part(g, cyl(0.09, 0.1, 0.09, 16), '#d9c49a', 0, 0.05, 0); part(g, cyl(0.101, 0.101, 0.02, 16), '#8a6a46', 0, 0.02, 0); return g; },
+  sandals() { const g = new THREE.Group(); [-0.07, 0.07].forEach((x) => { part(g, box(0.1, 0.02, 0.26), '#e07fa4', x, 0.01, 0); part(g, new THREE.TorusGeometry(0.04, 0.008, 6, 12, Math.PI), '#f6b3c9', x, 0.02, 0.03).rotation.y = Math.PI / 2; }); return g; },
+  ring(c) { const g = new THREE.Group(); part(g, new THREE.TorusGeometry(0.2, 0.07, 10, 24), c || '#f39a2b', 0, 0.07, 0).rotation.x = Math.PI / 2; return g; },
+  boot(n) { const g = new THREE.Group(); part(g, box(0.12, 0.08, 0.3), '#2f3b4a', 0, 0.04, 0.02); part(g, box(0.12, 0.26, 0.15), '#2f3b4a', 0, 0.2, -0.05); [0.1, 0.2].forEach((y) => part(g, box(0.13, 0.025, 0.04), '#c9cdd2', 0, y, 0.025)); const t = textPlate(String(n), 0.09, 0.06, '#ffffff', '#1f2a33'); t.position.set(0, 0.3, 0.03); g.add(t); return g; },
+  skiPair(len, c) { const g = new THREE.Group(); [-0.05, 0.05].forEach((x) => { const sk = part(g, box(0.07, len, 0.02), c, x, len / 2, 0); sk.rotation.z = x * 0.6; part(g, box(0.071, 0.06, 0.03), '#2b2b2b', x, len * 0.45, 0.01); }); return g; },
+  skiSlot(spec) { const g = new THREE.Group(); [-1, 1].forEach((sd) => part(g, box(0.04, 1.3, 0.04), '#6b6f75', sd * 0.17, 0.65, -0.08)); part(g, box(0.38, 0.04, 0.25), '#6b6f75', 0, 0.02, 0); part(g, box(0.38, 0.04, 0.06), '#6b6f75', 0, 0.9, -0.08);
+    [-0.06, 0.06].forEach((x) => { const sk = part(g, box(0.07, 1.25, 0.02), spec.color, x, 0.66, 0.02); sk.rotation.x = -0.08; });
+    const t = textPlate(spec.label.replace('の たな', ''), 0.26, 0.11, '#ffffff', '#1f2a33'); t.position.set(0, 1.12, -0.05); g.add(t); return g; },
+  dryer() { const g = new THREE.Group(); part(g, box(0.6, 1.4, 0.4), '#c9ced6', 0, 0.7, 0, { metalness: 0.3, roughness: 0.45 }); part(g, box(0.5, 0.8, 0.01), '#ffb26b', 0, 0.85, 0.205, { emissive: '#ff7a1a', emissiveIntensity: 0.5 });
+    [-0.12, 0.12].forEach((x) => part(g, box(0.1, 0.14, 0.04), '#d0453a', x, 0.9, 0.23)); const t = textPlate('乾燥室', 0.3, 0.09, '#d0453a', '#ffffff'); t.position.set(0, 1.32, 0.205); g.add(t); return g; },
+  returnBox() { const g = new THREE.Group(); part(g, box(0.5, 0.6, 0.35), '#8a8f96', 0, 0.3, 0); part(g, box(0.36, 0.05, 0.01), '#1f2a33', 0, 0.48, 0.176); const t = textPlate('返却口', 0.3, 0.09, '#f2c230', '#1f2a33'); t.position.set(0, 0.3, 0.176); g.add(t); return g; },
+  jacketHang(spec) { const g = new THREE.Group(); const k = { S: 0.8, M: 1, L: 1.2 }[spec.size] || 1; part(g, box(0.3 * k, 0.4 * k, 0.07), spec.color, 0, -0.22 * k, 0); [-1, 1].forEach((sd) => part(g, box(0.02, 0.4 * k, 0.075), '#1f2a33', sd * 0.06 * k, -0.22 * k, 0));
+    part(g, cyl(0.004, 0.004, 0.06, 4), '#8a8f96', 0, -0.01, 0); const t = textPlate(spec.size, 0.08, 0.08, '#ffffff', '#1f2a33'); t.position.set(0, -0.12 * k, 0.04); g.add(t); return g; },
+  oar() { const g = new THREE.Group(); part(g, cyl(0.02, 0.02, 1.3, 8), '#8a6a46', 0, 0.65, 0); part(g, box(0.16, 0.36, 0.03), '#a8865a', 0, 0.18, 0); return g; },
+  key() { const g = ITEM_MODELS['ボートの かぎ'](); g.scale.setScalar(2.2); const t = textPlate('ボート', 0.1, 0.04, '#e3b23c', '#1f2a33'); t.rotation.x = -Math.PI / 2; t.position.set(0, 0.016, 0.01); g.add(t); return g; },
+  skateCubby(spec) { const g = SHAPE_MODELS.skate(spec); g.scale.setScalar(1.6); const t = textPlate(spec.label.replace('スケートぐつ ', ''), 0.1, 0.06, '#ffffff', '#1f2a33'); t.position.set(0, 0.3, 0.06); g.add(t); return g; },
+  guest(c) { const g = person(c || '#c4577a', '#3d4a54'); part(g, ball(0.006, 8, 6), '#2b2b2b', -0.018, 0.31, 0.047); part(g, ball(0.006, 8, 6), '#2b2b2b', 0.018, 0.31, 0.047); g.scale.setScalar(4.6); return g; },
+});
+// 受付の 台の 上の 2 だんの たな
+function counterRack(W, color) { part(W, box(2.3, 0.03, 0.34), color || '#8a6a46', 0, 1.19, 2.45); [-1.12, 0, 1.12].forEach((x) => part(W, box(0.04, 0.29, 0.34), color || '#8a6a46', x, 1.05, 2.45)); }
+const GUEST = (c) => [-0.75, 0.1, 3.45, { model: () => SM.guest(c), ly: 0.05, ry: -0.3 }]; // 台の 向こうの 右よりに 立つ（道具と 指示を かくさない）
+Object.assign(STAGES, {
+  // 山小屋（夏）：木の 受付。台の 上の たなと 台の 手前に 登山の 持ち物。台の 向こうに 登山客
+  '登山の受付': { counter: '#8a6a46', stand: [0, 0.75], pitch: 0.24, decor(W) { counterRack(W); },
+    spots: { '雨具': [0.82, 1.21, 2.45, { model: () => SM.raincoat() }], 'ライト': [0.28, 1.21, 2.45, { model: () => SM.light() }], '水筒': [-0.28, 1.21, 2.45, { model: () => SM.bottle() }], '救急セット': [-0.82, 1.21, 2.45, { model: () => SM.aid() }],
+      '地図': [0.8, 0.906, 2.02, { model: () => SM.map() }], '帽子': [0.28, 0.906, 2.02, { model: () => SM.hat() }], 'サンダル': [-0.28, 0.906, 2.02, { model: () => SM.sandals() }], '浮き輪': [-0.8, 0.906, 2.02, { model: () => SM.ring() }] } },
+  // 山小屋（冬）：リフト券の 受付。台の まん中の 券の 箱（2 × 2）
+  'リフト券の受付': { counter: '#8a6a46', stand: [0, 0.9], pitch: 0.38,
+    decor(W) { part(W, box(0.9, 0.03, 0.5), '#6b4a2a', 0, 0.915, 2.2); part(W, box(0.02, 0.06, 0.5), '#6b4a2a', 0, 0.94, 2.2); part(W, box(0.9, 0.06, 0.02), '#6b4a2a', 0, 0.94, 2.2); part(W, box(0.18, 0.12, 0.14), '#2b2f36', -0.85, 0.96, 2.1); },
+    byIndex: [[0.22, 0.93, 2.08, { s: 1.5 }], [-0.22, 0.93, 2.08, { s: 1.5 }], [0.22, 0.93, 2.32, { s: 1.5, ly: 0.08 }], [-0.22, 0.93, 2.32, { s: 1.5, ly: 0.08 }]] },
+  // 山小屋（冬）：ロッジの 台所。左に 器、まん中の コンロに なべ、右に スプーン・はし。台の 向こうに お客さま
+  'ロッジの食事': { counter: '#c9ced6', stand: [0, 0.85], pitch: 0.32,
+    decor(W) { part(W, box(1.3, 0.04, 0.4), '#3d4a54', 0, 0.92, 2.45); [-0.42, 0, 0.42].forEach((x) => part(W, new THREE.TorusGeometry(0.09, 0.012, 6, 16), '#ff7a3a', x, 0.945, 2.45, { emissive: '#ff5a1a', emissiveIntensity: 0.5 }).rotation.x = Math.PI / 2); part(W, cyl(0.05, 0.05, 0.12, 12), '#c9cdd2', -0.95, 0.96, 2.05); },
+    spots: { 'お皿': [0.95, 0.906, 2.05, { s: 1.6 }], 'おわん': [0.65, 0.906, 2.05, { s: 1.6 }], 'マグカップ': [0.38, 0.906, 2.05, { s: 1.6 }], 'カレー': [0.42, 0.94, 2.45, { s: 1.6 }], '豚汁': [0, 0.94, 2.45, { s: 1.6 }], 'ココア': [-0.42, 0.94, 2.45, { s: 1.6 }],
+      'スプーン': [-0.45, 0.906, 2.02, { s: 1.6 }], 'はし': [-0.75, 0.906, 2.02, { s: 1.6 }], 'お客さま': GUEST('#d0453a') } },
+  // 山小屋（冬）：スキーの 預かり。台は なし。奥に 番号の 板たな、左に 乾燥室、右に 返却口
+  'スキーの預かり': { counter: false, stand: [0, 0.6], pitch: 0.1,
+    decor(W) { part(W, box(SHOP_W - 0.1, 0.004, 3.4), '#9aa4ab', 0, 0.104, 2.4); },
+    spots: { '乾燥室': [1.35, 0.1, 2.35, { model: () => SM.dryer() }], '返却口': [-1.35, 0.1, 2.0, { model: () => SM.returnBox() }] },
+    byKey: (spec) => (/番の たな$/.test(spec.label) ? 'rack' : null), rack: [[0.5, 0.1, 2.75], [0, 0.1, 2.75], [-0.5, 0.1, 2.75]], rackModel: (spec) => SM.skiSlot(spec) },
+  // スキー場（冬）：レンタルの 受付。左の たなに ブーツ（サイズの 札）、右に 板たて（短い・長い）
+  'レンタル受付': { counter: '#8a6a46', stand: [0, 0.8], pitch: 0.24, decor(W) { counterRack(W, '#6b6f75'); part(W, box(0.6, 0.05, 0.3), '#8a6a46', -0.7, 0.13, 2.95); },
+    spots: { 'ブーツ 23': [0.85, 0.906, 2.25, { model: () => SM.boot(23) }], 'ブーツ 25': [0.5, 0.906, 2.25, { model: () => SM.boot(25) }], 'ブーツ 27': [0.15, 0.906, 2.25, { model: () => SM.boot(27) }],
+      '短い板': [-0.45, 0.906, 2.3, { model: () => SM.skiPair(0.75, '#e0662f') }], '長い板': [-0.85, 0.906, 2.3, { model: () => SM.skiPair(1.0, '#3c7fc4'), ly: 0.02 }] } },
+  // スケート場（夏）：ボートの 受付。奥の さおに ライフジャケット（S・M・L）、台に かぎ、右に オールと 浮き輪
+  'ボートの受付': { counter: '#4f8fa8', stand: [0, 0.8], pitch: 0.2,
+    decor(W) { part(W, cyl(0.015, 0.015, 1.4, 8), '#8a8f96', 0.45, 1.5, 2.6).rotation.z = Math.PI / 2; [-0.2, 1.1].forEach((x) => part(W, box(0.04, 1.4, 0.04), '#8a8f96', x, 0.8, 2.6)); },
+    spots: { 'ライフジャケット S': [0.9, 1.48, 2.6, { model: (sp) => SM.jacketHang(sp), ly: -0.12 }], 'ライフジャケット M': [0.45, 1.48, 2.6, { model: (sp) => SM.jacketHang(sp), ly: -0.12 }], 'ライフジャケット L': [0.0, 1.48, 2.6, { model: (sp) => SM.jacketHang(sp), ly: -0.12 }],
+      'ボートの かぎ': [0.3, 0.906, 2.0, { model: () => SM.key() }], 'オール': [-0.7, 0.906, 2.4, { model: () => SM.oar() }], '浮き輪': [-0.3, 0.906, 2.05, { model: () => SM.ring('#f39a2b') }] } },
+  // スケート場（冬）：スケートの 受付。台の 上の たなに スケートぐつ（サイズの 札）、手前に ヘルメット・手袋・マフラー
+  'スケートの受付': { counter: '#3a87b5', stand: [0, 0.8], pitch: 0.26, decor(W) { counterRack(W, '#c9ced6'); },
+    spots: { 'スケートぐつ 20': [0.85, 1.21, 2.45, { model: (sp) => SM.skateCubby(sp) }], 'スケートぐつ 22': [0.3, 1.21, 2.45, { model: (sp) => SM.skateCubby(sp) }], 'スケートぐつ 24': [-0.3, 1.21, 2.45, { model: (sp) => SM.skateCubby(sp) }], 'スケートぐつ 26': [-0.85, 1.21, 2.45, { model: (sp) => SM.skateCubby(sp) }],
+      'ヘルメット': [0.6, 0.906, 2.02, { model: () => SM.helmet() }], '手袋': [0, 0.906, 2.02, { model: () => SM.gloves() }], 'マフラー': [-0.6, 0.906, 2.02, { s: 2 }] } },
+  // 屋台（夏）：紅白の のれんの 屋台。左に カップ、まん中に かき氷器、右に シロップ。台の 向こうに お客さま
+  'かき氷づくり': { counter: '#c98f5a', stand: [0, 0.85], pitch: 0.3, decor(W) { yataiFrame(W); },
+    spots: { 'かき氷の カップ': [0.9, 0.906, 2.05, { s: 1.6 }], 'かき氷器': [0.35, 0.906, 2.2, { s: 1.8 }], 'いちご シロップ': [-0.2, 0.906, 2.3, { s: 1.4 }], 'メロン シロップ': [-0.45, 0.906, 2.3, { s: 1.4, ly: 0.1 }], 'レモン シロップ': [-0.7, 0.906, 2.3, { s: 1.4 }],
+      'スプーン': [-0.95, 0.906, 2.0, { s: 1.6 }], 'お客さま': GUEST('#3c7fc4') } },
+  // 屋台（冬）：左に 紙袋と 焼きいもの 石がま、まん中に 甘酒、右に おしるこ
+  '焼きいも・甘酒': { counter: '#c98f5a', stand: [0, 0.85], pitch: 0.3, decor(W) { yataiFrame(W); part(W, box(0.5, 0.06, 0.35), '#5a5f66', 0.6, 0.93, 2.35); for (let i = 0; i < 12; i++) part(W, ball(0.035, 8, 6), '#8a8f96', 0.42 + (i % 4) * 0.12, 0.97, 2.25 + Math.floor(i / 4) * 0.1); },
+    spots: { '紙袋': [1.0, 0.906, 2.0, { s: 1.6 }], '焼きいも': [0.6, 0.99, 2.35, { s: 1.6 }], '紙コップ': [0.15, 0.906, 2.0, { s: 1.6 }], '甘酒': [0, 0.906, 2.4, { s: 1.6 }], 'おわん': [-0.45, 0.906, 2.0, { s: 1.6 }], 'おしるこ': [-0.6, 0.906, 2.4, { s: 1.6 }], 'お客さま': GUEST('#3c7fc4') } },
+});
+// 屋台の やね（紅白の のれん）と ちょうちん
+function yataiFrame(W) {
+  [-1.45, 1.45].forEach((x) => part(W, box(0.08, 1.8, 0.08), '#8a6a46', x, 1.0, 2.65));
+  for (let i = 0; i < 10; i++) part(W, box(0.29, 0.3, 0.02), i % 2 ? '#ffffff' : '#c9302c', -1.305 + i * 0.29, 1.78, 2.66);
+  [-1.1, 1.1].forEach((x) => part(W, ball(0.12, 12, 10), '#e0503a', x, 1.5, 2.6, { emissive: '#ff7a3a', emissiveIntensity: 0.4 }));
+}
 STAGES['しめ飾りづくり'] = Object.assign({}, STAGES['お守りづくり'], {
   spots: { 'わら': [0.55, 0.915, 2.42, { s: 1.6 }], 'ひも': [0.15, 0.915, 2.42, { s: 1.6 }], '紙垂': [-0.25, 0.915, 2.42, { s: 1.6 }], 'だいだい': [-0.62, 0.906, 2.42, { s: 1.5, ly: 0.1 }],
     'ハサミ': [-0.15, 0.906, 1.98, { s: 1.6, ly: 0.05 }], 'のり': [-0.45, 0.906, 2.02, { s: 1.5 }], '検品かご': [-1.0, 0.906, 2.25, { s: 1.5, ly: 0.12 }] },
@@ -3813,7 +3887,8 @@ function startStage(b, def, st) {
   if (st.counter) b.counter.material.color.set(st.counter);
   if (st.decor) st.decor(W, def);
   def.items.forEach((spec, idx) => {
-    const sp = st.byIndex ? st.byIndex[idx] : st.spots[spec.label];
+    let sp = st.byIndex ? st.byIndex[idx] : st.spots[spec.label];
+    if (!sp && st.byKey && st.byKey(spec) === 'rack') { const k = def.items.filter((it) => st.byKey(it) === 'rack').indexOf(spec); sp = st.rack[k].concat([{ model: st.rackModel }]); }
     const [x, y, z, o] = sp ? [sp[0], sp[1], sp[2], sp[3] || {}] : [-1 + idx * 0.3, 0.9, COUNTER_Z, {}];
     const holder = new THREE.Group(); holder.position.set(x, y, z); holder.rotation.y = Math.PI + (o.ry || 0);
     const mk = o.model || st.model;
