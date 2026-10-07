@@ -2978,8 +2978,8 @@ booths.forEach((b) => {
   if (!guests) return;
   guests.forEach((c, k) => {
     const p = person(c, '#3d4a54'); p.scale.setScalar(4.6); p.rotation.y = Math.PI; (b.guests = b.guests || []).push(p);
-    p.position.set((k ? 1.35 : -1.3), 0.1, COUNTER_Z + 2.0 + k * 0.3); b.group.add(p); // 台と モニターを かくさない よう はしに
-    if (b.job.id === 'store') p.position.set(k ? 0.75 : -0.7, 0.1, SHOP_DEPTH - 0.35); // コンビニは 両がわが たなの 売り場なので 入口の そばに
+    p.position.set((k ? 1.35 : -1.3), 0.1, SHOP_DEPTH - 0.6 - k * 0.25); b.group.add(p); // 台と モニターを かくさない よう はしに。入口の 壁（z=SHOP_DEPTH）に めりこまない よう 体の はば（約 0.3）より 内がわ
+    if (b.job.id === 'store') p.position.set(k ? 0.75 : -0.7, 0.1, SHOP_DEPTH - 0.45); // コンビニは 両がわが たなの 売り場なので 入口の そばに
   });
 });
 
