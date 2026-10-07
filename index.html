@@ -998,10 +998,10 @@ function makeButton(text, color, w, h) {
 
 // ===========================================================================
 // 島：手描きの地図「Work Island」を写して建てる
-//   地図は 960×830 の方眼（px）で持つ。上が北（-z）、x は東、y は南。1 px = 0.12 m。
+//   地図は 960×830 の方眼（px）で持つ。上が北（-z）、x は東、y は南。1 px = 0.16 m（湖の スケート場に カフェが めりこまないよう 0.12 から 広げた）。
 //   地域ごとに、その土地らしい仕事のお店を置く（SITES）。
 // ===========================================================================
-const MAP_SCALE = 0.12;
+const MAP_SCALE = 0.16;
 const MAP_ORIGIN = [515, 450];
 const toWorld = (px, py) => new THREE.Vector3((px - MAP_ORIGIN[0]) * MAP_SCALE, 0, (py - MAP_ORIGIN[1]) * MAP_SCALE);
 const toMap = (x, z) => [x / MAP_SCALE + MAP_ORIGIN[0], z / MAP_SCALE + MAP_ORIGIN[1]];
@@ -1070,7 +1070,7 @@ const RIVERS = [
 // ビーチ（北西の 海岸。夏は 泳いだり 日向ぼっこ したり できる）
 const BEACH = [[110, 320], [130, 270], [200, 210], [300, 150], [380, 115], [430, 110], [432, 150], [380, 162], [300, 196], [230, 250], [170, 300], [150, 350]];
 // 湖（冬は スケート場）。楕円の 半径は m
-const LAKE = { at: [265, 592], rx: 40 * 0.12, rz: 36 * 0.12, blk: null };
+const LAKE = { at: [265, 592], rx: 40 * MAP_SCALE, rz: 36 * MAP_SCALE, blk: null };
 // 島の上の場所が空いているか（建物・木を散らすときに使う）
 const blocked = []; // { x, z, r }（m）
 const FIELDS = {}; // 外で する 農作業の 場所（paddy＝田んぼ、orchard＝りんご畑、tomato＝トマトの ハウス）
@@ -1211,8 +1211,8 @@ function addCyl(x, y, z, rt, rb, h, color, seg) {
       FIELDS.paddy = { g, work, planted, yaw: -a, rows: [-1.7, -1.1, -0.5] }; // まん中の あぜ（z=0）を よけて 片がわの 田に。奥の 列から 植えて、うしろへ さがる
     }
   });
-  // 湖：町の 家や 木は 5.8m よけるが、歩く ときは 季節で かわる（夏は 岸まで、冬は 氷の 上も 歩ける）
-  LAKE.blk = (() => { const p = toWorld(...LAKE.at); return { x: p.x, z: p.z, r: 5.8, w: 3.6 }; })(); blocked.push(LAKE.blk);
+  // 湖：町の 家や 木は さくの 外まで よけるが、歩く ときは 季節で かわる（夏は 岸まで、冬は 氷の 上も 歩ける）
+  LAKE.blk = (() => { const p = toWorld(...LAKE.at); return { x: p.x, z: p.z, r: LAKE.rx + 1.5, w: LAKE.rz * 0.83 }; })(); LAKE.walkW = LAKE.blk.w; blocked.push(LAKE.blk);
   // 川（道より下に描き、交わるところは橋の欄干を立てる）
   riverSegs.forEach(([a, b, w], k) => {
     const m = new THREE.Mesh(new THREE.PlaneGeometry(w, a.distanceTo(b)), cmat('#5aa7d1'));
@@ -1245,7 +1245,7 @@ function addCyl(x, y, z, rt, rb, h, color, seg) {
 const booths = [];
 const plazaClickables = [];
 const overviewOnly = []; // 島ぜんたいを見ているときだけ出す（目印の旗・地域の名前）
-const OVERVIEW = { pos: new THREE.Vector3(0, 40, 60), yaw: 0, pitch: 0.62 };
+const OVERVIEW = { pos: new THREE.Vector3(0, 53, 80), yaw: 0, pitch: 0.62 }; // 島ぜんたいが 入る 高さ（島の 大きさに あわせる）
 
 function overviewSign(text, sub, color, w) {
   const b = new Board(w || 6, (w || 6) / 3, 120);
@@ -2625,7 +2625,7 @@ booths.forEach((b) => {
 });
 // 冬の 湖は スケート場（さくと すべる 人。冬だけ 出す）
 (function buildRink() {
-  const c = toWorld(265, 592); const RX = 40 * MAP_SCALE; const RZ = 36 * MAP_SCALE;
+  const c = toWorld(...LAKE.at); const RX = LAKE.rx; const RZ = LAKE.rz;
   const rink = new THREE.Group(); rink.position.set(c.x, 0, c.z); rink.visible = false; scene.add(rink);
   for (let k = 0; k < 36; k++) {
     const a = (k / 36) * Math.PI * 2;
@@ -3282,7 +3282,7 @@ function applySeason() {
   booths.forEach(applyRoomMode);
   booths.forEach((b) => { if (!b.job.variants) return; b.paintSign(signWorkOf(b.job)); b.pin.userData.repaint(b.job.name + '・' + signWorkOf(b.job)); });
   if (seasonal.rink) seasonal.rink.visible = winter;
-  if (LAKE.blk) LAKE.blk.w = winter ? 0 : 3.6; // 冬は 氷の 上を 歩ける（すべる）
+  if (LAKE.blk) LAKE.blk.w = winter ? 0 : LAKE.walkW; // 冬は 氷の 上を 歩ける（すべる）
   matCache.forEach((m, color) => { if (SNOW_TINT[color]) m.color.set(winter ? SNOW_TINT[color] : color); });
   scene.background.set(SKY[season]); scene.fog.color.set(SKY[season]);
   mmBase = null; // 右上の 地図も 冬の 色に
