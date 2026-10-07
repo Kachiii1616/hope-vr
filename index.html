@@ -549,15 +549,15 @@ const CAFE_MIX = {
   'さとう': (m) => { m.sugar = true; },
 };
 // 介護施設：配膳車（3 だん）の おぜんを 上の だんから 順に とり、おぜんの 名札と 同じ 名前の 席へ 運ぶ（絵の とおり）。
-//   食卓には 4 人。おぜんは 3 つなので、1 人は まだ 来ない（運ばない）。
+//   食卓には 4 人。配膳車は 4 だんで、1 回で 4 人 ぜんいんの おぜんを 運ぶ。
 const CARE_PEOPLE = ['田中さん', '佐藤さん', '鈴木さん', '高橋さん'];
-const CARE_TIERS = ['上の だん', 'まん中の だん', '下の だん'];
+const CARE_TIERS = ['上の だん', '2だんめ', '3だんめ', '下の だん'];
 const CARE_MENU = {
   summer: { shape: 'mealTray', forms: [['普通食', '#f0d9a8'], ['きざみ食', '#cfe0a8'], ['おかゆ', '#f6f1e3']] },
   winter: { shape: 'drinkTray', forms: [['ほうじ茶', '#b07a3c'], ['白湯', '#eef3f4'], ['とろみ茶', '#7f9a3c']] },
 };
 function careRound(when) {
-  const m = CARE_MENU[when]; const eaters = shuffle(CARE_PEOPLE).slice(0, 3); const forms = shuffle(m.forms);
+  const m = CARE_MENU[when]; const eaters = shuffle(CARE_PEOPLE); const forms = shuffle(m.forms.concat([pick(m.forms)])); // 食事の 形は 3 しゅるい（1 つは 2 人）
   const trays = CARE_TIERS.map((label, i) => ({ label, person: eaters[i], form: forms[i][0], shape: m.shape, color: forms[i][1], thick: forms[i][0] === 'とろみ茶' }));
   const people = CARE_PEOPLE.map((label) => ({ label, shape: 'resident' }));
   const need = []; trays.forEach((t) => need.push(t.label, t.person));
@@ -2305,8 +2305,8 @@ function deskSet(g, sd, z) {
 // 介護施設の 食堂：店員から 見て 左（+x）に 配膳車、右に 食卓。席は 左はし・奥の 2 つ・右はし（絵の A〜D）。
 //   seat：人の 場所と 向き（yaw）、おぜんを 置く ところ（tray）、名札（plate）。
 const CARE = {
-  stand: [0.0, 0.45], pitch: 0.25,
-  cart: { x: 0.72, z: 1.75, w: 0.62, d: 0.46, tiers: [1.2, 0.83, 0.46] },
+  stand: [0.0, 0.45], pitch: 0.3,
+  cart: { x: 0.72, z: 1.75, w: 0.62, d: 0.46, tiers: [1.28, 1.0, 0.72, 0.44] },
   table: { x: -0.75, z: 2.95, w: 1.5, d: 0.8, y: 0.74 },
   hand: [0.1, 0.98, 1.15],
   seats: [
@@ -2328,8 +2328,7 @@ function careRoom(g) {
   const { x, z, w, d, tiers } = CARE.cart; const frame = '#d8d4cc';
   [-1, 1].forEach((sx) => part(g, box(0.03, 1.32, d), frame, x + sx * (w / 2 - 0.015), 0.1 + 0.08 + 0.66, z));
   part(g, box(w, 1.32, 0.02), frame, x, 0.1 + 0.08 + 0.66, z + d / 2 - 0.01);
-  tiers.concat([1.5]).forEach((y) => part(g, box(w, 0.025, d), '#efece6', x, y, z));
-  part(g, box(w, 0.025, d), '#efece6', x, 0.2, z);
+  tiers.concat([1.5, 0.2]).forEach((y) => part(g, box(w, 0.025, d), '#efece6', x, y, z)); // 4 だん＋天板＋いちばん下の 板
   part(g, box(w + 0.02, 0.04, 0.03), '#c4577a', x, 1.52, z - d / 2 + 0.01); // ふちの 色
   [-1, 1].forEach((sx) => [-1, 1].forEach((sz) => part(g, cyl(0.045, 0.045, 0.03, 14), '#3a3a3a', x + sx * (w / 2 - 0.06), 0.145, z + sz * (d / 2 - 0.07)).rotation.z = Math.PI / 2));
   const bar = part(g, cyl(0.016, 0.016, d - 0.08, 10), '#8a8f96', x + w / 2 + 0.06, 1.15, z); bar.rotation.x = Math.PI / 2; // 持ち手
