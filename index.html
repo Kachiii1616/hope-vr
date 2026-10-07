@@ -3856,6 +3856,52 @@ Object.assign(STAGES, {
   '焼きいも・甘酒': { counter: '#c98f5a', stand: [0, 0.85], pitch: 0.3, decor(W) { yataiFrame(W); part(W, box(0.5, 0.06, 0.35), '#5a5f66', 0.6, 0.93, 2.35); for (let i = 0; i < 12; i++) part(W, ball(0.035, 8, 6), '#8a8f96', 0.42 + (i % 4) * 0.12, 0.97, 2.25 + Math.floor(i / 4) * 0.1); },
     spots: { '紙袋': [1.0, 0.906, 2.0, { s: 1.6 }], '焼きいも': [0.6, 0.99, 2.35, { s: 1.6 }], '紙コップ': [0.15, 0.906, 2.0, { s: 1.6 }], '甘酒': [0, 0.906, 2.4, { s: 1.6 }], 'おわん': [-0.45, 0.906, 2.0, { s: 1.6 }], 'おしるこ': [-0.6, 0.906, 2.4, { s: 1.6 }], 'お客さま': GUEST('#3c7fc4') } },
 });
+// ---- 第 3 弾：スーパーの 袋づめ・風力発電所・書き初め・田んぼの 苗受け --------------
+Object.assign(SM, {
+  bag() { const g = new THREE.Group(); part(g, box(0.36, 0.42, 0.22), '#f4f6f8', 0, 0.21, 0, { transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false }); [-0.1, 0.1].forEach((x) => part(g, new THREE.TorusGeometry(0.05, 0.008, 6, 14, Math.PI), '#f4f6f8', x, 0.42, 0)); return g; },
+  harness() { const g = new THREE.Group(); [-0.06, 0.06].forEach((x) => part(g, box(0.04, 0.5, 0.02), '#e0662f', x, 0.25, 0)); part(g, box(0.3, 0.05, 0.02), '#e0662f', 0, 0.12, 0); part(g, new THREE.TorusGeometry(0.03, 0.008, 6, 12), '#8a8f96', 0, 0.42, 0.02); return g; },
+  switchPanel() { const g = new THREE.Group(); part(g, box(0.5, 0.6, 0.12), '#c9ced6', 0, 0.3, 0, { metalness: 0.3, roughness: 0.4 }); part(g, cyl(0.07, 0.07, 0.05, 16), '#d0453a', 0, 0.36, 0.08, { emissive: '#7a1a10', emissiveIntensity: 0.4 }).rotation.x = Math.PI / 2; part(g, box(0.3, 0.06, 0.005), '#f2c230', 0, 0.16, 0.062);
+    const t = textPlate('停止', 0.16, 0.06, '#ffffff', '#d0453a'); t.position.set(0, 0.5, 0.062); g.add(t); return g; },
+  spanner() { const g = new THREE.Group(); part(g, box(0.3, 0.012, 0.03), '#8a8f96', 0, 0.01, 0, { metalness: 0.6, roughness: 0.3 }); part(g, new THREE.TorusGeometry(0.03, 0.012, 6, 12, Math.PI * 1.5), '#8a8f96', 0.16, 0.01, 0, { metalness: 0.6, roughness: 0.3 }).rotation.x = Math.PI / 2; return g; },
+  oilGauge() { const g = new THREE.Group(); part(g, cyl(0.05, 0.05, 0.04, 16), '#5a5f66', 0, 0.02, 0); part(g, cyl(0.04, 0.04, 0.005, 16), '#f4f6f6', 0, 0.042, 0); const st = part(g, cyl(0.006, 0.006, 0.4, 6), '#c9cdd2', 0.2, 0.012, 0); st.rotation.z = Math.PI / 2; return g; },
+  clipboard() { const g = new THREE.Group(); part(g, box(0.24, 0.012, 0.32), '#a0784a', 0, 0.006, 0); part(g, box(0.2, 0.003, 0.26), '#ffffff', 0, 0.014, 0.01); for (let i = 0; i < 5; i++) part(g, box(0.15, 0.002, 0.008), '#9aa4ab', 0, 0.017, -0.07 + i * 0.04); part(g, box(0.1, 0.02, 0.03), '#8a8f96', 0, 0.02, -0.15); return g; },
+  paint() { const g = new THREE.Group(); part(g, cyl(0.08, 0.08, 0.16, 16), '#7fb3d9', 0, 0.08, 0); part(g, cyl(0.081, 0.081, 0.06, 16), '#ffffff', 0, 0.09, 0); return g; },
+  heater() { const g = ITEM_MODELS['ヒーター'](); g.scale.setScalar(2.4); return g; },
+});
+// 袋づめ・書き初めは えらんだ ものが 決まった ところへ 動く（placeTo：品名・これまでに 置いた 数 → 置く 場所）
+Object.assign(STAGES, {
+  // スーパー：サッカー台（白い 台）。左に お客さまの かご（品物入り）、右に レジ袋。重い ものから 袋の 中へ つむ
+  'レジの袋づめ': { counter: '#eceae4', stand: [0, 0.95], pitch: 0.42,
+    decor(W) { const k = new THREE.Group(); k.position.set(0.2, 0.906, 2.3); W.add(k); part(k, box(0.86, 0.012, 0.5), '#d0453a', 0, 0.006, 0); [-1, 1].forEach((sd) => { part(k, box(0.86, 0.16, 0.012), '#d0453a', 0, 0.08, sd * 0.25, { transparent: true, opacity: 0.6 }); part(k, box(0.012, 0.16, 0.5), '#d0453a', sd * 0.43, 0.08, 0, { transparent: true, opacity: 0.6 }); }); },
+    byIndex: null,
+    goods: [[0.5, 0.92, 2.16], [0.2, 0.92, 2.16], [-0.1, 0.92, 2.16], [0.38, 0.92, 2.44, { ly: 0.26 }], [0.05, 0.92, 2.44, { ly: 0.26 }]],
+    spots: { 'レジ袋': [-0.7, 0.906, 2.25, { model: () => SM.bag(), ly: 0.05 }] },
+    placeTo(spec, n) { return spec.label === 'レジ袋' ? 'stay' : [-0.7 + ((n % 2) - 0.5) * 0.12, 0.92 + Math.floor((n - 1) / 2) * 0.12, 2.25]; } },
+  // 風力発電所：風車の 塔の 中。奥に 停止スイッチの 盤、左の かべに ヘルメットと 安全帯、右の 台に 点検の 道具、まん中に 点検表
+  '風車の点検': { counter: false, stand: [0, 0.7], pitch: 0.18,
+    decor(W) { part(W, box(SHOP_W - 0.1, 0.004, 3.4), '#9aa4ab', 0, 0.104, 2.4); // 奥の 右の すみの はしご（上の 風車へ）
+      for (let y = 0.4; y < 2.6; y += 0.35) part(W, box(0.5, 0.025, 0.025), '#c9ced6', -1.5, y, 3.6); [-0.25, 0.25].forEach((x) => part(W, box(0.03, 2.6, 0.03), '#c9ced6', -1.5 + x, 1.4, 3.6));
+      part(W, box(0.05, 1.0, 1.2), '#8a8f96', 1.15, 1.3, 2.5); [2.15, 2.8].forEach((z) => part(W, cyl(0.012, 0.012, 0.1, 6), '#55626d', 1.1, 1.7, z).rotation.z = Math.PI / 2); // 左の かべの フック
+      part(W, box(1.3, 0.05, 0.6), '#8a6a46', -0.95, 0.8, 2.35); [-1, 1].forEach((a) => [-1, 1].forEach((c) => part(W, box(0.04, 0.7, 0.04), '#55626d', -0.95 + a * 0.6, 0.45, 2.35 + c * 0.25))); },
+    spots: { 'ヘルメット': [1.0, 1.5, 2.15, { model: () => SM.helmet() }], '安全帯': [1.05, 1.25, 2.8, { model: () => SM.harness() }], '停止スイッチ': [0.15, 0.75, 3.0, { model: () => SM.switchPanel() }],
+      'ライト': [-0.45, 0.83, 2.2, { model: () => SM.light() }], 'スパナ': [-0.95, 0.83, 2.15, { model: () => SM.spanner() }], 'オイルゲージ': [-0.75, 0.83, 2.5, { model: () => SM.oilGauge(), ly: 0.25 }], 'ペンキ': [-1.4, 0.83, 2.2, { model: () => SM.paint() }],
+      'ヒーター': [-1.25, 0.83, 2.5, { model: () => SM.heater(), ly: 0.25 }], '点検表': [0.05, 0.9, 1.75, { model: () => SM.clipboard() }] } },
+  // 学校（冬）：書き初め。教室の 机（2 つ くっつけて）の まわりの 台に 道具。えらぶと 机の 上の 決まった ところへ
+  '書き初めの準備': { counter: false, stand: [0, 0.85], pitch: 0.5,
+    decor(W) { part(W, box(1.2, 0.04, 0.6), '#d9b98a', 0, 0.74, 1.75); [-1, 1].forEach((a) => [-1, 1].forEach((c) => part(W, box(0.03, 0.62, 0.03), '#8a8f96', a * 0.56, 0.41, 1.75 + c * 0.26)));
+      part(W, box(2.3, 0.04, 0.5), '#c9a27a', 0, 0.74, 2.7); [-1, 1].forEach((a) => [-1, 1].forEach((c) => part(W, box(0.04, 0.62, 0.04), '#6b4a2a', a * 1.1, 0.41, 2.7 + c * 0.2))); }, // 手前に 机（2 つ くっつけて）、奥の 長い 台に 道具
+    spots: { '新聞紙': [0.96, 0.76, 2.7, { s: 2 }], '下じき': [0.64, 0.76, 2.7, { s: 1.8, ly: 0.1 }], '半紙': [0.32, 0.76, 2.7, { s: 2 }],
+      '文鎮': [0, 0.76, 2.7, { s: 2, ly: 0.1 }], 'すずり': [-0.32, 0.76, 2.7, { s: 2 }], '筆': [-0.64, 0.76, 2.7, { s: 2, ly: 0.1 }], 'クレヨン': [-0.96, 0.76, 2.7, { s: 1.6 }] },
+    placeTo(spec) { return { '新聞紙': [0, 0.762, 1.75], '下じき': [0.05, 0.768, 1.75], '半紙': [0.05, 0.774, 1.75], '文鎮': [0.05, 0.78, 1.95], 'すずり': [-0.4, 0.762, 1.75], '筆': [-0.4, 0.762, 1.55] }[spec.label] || null; } },
+  // 田んぼ：あぜ道。奥に 田植え機の 苗のせ台（1〜4 列め）、右に 苗箱を のせた 台車、その 奥に 空き箱と 肥料
+  '田植えの苗受け': { counter: false, stand: [0, 0.7], pitch: 0.2,
+    decor(W) { part(W, box(SHOP_W - 0.1, 0.004, 3.4), '#7a9a5a', 0, 0.104, 2.4); part(W, box(1.9, 0.5, 0.6), '#d0453a', -0.22, 0.5, 3.2); [-1.0, 0.55].forEach((x) => part(W, cyl(0.28, 0.28, 0.14, 18), '#2b2f36', x, 0.3, 3.55).rotation.z = Math.PI / 2);
+      part(W, box(0.7, 0.04, 0.5), '#3d5a80', -1.0, 0.5, 2.1); [-1, 1].forEach((a) => [-1, 1].forEach((c) => part(W, cyl(0.06, 0.06, 0.04, 12), '#2b2f33', -1.0 + a * 0.28, 0.15, 2.1 + c * 0.18).rotation.z = Math.PI / 2)); part(W, box(0.04, 0.4, 0.5), '#3d5a80', -1.0 - 0.35, 0.7, 2.1); },
+    spots: { '苗箱': [-0.85, 0.52, 2.1, { s: 1.8 }], 'しおれた 苗箱': [-1.12, 0.52, 2.1, { s: 1.8, ly: 0.1 }], '空き箱': [-1.55, 0.11, 2.75, { s: 1.8 }], '肥料': [-0.35, 0.11, 2.2, { s: 2.2 }] },
+    byKey: (spec) => (/列め$/.test(spec.label) ? 'rack' : null), rack: [[0.45, 0.75, 2.95], [0, 0.75, 2.95], [-0.45, 0.75, 2.95], [-0.9, 0.75, 2.95]], rackModel: (spec) => { const m = makeItemMesh(spec); m.scale.setScalar(1.8); return m; } },
+});
+STAGES['鍋の材料の袋づめ'] = STAGES['レジの袋づめ'];
+STAGES['羽の氷とかしと点検'] = STAGES['風車の点検'];
 // 屋台の やね（紅白の のれん）と ちょうちん
 function yataiFrame(W) {
   [-1.45, 1.45].forEach((x) => part(W, box(0.08, 1.8, 0.08), '#8a6a46', x, 1.0, 2.65));
@@ -3888,6 +3934,7 @@ function startStage(b, def, st) {
   if (st.decor) st.decor(W, def);
   def.items.forEach((spec, idx) => {
     let sp = st.byIndex ? st.byIndex[idx] : st.spots[spec.label];
+    if (!sp && st.goods) { const k = def.items.filter((it) => !st.spots[it.label]).indexOf(spec); { const gd = st.goods[k]; sp = [gd[0], gd[1], gd[2], Object.assign({ s: 1.6 }, gd[3])]; } }
     if (!sp && st.byKey && st.byKey(spec) === 'rack') { const k = def.items.filter((it) => st.byKey(it) === 'rack').indexOf(spec); sp = st.rack[k].concat([{ model: st.rackModel }]); }
     const [x, y, z, o] = sp ? [sp[0], sp[1], sp[2], sp[3] || {}] : [-1 + idx * 0.3, 0.9, COUNTER_Z, {}];
     const holder = new THREE.Group(); holder.position.set(x, y, z); holder.rotation.y = Math.PI + (o.ry || 0);
@@ -3906,7 +3953,16 @@ function startStage(b, def, st) {
     const carry = labelSprite(def.carryText || 'もっている：' + def.carry, { bg: 'rgba(255,240,200,0.95)', h: 0.1 });
     carry.position.set(-0.35, 1.3, st.stand[1] + 0.7); W.add(carry);
   }
+  let placed = 0;
   state.round = { def, slots, pos: 0, lastActionAt: performance.now(), hintShown: false, mistakeThisRound: false };
+  if (st.placeTo) state.round.onPick = (slot, ok) => { // えらんだ ものを 決まった ところへ（袋の 中・机の 上）
+    if (!ok) { flashWrong(slot); return; }
+    const to = st.placeTo(slot.spec, placed++); slot.ring.visible = false;
+    slot.holder.children.forEach((c) => { if (c.isSprite) c.visible = false; });
+    if (to === 'stay') return;
+    if (!to) { animateDone(slot); return; }
+    anims.push({ kind: 'box', obj: slot.holder, from: slot.holder.position.clone(), to: new THREE.Vector3(...to), t0: performance.now() });
+  };
   moveRig(b.group.localToWorld(new THREE.Vector3(st.stand[0], 0, st.stand[1])), b.yaw + Math.PI, st.pitch, state.session.roundIndex ? 500 : undefined);
   state.feedback = { text: '', kind: '' };
   drawWorkBoard(); renderHud();
