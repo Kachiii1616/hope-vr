@@ -2298,9 +2298,9 @@ const DECO_X = 1.97;
 // 清掃の 台ふき（下の CLEAN_LAYOUTS.wipe）
 //   台ふきは 利用者さんの 家（リビング・ダイニング・キッチン）。家具は 部屋に 置いた まま 動かさない
 const WIPE_FURN = [
-  { name: 'キッチンの 台', kind: 'counter', x: 1.77, z: 2.65, w: 0.6, d: 1.0, h: 0.85, face: 'x' }, // 左の かべに つけて ある。かべを 向いて ふく
-  { name: '机', kind: 'desk', x: 1.3, z: 3.65, w: 1.1, d: 0.6, h: 0.72 },
-  { name: '食卓', kind: 'table', x: -1.25, z: 3.4, w: 1.0, d: 0.8, h: 0.7 },
+  { name: 'キッチンの 台', kind: 'counter', x: 1.77, z: 2.85, w: 0.6, d: 1.4, h: 0.85, face: 'x' }, // 左の かべに つけて ある。かべを 向いて ふく
+  { name: '机', kind: 'desk', x: -1.77, z: 2.7, w: 0.6, d: 1.0, h: 0.72, face: '-x' }, // 右の かべ（テレビの 奥）に つけて ある。かべを 向いて ふく
+  { name: '食卓', kind: 'table', x: -1.25, z: 3.65, w: 1.0, d: 0.8, h: 0.7 },
   { name: 'ローテーブル', kind: 'low', x: 1.35, z: 1.6, w: 0.9, d: 0.55, h: 0.4, back: true }, // ソファの 前。入口がわから ふく
 ];
 // 余暇で すわる 席：中（入口の そばの テーブル）と 外の テラス（店の 横）。x・z は お店の 中の 位置
@@ -4740,7 +4740,7 @@ function buildCleanHome(g) {
   part(g, box(0.42, 0.02, 0.34), '#8a8f96', -1.05, 0.975, 0.42); part(g, cyl(0.015, 0.015, 0.28, 8), '#c9cdd2', -1.05, 1.12, 0.2); // 流しと 蛇口
   [-0.6, -0.4].forEach((x) => part(g, cyl(0.08, 0.08, 0.01, 16), '#2b2f33', x, 0.985, 0.42)); // コンロ
   // 食卓の いす（左右に 1 つずつ）
-  [-1, 1].forEach((sd) => { const cx = -1.25 + sd * 0.72; const c = new THREE.Group(); c.position.set(cx, 0.1, 3.4); c.rotation.y = -sd * Math.PI / 2; g.add(c); // せもたれは 食卓の 反対がわ
+  [-1, 1].forEach((sd) => { const cx = -1.25 + sd * 0.72; const c = new THREE.Group(); c.position.set(cx, 0.1, 3.65); c.rotation.y = -sd * Math.PI / 2; g.add(c); // せもたれは 食卓の 反対がわ
     part(c, box(0.4, 0.04, 0.4), '#c98f5a', 0, 0.45, 0); part(c, box(0.4, 0.42, 0.04), '#c98f5a', 0, 0.68, -0.19); [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([a, cc]) => part(c, box(0.03, 0.45, 0.03), '#8a6a46', a * 0.17, 0.22, cc * 0.17)); });
   // 観葉植物・時計・絵・カーテン
   part(g, cyl(0.16, 0.12, 0.3, 14), '#d9d4c8', 2.0, 0.25, 4.15); [[0, 0.65, 0, 0.22], [0.08, 0.85, 0.05, 0.16], [-0.07, 0.8, -0.05, 0.15]].forEach(([dx, y, dz, r]) => part(g, new THREE.IcosahedronGeometry(r, 0), '#4f8a34', 2.0 + dx, y, 4.15 + dz, { flatShading: true }));
@@ -4750,8 +4750,8 @@ function buildCleanHome(g) {
 }
 function wipeFurniture(W, f) {
   const g = new THREE.Group(); g.position.set(f.x, 0.1, f.z); W.add(g);
-  // face 'x'：かべ（+x）ぞいに 置く。前（とびらの がわ）を -x に 向ける（w・d は 部屋での はば・おくゆき）
-  const o = f.face === 'x' ? Object.assign({}, f, { w: f.d, d: f.w }) : f; if (f.face === 'x') g.rotation.y = Math.PI / 2;
+  // face 'x'：左の かべ（+x）ぞい、'-x'：右の かべ（-x）ぞい。前（とびら・いすの がわ）を 部屋の まん中に 向ける（w・d は 部屋での はば・おくゆき）
+  const o = f.face ? Object.assign({}, f, { w: f.d, d: f.w }) : f; if (f.face) g.rotation.y = f.face === 'x' ? Math.PI / 2 : -Math.PI / 2;
   const leg = (h) => [-1, 1].forEach((sx) => [-1, 1].forEach((sz) => part(g, box(0.05, h, 0.05), '#8a6a46', sx * (o.w / 2 - 0.05), h / 2, sz * (o.d / 2 - 0.05))));
   if (o.kind === 'counter') {
     part(g, box(o.w, o.h - 0.04, o.d), '#d9c4a2', 0, (o.h - 0.04) / 2, 0);
@@ -4832,8 +4832,8 @@ const CLEAN_LAYOUTS = {
     const cloth = new THREE.Group(); W.add(cloth);
     part(cloth, box(0.2, 0.03, 0.14), '#5aa7d1', 0, 0.015, 0);
     part(cloth, box(0.2, 0.004, 0.02), '#ffffff', 0, 0.032, 0.03);
-    // 向く 方向（fc）と 左（lf）。ふつうは +z を 向く。back：入口がわから 奥を 向く。face 'x'：かべ（+x）を 向く
-    const fc = f.face === 'x' ? { x: 1, z: 0 } : { x: 0, z: f.back ? -1 : 1 }; const lf = { x: fc.z, z: -fc.x };
+    // 向く 方向（fc）と 左（lf）。ふつうは +z を 向く。back：入口がわから 奥を 向く。face：かべ（'x'＝+x・'-x'＝-x）を 向く
+    const fc = f.face ? { x: f.face === 'x' ? 1 : -1, z: 0 } : { x: 0, z: f.back ? -1 : 1 }; const lf = { x: fc.z, z: -fc.x };
     const depth = fc.x ? TW : TD; const width = fc.x ? TD : TW;
     cloth.position.set(cx - fc.x * (depth / 2 - 0.12) - lf.x * (width / 2 - 0.15), topY, cz - fc.z * (depth / 2 - 0.12) - lf.z * (width / 2 - 0.15)); // 手前の 右はし
     // よごれた 家具の 上に 名札
