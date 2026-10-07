@@ -327,15 +327,15 @@ const JOBS = [
     },
   },
   {
-    id: 'farm', area: '農村', name: '農園', work: 'トマトの収穫', color: '#5f8f3a', category: '実務',
-    intro: '赤く じゅくした トマトだけを とります。青い トマトは のこします。',
+    id: 'farm', area: '農村', name: '農園', work: 'トマトの収穫', color: '#5f8f3a', category: '実務', rounds: 3,
+    intro: 'ハウスの トマトの 木から、赤く じゅくした トマトだけを とって、足もとの かごに 入れます。青い トマトは のこします。',
     defect: '青い トマトを とる',
     round() {
       const n = 3 + Math.floor(Math.random() * 2);
       const items = [];
       for (let i = 0; i < n; i++) items.push({ label: '', id: 'red' + i, shape: 'tomato', color: '#d63c2f' });
       for (let i = 0; i < 3; i++) items.push({ label: '', id: 'green' + i, shape: 'tomato', color: '#7fae4a' });
-      return { title: '赤い トマトを ぜんぶ とる（' + n + 'こ）', shortTitle: '赤い トマトを とる', items: shuffle(items), need: items.filter((i) => i.id.startsWith('red')).map((i) => i.id), ordered: false };
+      return { title: '赤い トマトを ぜんぶ とって かごへ（' + n + 'こ）', shortTitle: '赤い トマトを とる', items: shuffle(items), need: items.filter((i) => i.id.startsWith('red')).map((i) => i.id), ordered: false, layout: 'tomato' };
     },
   },
   {
@@ -858,7 +858,7 @@ const RICE_PLANT = {
 //   りんご狩り：木に なっている 赤い りんごだけを もいで かごへ（青い りんごは のこす）。1 本の 木 = 1 回
 const APPLE_PICK = {
   work: 'りんご狩り', short: 'りんご', rounds: 3, outdoor: true,
-  intro: 'りんご畑に 出て、木に なっている 赤い りんごだけを もいで、足もとの かごに 入れます。青い りんごは まだ のこします。',
+  intro: 'りんご畑に 出て、かごを かかえて、木に なっている 赤い りんごだけを もいで かごに 入れます。青い りんごは まだ のこします。',
   defect: '青い りんごを もぐ',
   round() {
     const n = 3 + Math.floor(Math.random() * 2); const items = [];
@@ -1394,7 +1394,7 @@ const FURN = { near: [412, 636], W: 5.8, H: 3.4 }; // 中を 歩いて 家具を
 let season = (() => { const m = new Date().getMonth() + 1; return m === 12 || m <= 3 ? 'winter' : 'summer'; })();
 const SEASON_NAME = { summer: '夏', winter: '冬' };
 const isOpen = (job) => !job.season || job.season === season;
-const seasonal = { snowCap: null, capH: 0, peakH: 0, runs: [], trail: null, parasols: [], trailAt: null, mount: null };
+const seasonal = { snowCap: null, capH: 0, peakH: 0, runs: [], trail: null, parasols: [], trailAt: null, mount: null, treeSnow: [] };
 
 // 山の表（南）の登山口。スキー場は裏にあって見えにくいので、看板で案内し、看板からも行けるようにする。
 (function buildTrailhead() {
@@ -1441,13 +1441,23 @@ function house(x, z, color, roofColor) {
 const treeTrunk = new THREE.CylinderGeometry(0.12, 0.16, 1.2, 6);
 const treeCrown = new THREE.IcosahedronGeometry(0.9, 0);
 const conifer = new THREE.ConeGeometry(1.0, 3.2, 7);
+// 冬に 木の 上に つもる 雪（冬だけ 見せる。applySeason で きりかえ）
+const snowCapGeo = new THREE.SphereGeometry(1, 9, 4, 0, Math.PI * 2, 0, Math.PI / 2.4);
+const snowTipGeo = new THREE.ConeGeometry(0.5, 1.4, 7);
+const snowMat = new THREE.MeshStandardMaterial({ color: '#f7fbff', roughness: 0.9, flatShading: true });
+function treeSnow(parent, geo, x, y, z, sx, sy) {
+  const m = new THREE.Mesh(geo, snowMat); m.position.set(x, y, z); m.scale.set(sx, sy === undefined ? sx : sy, sx); m.visible = false;
+  parent.add(m); seasonal.treeSnow.push(m); return m;
+}
 function tree(x, z, kind) {
   const s = 0.8 + rand() * 0.5;
   const trunk = new THREE.Mesh(treeTrunk, cmat('#7a5a3a')); trunk.position.set(x, 0.6 * s, z); trunk.scale.setScalar(s); scene.add(trunk);
   if (kind === 'conifer') {
     const c = new THREE.Mesh(conifer, cmat(rand() < 0.5 ? '#3f7a3a' : '#4d8a45')); c.position.set(x, 2.2 * s, z); c.scale.setScalar(s); scene.add(c);
+    treeSnow(scene, snowTipGeo, x, 3.12 * s, z, s); // 先の ほうに 雪
   } else {
     const c = new THREE.Mesh(treeCrown, mat(rand() < 0.5 ? '#5f9a52' : '#6fae5e', { flatShading: true })); c.position.set(x, 1.75 * s, z); c.scale.setScalar(s); scene.add(c);
+    treeSnow(scene, snowCapGeo, x, 1.95 * s, z, 0.78 * s, 0.6 * s); // 上に 雪
   }
 }
 
@@ -1616,7 +1626,9 @@ function tree(x, z, kind) {
     trees.forEach((t) => {
       put(new THREE.CylinderGeometry(0.16, 0.22, 1.9, 10), '#7a5a3a', t.x, 0.95, t.z);
       const br = put(new THREE.CylinderGeometry(0.06, 0.08, 1.4, 8), '#7a5a3a', t.x, 2.15, t.z + 0.45); br.rotation.x = Math.PI / 2.3; // 前へ のびた 枝（ここに りんごが さがる）
-      [[0, 3.0, -0.1, 1.15], [-0.85, 2.75, 0.1, 0.85], [0.85, 2.8, 0, 0.9], [0, 2.75, 0.55, 0.75], [0.1, 3.5, -0.3, 0.8]].forEach(([dx, y, dz, r]) => put(new THREE.IcosahedronGeometry(r, 0), '#5f9a42', t.x + dx, y, t.z + dz, true));
+      [[0, 3.0, -0.1, 1.15], [-0.85, 2.75, 0.1, 0.85], [0.85, 2.8, 0, 0.9], [0, 2.75, 0.55, 0.75], [0.1, 3.5, -0.3, 0.8],
+        [0, 2.05, 0.75, 0.5], [-0.62, 2.15, 0.6, 0.45], [0.62, 2.15, 0.6, 0.45]].forEach(([dx, y, dz, r]) => put(new THREE.IcosahedronGeometry(r, 0), '#5f9a42', t.x + dx, y, t.z + dz, true)); // 下の 3 つは りんごが なる 前の 枝の 葉
+      [[0, 3.75, -0.25, 0.75], [-0.85, 3.25, 0.1, 0.6], [0.85, 3.3, 0, 0.62], [0, 3.15, 0.55, 0.55]].forEach(([dx, y, dz, r]) => treeSnow(g, snowCapGeo, t.x + dx, y, t.z + dz, r, r * 0.55)); // 冬の 雪
       [[-0.9, 3.0, -0.4], [0.7, 3.3, -0.6], [0.95, 2.6, -0.3], [-0.4, 3.7, -0.5]].forEach(([dx, y, dz]) => put(new THREE.SphereGeometry(0.08, 10, 8), '#d0392b', t.x + dx, y, t.z + dz)); // 奥の りんご（かざり）
       const w = g.localToWorld(new THREE.Vector3(t.x, 0, t.z)); block(w.x, w.z, 1.4);
     });
@@ -3096,6 +3108,7 @@ function applySeason() {
   const k = winter ? 1.6 : 1; const cap = seasonal.snowCap;
   cap.scale.setScalar(k); cap.position.y = seasonal.peakH - (seasonal.capH * k) / 2;
   seasonal.runs.forEach((m) => { m.visible = winter; });
+  seasonal.treeSnow.forEach((m) => { m.visible = winter; }); // 木の 上の 雪
   const target = winter ? 'ski' : 'hut';
   seasonal.trail.mesh.userData.boothIndex = booths.findIndex((b) => b.job.id === target);
   seasonal.trail.draw((ctx, W, H) => {
@@ -3250,38 +3263,94 @@ function startPaddy(b, def) {
   if (state.withSupport) speak(def.title + '。最初は、' + stepLabel(def.need[0]) + '。');
 }
 // りんご狩り：木の 前に 立ち、前の 枝に さがった りんごを もぐ
+// 収穫かご（りんご・トマト）。実は 底から ならべる（下の だん 7 こ、その 上に 5 こ）。k ばんめの 実の 中心（かごの 底から）
+const HARVEST_SPOTS = [[0, 0.07, 0]].concat([0, 1, 2, 3, 4, 5].map((k) => [Math.cos(k / 6 * Math.PI * 2) * 0.16, 0.07, Math.sin(k / 6 * Math.PI * 2) * 0.16]),
+  [0, 1, 2, 3, 4].map((k) => [Math.cos(k / 5 * Math.PI * 2 + 0.6) * 0.09, 0.17, Math.sin(k / 5 * Math.PI * 2 + 0.6) * 0.09]));
+const harvestSpot = (k) => HARVEST_SPOTS[Math.min(k, HARVEST_SPOTS.length - 1)];
+function fruitMesh(kind) { return kind === 'tomato' ? SHAPE_MODELS.tomato({ color: '#d63c2f' }) : ITEM_MODELS['りんご']({ color: '#d0392b' }); }
+// かごを 置いて、もう とった 実（n こ）を 入れて おく
+function harvestBasket(parent, pos, kind, n, hands) {
+  const g = new THREE.Group(); g.position.copy(pos); parent.add(g);
+  const bk = ITEM_MODELS['検品かご']({ color: '#a8865a' }); bk.scale.set(2.6, 2.4, 2.6); g.add(bk); // はば 約 0.68m・高さ 0.24m
+  for (let k = 0; k < n; k++) { const f = fruitMesh(kind); const [x, y, z] = harvestSpot(k); f.position.set(x, y - 0.062, z); f.rotation.y = k; g.add(f); }
+  if (hands) [-1, 1].forEach((sd) => { part(g, ball(0.05, 12, 10), '#f1c9a5', sd * 0.35, 0.21, 0.06).scale.set(0.8, 1.1, 1.3); part(g, cyl(0.045, 0.05, 0.12, 10), '#4f8b9b', sd * 0.37, 0.24, 0.16).rotation.x = -1.2; }); // かごの ふちを もつ 手（そで口）
+  return g;
+}
+// りんごが なる ところ（木の 前の 低い 葉の かたまりの 表面。木の 中心から）
+const APPLE_SPOTS = [[-0.85, 1.8, 0.85], [-0.45, 1.78, 1.05], [-0.15, 1.62, 1.12], [0.2, 1.66, 1.15], [0.5, 1.8, 1.0], [0.85, 1.8, 0.85], [-0.3, 2.05, 1.2], [0.32, 2.0, 1.2]];
 function startOrchard(b, def) {
   const F = FIELDS.orchard; const s = state.session; const W = F.work; const slots = [];
   const t = F.trees[s.roundIndex % F.trees.length];
-  // とった りんごを 入れる かご（目の 前の 台の 上。木を 見ながら 手もとに 見える）
-  const STAND = 0.75; const basket = new THREE.Vector3(t.x + 0.35, STAND, t.z + 1.55);
-  part(W, box(0.8, 0.04, 0.62), '#8a6a46', basket.x, STAND - 0.02, basket.z);                       // 台の 板
-  [-1, 1].forEach((sx) => [-1, 1].forEach((sz) => part(W, box(0.05, STAND - 0.04, 0.05), '#6b4a2a', basket.x + sx * 0.34, (STAND - 0.04) / 2, basket.z + sz * 0.26)));
-  const bk = ITEM_MODELS['検品かご']({ color: '#a8865a' }); bk.scale.set(2.6, 2.4, 2.6); bk.position.copy(basket); W.add(bk); // はば 約 0.68m
-  const bkSign = labelSprite('とった りんごを 入れる かご', { h: 0.09, bg: 'rgba(255,240,200,0.95)' }); bkSign.position.set(basket.x, STAND + 0.55, basket.z); W.add(bkSign);
-  // かごの 中で りんごを ならべる ところ（下の だんに 6 こ、上の だんに 4 こ）
-  const SPOTS = [];
-  [[6, 0.17, 0.05], [4, 0.09, 0.15]].forEach(([n, rr, y]) => { for (let k = 0; k < n; k++) { const a = k / n * TAU + y * 10; SPOTS.push([Math.cos(a) * rr, y, Math.sin(a) * rr]); } });
-  let inBasket = 0;
+  s.harvestKind = 'apple'; s.harvest = s.harvest || 0;
+  // かごを かかえて 木の 前に 立つ（前の 木で とった りんごも 入って いる）
+  const standZ = t.z + 2.6;
+  const basket = harvestBasket(W, new THREE.Vector3(t.x + 0.08, 0.9, standZ - 0.62), 'apple', s.harvest, true); // こしの 前で かかえる
+  const spots = shuffle(APPLE_SPOTS);
   def.items.forEach((spec, idx) => {
-    const col = idx % 4; const row = Math.floor(idx / 4);
-    const holder = new THREE.Group(); holder.position.set(t.x - 0.75 + col * 0.5 + (row ? 0.25 : 0), 1.95 - row * 0.3 + (col % 2) * 0.06, t.z + 0.9 - row * 0.15); W.add(holder);
+    const [dx, dy, dz] = spots[idx % spots.length];
+    const holder = new THREE.Group(); holder.position.set(t.x + dx, dy + 0.078, t.z + dz); W.add(holder); // holder の 0.078 下が りんごの 中心
     const mesh = new THREE.Group(); const ap = ITEM_MODELS['りんご']({ color: spec.apple }); ap.position.y = -0.14; mesh.add(ap);
-    const stalk = part(mesh, cyl(0.004, 0.004, 0.16, 5), '#6b4a2a', 0, 0.0, 0); holder.userData.stalk = stalk; // 枝から さがる 軸
+    const stalk = part(mesh, cyl(0.004, 0.004, 0.06, 5), '#6b4a2a', 0, 0.012, 0); holder.userData.stalk = stalk; // 葉の 中の 枝へ つながる 軸
     holder.add(mesh); mesh.traverse((o) => { o.userData.slotIndex = idx; });
-    const ring = makeGlowRing(); ring.position.y = -0.2; holder.add(ring);
+    const ring = makeGlowRing(); ring.position.y = -0.16; holder.add(ring);
     slots.push({ spec, key: itemKey(spec), mesh, ring, holder, done: false });
   });
-  goField(b, F, new THREE.Vector3(t.x, 0, t.z + 2.75), 0.26, [t.x - 2.1, t.z + 0.9, 0.7]); // 木の りんごと 手前の かごが 両方 見えるように
+  goField(b, F, new THREE.Vector3(t.x, 0, standZ), 0.24, [t.x - 2.1, t.z + 0.9, 0.7]); // りんごと かかえた かごが 両方 見えるように
   state.round = { def, slots, pos: 0, lastActionAt: performance.now(), hintShown: false, mistakeThisRound: false,
     onPick(slot, ok) {
       if (!ok) { flashWrong(slot); return; }
-      // もいだら 枝の 軸は 外して、かごの 中へ（ひかりの 輪も 消す）
+      // もいだら 軸は 外して、かかえた かごの 底へ（下の だんから つめる）
       const h = slot.holder; h.userData.stalk.visible = false; slot.ring.visible = false;
-      const [dx, dy, dz] = SPOTS[inBasket % SPOTS.length]; inBasket++;
-      const to = basket.clone().add(new THREE.Vector3(dx, 0.14 + dy, dz)); // りんごは holder より 0.14 下に ある
+      const [x, y, z] = harvestSpot(s.harvest++);
+      const to = basket.position.clone().add(new THREE.Vector3(x, y + 0.078, z));
       anims.push({ kind: 'box', obj: h, from: h.position.clone(), to, t0: performance.now() });
     } };
+  state.feedback = { text: '', kind: '' };
+  drawWorkBoard(); renderHud();
+  if (state.withSupport) speak(def.title + '。');
+}
+// トマトの 収穫（ハウスの 中）：まん中に 支柱で 立てた トマトの 木、足もとの 右に かご（絵の とおり）
+const TOMATO = { z: 2.35, stand: 0.35, basket: [-0.55, 1.95], levels: [0.62, 0.9, 1.18, 1.46] };
+function tomatoPlant(W) {
+  const z = TOMATO.z; const green = '#4f8a34';
+  part(W, cyl(0.018, 0.028, 1.85, 8), green, 0, 0.1 + 0.925, z);                 // くき
+  part(W, cyl(0.012, 0.012, 2.0, 6), '#c8b48a', 0.07, 0.1 + 1.0, z - 0.04);         // 支柱
+  [0.5, 1.1, 1.7].forEach((y) => part(W, box(0.09, 0.012, 0.012), '#e8dcc0', 0.035, 0.1 + y, z - 0.02)); // ひも
+  part(W, cyl(0.16, 0.13, 0.22, 16), '#6b4a2a', 0, 0.21, z);                       // はち（土）
+  part(W, cyl(0.15, 0.15, 0.01, 16), '#4a3a2a', 0, 0.32, z);
+  const leaf = (x, y, zz, r, a) => { const l = part(W, ball(r, 8, 6), green, x, y, zz, { flatShading: true }); l.scale.set(1.5, 0.35, 0.9); l.rotation.set(0.2, a, 0.3); };
+  TOMATO.levels.forEach((y, i) => [-1, 1].forEach((sd) => {
+    const br = part(W, cyl(0.009, 0.012, 0.44, 6), green, sd * 0.19, 0.1 + y + 0.07, z); br.rotation.z = sd * -(Math.PI / 2 - 0.35); // 横に のびる 枝
+    leaf(sd * 0.42, 0.1 + y + 0.16, z + 0.02, 0.1, sd * 0.4 + i); leaf(sd * 0.3, 0.1 + y + 0.2, z - 0.06, 0.08, -sd * 0.6);
+  }));
+  [[0, 2.0, 0, 0.11], [-0.1, 1.9, 0.05, 0.09], [0.1, 1.88, -0.04, 0.09]].forEach(([x, y, zz, r]) => leaf(x, y, z + zz, r, x * 9)); // てっぺんの 葉
+}
+function startTomato(b, def) {
+  const W = b.workArea; const s = state.session; const slots = [];
+  s.harvestKind = 'tomato'; s.harvest = s.harvest || 0;
+  b.counter.visible = false; b.panel.position.y = 0.25; b.panelOut = true; // 作業台は なし。指示モニターは 木の 上へ
+  tomatoPlant(W);
+  const basket = harvestBasket(W, new THREE.Vector3(TOMATO.basket[0], 0.1, TOMATO.basket[1]), 'tomato', s.harvest, false);
+  const bkTag = labelSprite('とった トマトを 入れる かご', { h: 0.09, bg: 'rgba(255,240,200,0.95)' }); bkTag.position.set(TOMATO.basket[0], 0.62, TOMATO.basket[1]); W.add(bkTag);
+  // トマトが なる ところ（枝の とちゅうから さがる）
+  const spots = shuffle(TOMATO.levels.flatMap((y) => [-1, 1].map((sd) => [sd * 0.25, 0.1 + y + 0.085])));
+  def.items.forEach((spec, idx) => {
+    const [x, y] = spots[idx % spots.length];
+    const holder = new THREE.Group(); holder.position.set(x, y, TOMATO.z + 0.03); W.add(holder);
+    const mesh = new THREE.Group(); const tm = makeItemMesh(spec); tm.position.y = -0.18; mesh.add(tm); // holder の 0.12 下が トマトの 中心
+    const stem = part(mesh, cyl(0.005, 0.005, 0.07, 5), '#3f7a2a', 0, -0.03, 0); holder.userData.stem = stem;
+    holder.add(mesh); mesh.traverse((o) => { o.userData.slotIndex = idx; });
+    const ring = makeGlowRing(); ring.position.y = -0.21; ring.scale.setScalar(0.8); holder.add(ring);
+    slots.push({ spec, key: itemKey(spec), mesh, ring, holder, done: false });
+  });
+  state.round = { def, slots, pos: 0, lastActionAt: performance.now(), hintShown: false, mistakeThisRound: false,
+    onPick(slot, ok) {
+      if (!ok) { flashWrong(slot); return; }
+      const h = slot.holder; h.userData.stem.visible = false; slot.ring.visible = false;
+      const [x, y, z] = harvestSpot(s.harvest++);
+      anims.push({ kind: 'box', obj: h, from: h.position.clone(), to: basket.position.clone().add(new THREE.Vector3(x, y + 0.12, z)), t0: performance.now() });
+    } };
+  moveRig(b.group.localToWorld(new THREE.Vector3(0, 0, TOMATO.stand)), b.yaw + Math.PI, 0.24, s.roundIndex ? 600 : undefined); // トマトの 木と 足もとの かごが 見える ところ
   state.feedback = { text: '', kind: '' };
   drawWorkBoard(); renderHud();
   if (state.withSupport) speak(def.title + '。');
@@ -3524,6 +3593,7 @@ function nextRound() {
   if (def.layout === 'stock') return startStock(b, def);
   if (def.layout === 'paddy') return startPaddy(b, def);
   if (def.layout === 'orchard') return startOrchard(b, def);
+  if (def.layout === 'tomato') return startTomato(b, def);
   if (def.layout === 'cafe') return startCafe(b, def);
   if (def.layout === 'care') return startCare(b, def);
   if (def.layout === 'library') return startLibrary(b, def);
@@ -4421,6 +4491,12 @@ function showResult() {
   clearWork();
   if (wasField) { moveRig(b.group.localToWorld(new THREE.Vector3(0, 0, STAFF_Z)), b.yaw + Math.PI, 0.12); } // 畑から お店に もどって 結果を 見る
   state.phase = 'result';
+  if (s.harvest) {
+    // とった りんご・トマトを ぜんぶ 1 つの かごに 入れて、台の 上に 見せる
+    harvestBasket(b.workArea, new THREE.Vector3(0, 0.9, COUNTER_Z), s.harvestKind, s.harvest, false);
+    const tag = labelSprite('とった ' + (s.harvestKind === 'tomato' ? 'トマト' : 'りんご') + '　' + s.harvest + 'こ', { h: 0.12, bg: 'rgba(255,240,200,0.95)' });
+    tag.position.set(0, 1.42, COUNTER_Z); b.workArea.add(tag);
+  }
   const durationSec = Math.round((performance.now() - s.started) / 1000);
   const entry = {
     at: new Date().toISOString(),
