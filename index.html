@@ -3291,6 +3291,7 @@ function applySeason() {
   cap.scale.setScalar(k); cap.position.y = seasonal.peakH - (seasonal.capH * k) / 2;
   seasonal.runs.forEach((m) => { m.visible = winter; });
   seasonal.treeSnow.forEach((m) => { m.visible = winter; }); // 木の 上の 雪
+  if (FIELDS.paddy && FIELDS.paddy.decor) FIELDS.paddy.decor.visible = !winter; // 田んぼの 苗は 夏だけ
   const target = winter ? 'ski' : 'hut';
   seasonal.trail.mesh.userData.boothIndex = booths.findIndex((b) => b.job.id === target);
   seasonal.trail.draw((ctx, W, H) => {
@@ -3420,6 +3421,12 @@ function seedlingMesh(wilt) {
   part(g, cyl(0.03, 0.035, 0.03, 10), '#6b4f32', 0, 0.015, 0); // 根の 土
   return g;
 }
+// 苗植えに 使わない がわ（まん中の あぜの 向こう）は、はじめから 植えて おく（夏だけ。あぜを よけて ならべる）
+(() => {
+  const F = FIELDS.paddy; if (!F) return;
+  const decor = new THREE.Group(); F.g.add(decor); F.decor = decor; const one = seedlingMesh(false);
+  [0.5, 1.1, 1.7].forEach((z) => { for (let x = -3.3; x <= 3.31; x += 0.6) { const sm = one.clone(); sm.position.set(x, 0.07, z); sm.rotation.y = x * 7 + z; decor.add(sm); } });
+})();
 function startPaddy(b, def) {
   const F = FIELDS.paddy; const s = state.session; const W = F.work; const slots = [];
   const zr = F.rows[s.roundIndex % F.rows.length];
