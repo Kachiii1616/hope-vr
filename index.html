@@ -346,7 +346,7 @@ const JOBS = [
     },
   },
   {
-    id: 'office', area: '首都', name: '事務所', work: '書類の仕分け', color: '#5a5f9e', category: '事務',
+    id: 'office', area: 'IT街', name: '事務所', work: '書類の仕分け', color: '#5a5f9e', category: '事務',
     intro: '書類の 種類を 見て、正しい トレーに 入れます。',
     defect: 'ちがう トレーに 入れる',
     round() {
@@ -620,7 +620,7 @@ JOBS.push(
     },
   },
   {
-    id: 'super', area: '繁華街', name: 'スーパー', work: 'レジの袋づめ', color: '#2f9e6a', category: '実務',
+    id: 'super', area: '目抜き通り', name: 'スーパー', work: 'レジの袋づめ', color: '#2f9e6a', category: '実務',
     intro: 'レジを 通った 品物を、重い ものから 順に 袋に 入れます。たまごや パンは いちばん 上に。', defect: '入れる 順番の まちがい（たまごの 上に 重い もの など）',
     round() { return bagRound([['牛乳', 5], ['じゃがいも', 4], ['お茶', 3], ['パン', 2], ['たまご', 1]]); },
   },
@@ -888,28 +888,30 @@ const ISLAND = [
   [90, 630], [100, 570], [140, 530], [160, 480], [155, 440], [120, 390],
 ];
 
-// お店の場所。face はお店の正面（来た人が立つ側）の向き。
+// お店の場所。near（地図 px）の いちばん 近くを 通る 道に 正面を 向けて、道ぞいに 建てる（向き・場所は 下の placeSites で きめる）。
+//   face を 書いた お店は その 方角を 向き、その 方向に ある 道の きわに 建てる。set は 道の 中心から お店の 奥の 壁までの 長さ（m）。
 const FACE = { s: 0, e: Math.PI / 2, n: Math.PI, w: -Math.PI / 2 };
 const SITES = {
-  office: { at: [262, 452], face: 's' },   // 首都：役所・会社の事務
-  store: { at: [142, 588], face: 'e' },    // 繁華街
-  cafe: { at: [192, 652], face: 'n' },     // 繁華街
-  care: { at: [196, 522], face: 'e' },     // 住宅地
-  clean: { at: [312, 434], face: 's' },    // 首都：事務所の となり（もとは ビーチの 海の家）
-  yatai: { at: [232, 335], face: 'n' },    // ビーチの 屋台（ビーチを向く）
-  super: { at: [285, 660], face: 'e' },    // 繁華街の 南：スーパー
-  school: { at: [340, 606], face: 's' },
-  rink: { at: [238, 658], face: 'n' },     // 湖の 南：夏は ボート乗り場、冬は スケート場の 受付（入口は 湖がわ）   // 学校エリア：校舎（中に 入れる。入口は 南の 海ぞいの 道がわ）
-  craft: { at: [352, 540], face: 'n' },    // 学校エリア：職業訓練校の作業室
-  forest: { at: [392, 252], face: 's' },   // 林業エリア
-  fish: { at: [592, 250], face: 's' },     // 漁村
-  ski: { at: [648, 362], face: 'n' },      // 山の裏（北東）。南向きの斜面は雪がとけやすいので、スキー場は北東側
-  logi: { at: [742, 392], face: 'n' },     // 漁港：港の物流センター
-  farm: { at: [702, 602], face: 'n' },     // 農村
-  hut: { at: [478, 512], face: 's' },      // 山の表（南）の登山口
-  wind: { at: [200, 398], face: 's' },     // 風の丘のふもと
-  it: { at: [548, 606], face: 'w' },       // IT街（南の 新しい 通りぞい）
+  clean: { near: [289, 452] },              // 首都：議事堂の 前、目抜き通りぞい
+  store: { near: [160, 592] },              // 繁華街：目抜き通りの 角
+  cafe: { near: [292, 675] },               // 繁華街の 南：海ぞいの 道
+  care: { near: [200, 525] },               // 住宅地
+  rink: { near: [262, 517], set: 5.8 },     // 湖の 北：夏は ボート乗り場、冬は スケート場の 受付
+  yatai: { near: [222, 330], face: 's' },   // ビーチの 屋台（ビーチへ 行く 道の 行きどまり）
+  super: { near: [449, 576] },              // 目抜き通りの 南がわ（山小屋の 向かい）
+  school: { near: [345, 622] },             // 学校エリア：校舎（中に 入れる。入口は 南の 海へ 行く 道がわ）
+  craft: { near: [368, 520], face: 'n', set: 6.4 }, // 学校エリア：職業訓練校の作業室
+  forest: { near: [385, 262] },             // 林業エリア
+  fish: { near: [600, 272] },               // 漁村
+  ski: { near: [648, 362] },                // 山の裏（北東）。南向きの斜面は雪がとけやすいので、スキー場は北東側
+  logi: { near: [742, 392], face: 's' },    // 漁港：港の物流センター（入口は 農村へ 行く 道の 分かれ目）
+  farm: { near: [711, 622], set: 5.8 },     // 農村
+  hut: { near: [495, 511] },                // 山の表（南）の登山口
+  wind: { near: [197, 419] },               // 風の丘のふもと
+  it: { near: [543, 608], set: 5.9 },       // IT街（南の 新しい 通りぞい）
+  office: { near: [540, 705] },             // IT街の 南：会社の 事務所
 };
+const SHOP_SET = 6.2;
 
 // 道。漁港 → 山の南 → 学校 → 首都 → 繁華街 が島の目抜き通り。
 const ROAD_W = 2.4;
@@ -918,19 +920,19 @@ const ROADS = [
   [[330, 488], [352, 478], [360, 440], [345, 395], [392, 290], [470, 282], [530, 276], [592, 298], [648, 308], [700, 320]],
   [[262, 488], [230, 430], [222, 368]],
   [[400, 505], [400, 560], [392, 640], [330, 686]],
-  [[640, 520], [702, 640], [820, 690]],
+  [[640, 520], [707, 652], [820, 690]],
   [[742, 425], [800, 470], [860, 560]],
   [[244, 455], [202, 468]], // 首都 → フェリー乗り場
   [[503, 541], [503, 735]],                                   // IT街の 通り（目抜き通り → 南の 海）
   [[160, 688], [238, 693], [330, 688]],                       // カフェ → スーパー（南の 海ぞい）
   [[575, 470], [595, 520], [585, 600], [604, 700], [620, 762]], // 川ぞいの 道（山の ふもと → 南の 海）
   [[860, 560], [895, 605]], [[895, 605], [772, 676]], [[895, 605], [850, 705]], // 農村の 東の 道
-  [[700, 320], [742, 346]],                                   // 山の 北の 道 → 物流センター
+  [[700, 320], [726, 336]],                                   // 山の 北の 道 → 物流センター
 ];
 
 // 川。山のふもとの湧き水から、放射状に海へ（火山の島に多い形）。w は川はば（m）。
 const RIVERS = [
-  { w: 2.0, line: [[445, 444], [380, 455], [310, 500], [283, 560]] },               // 山 → 湖
+  { w: 2.0, line: [[445, 444], [380, 455], [334, 494], [333, 556], [300, 582]] },   // 山 → 湖（スケート場と 作業所の あいだを 通る）
   { w: 2.0, line: [[258, 626], [238, 670], [228, 699]] },                           // 湖 → 西の海
   { w: 1.4, line: [[584, 456], [610, 520], [600, 600], [620, 700], [640, 782]] },   // 山 → 農村 → 南の海
   { w: 1.4, line: [[612, 402], [675, 408], [690, 360], [694, 326]] },               // 山 → 漁港の入り江
@@ -987,6 +989,32 @@ function walkable(x, z) {
   return onRoad || !riverSegs.some(([a, b, w]) => segDist(x, z, a, b) < w / 2 + 0.1);
 }
 
+// 道ぞいに 建てる：near（地図 px）に いちばん 近い 道を さがし、正面を その 道に 向ける。
+//   face が あれば 向きは その 方角に きめ、その 方向に ある 道まで 出す。
+//   foot は 道の 中心線の 上の 点、front は 建物から 道への 向き。
+function roadside(near, face) {
+  const p = toWorld(...near); let foot = null; let front = null;
+  if (face) {
+    const yaw = FACE[face]; front = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)); let best = Infinity;
+    const far = p.clone().addScaledVector(front, 200);
+    roadSegs.forEach(([a, b]) => { const x = crossPoint(p, far, a, b); if (x && x.distanceTo(p) < best) { best = x.distanceTo(p); foot = x; } });
+  } else {
+    let best = Infinity; let seg = null;
+    roadSegs.forEach(([a, b]) => { const d = segDist(p.x, p.z, a, b); if (d < best) { best = d; seg = [a, b]; } });
+    const [a, b] = seg; const ab = b.clone().sub(a); const t = Math.max(0, Math.min(1, p.clone().sub(a).dot(ab) / ab.lengthSq()));
+    foot = a.clone().addScaledVector(ab, t);
+    front = t > 0 && t < 1 ? new THREE.Vector3(-ab.z, 0, ab.x).normalize() : foot.clone().sub(p).normalize(); // 道の 端なら 端に 向く
+    if (front.dot(foot.clone().sub(p)) < 0) front.negate();
+  }
+  return { foot, front, yaw: Math.atan2(front.x, front.z) };
+}
+// お店の 場所：pos は 奥の 壁（お店の 原点）、at は 地図に 点を 打つ ところ（お店の まん中）
+Object.values(SITES).forEach((s) => {
+  const r = roadside(s.near, s.face); s.yaw = r.yaw;
+  s.pos = r.foot.clone().addScaledVector(r.front, -(s.set || SHOP_SET));
+  s.at = toMap(s.pos.x + r.front.x * 0.9, s.pos.z + r.front.z * 0.9);
+});
+
 // 毎回同じ町になるよう、決まった順の乱数で散らす
 let seed = 20260616;
 const rand = () => { seed |= 0; seed = (seed + 0x6D2B79F5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
@@ -1037,11 +1065,15 @@ function addCyl(x, y, z, rt, rb, h, color, seg) {
   // 湖
   patch(ellipse(265, 592, 46, 42), '#e3d9b5', 0.06);
   patch(ellipse(265, 592, 40, 36), '#5aa7d2', 0.07); // 湖（冬は 氷の スケート場。川と 分けた 色）
-  // 田んぼ（農村の 北）
-  patch([[795, 400], [858, 400], [858, 448], [795, 448]], '#9cc78a', 0.065);
-  [416, 432].forEach((py) => patch([[795, py - 1], [858, py - 1], [858, py + 1], [795, py + 1]], '#b08a5a', 0.068));
-  [816, 837].forEach((px) => patch([[px - 1, 400], [px + 1, 400], [px + 1, 448], [px - 1, 448]], '#b08a5a', 0.068));
-  block(...(() => { const p = toWorld(826, 424); return [p.x, p.z, 4.2, 0]; })());
+  // 田んぼ（農村：漁港から 南へ 行く 道と 川の あいだ。道に そろえて ななめに）。ang は 長い 辺の 向き、L・W は 半分の 長さ（px）
+  [[752, 505, 40], [788, 560, 45]].forEach(([cx, cy, deg]) => {
+    const a = deg * Math.PI / 180; const L = 30; const W = 18; const u = [Math.cos(a), Math.sin(a)]; const v = [-u[1], u[0]];
+    const q = (s, t) => [cx + u[0] * s + v[0] * t, cy + u[1] * s + v[1] * t];
+    patch([q(-L, -W), q(L, -W), q(L, W), q(-L, W)], '#8cc7a4', 0.065);
+    [-L / 3, L / 3].forEach((s) => patch([q(s - 1, -W), q(s + 1, -W), q(s + 1, W), q(s - 1, W)], '#b08a5a', 0.068)); // あぜ
+    patch([q(-L, -1), q(L, -1), q(L, 1), q(-L, 1)], '#b08a5a', 0.068);
+    const c = toWorld(cx, cy); block(c.x, c.z, Math.hypot(L, W) * MAP_SCALE, 0);
+  });
   // 湖：町の 家や 木は 5.8m よけるが、歩く ときは 季節で かわる（夏は 岸まで、冬は 氷の 上も 歩ける）
   LAKE.blk = (() => { const p = toWorld(...LAKE.at); return { x: p.x, z: p.z, r: 5.8, w: 3.6 }; })(); blocked.push(LAKE.blk);
   // 川（道より下に描き、交わるところは橋の欄干を立てる）
@@ -1133,9 +1165,9 @@ function buildShopShell(g, job) {
 
 JOBS.forEach((job, i) => {
   const site = SITES[job.id];
-  const yaw = FACE[site.face];
+  const yaw = site.yaw;
   const g = new THREE.Group();
-  g.position.copy(toWorld(...site.at));
+  g.position.copy(site.pos);
   g.rotation.y = yaw;
   scene.add(g);
   // 建物（奥の部屋〜入口）と、入口の前はふさいでおく
@@ -1218,20 +1250,23 @@ JOBS.forEach((job, i) => {
 
 // 自分の 家を 建てられる 場所（地域ごと）。町の 家や 木が 重ならないよう、先に 場所を とって おく（家が ない 間は 歩いて 通れる）
 const HOME_SITES = {
-  downtown: { name: '繁華街', note: 'コンビニ・カフェ・スーパーが 近い にぎやかな 町', at: [128, 650], face: 'n' },
-  school: { name: '学校エリア', note: '学校と 作業所の そば。湖も 近い', at: [425, 639], face: 'w' },
-  capital: { name: '首都の 北', note: '事務所・清掃・風力発電所が 近い', at: [320, 320], face: 'e' },
+  downtown: { name: '繁華街', note: 'コンビニ・カフェ・介護施設が 近い にぎやかな 町', at: [128, 650], face: 'n' },
+  school: { name: '学校エリア', note: '学校と 作業所の そば。湖も 近い', at: [432, 692], face: 'w' },
+  capital: { name: '首都の 北', note: '清掃・風力発電所・屋台が 近い', at: [320, 320], face: 'e' },
   beach: { name: 'ビーチと 森の あいだ', note: '屋台と 森林組合の あいだ。海が 見える', at: [336, 232], face: 's' },
   fishing: { name: '漁村', note: '漁協・スキー場・物流センターが 近い 港町', at: [648, 240], face: 's' },
   farm: { name: '農村', note: '農園と 田んぼの そば。しずかな いなか', at: [834, 598], face: 's' },
 };
 Object.values(HOME_SITES).forEach((h) => { const p = toWorld(...h.at); h.blk = { x: p.x, z: p.z, r: 2.9, w: 0 }; blocked.push(h.blk); });
 // 家具屋（しごと体験は なし。お客さんとして 家具を 買いに 行く お店）。目抜き通りの 南がわで、入口は 北（通り）向き
-const FURN = { at: [445, 570], doorAt: [445, 528], W: 4.6, H: 4.2 };
-FURN.pos = toWorld(...FURN.at); FURN.door = toWorld(...FURN.doorAt); block(FURN.pos.x, FURN.pos.z, 3.0);
+//   学校の 東の 道ぞい。pos は 建物の まん中、door は 入口の 前（道の きわ）、front は 建物から 道への 向き
+const FURN = { near: [412, 636], W: 4.6, H: 4.2 };
+(() => { const r = roadside(FURN.near); FURN.yaw = r.yaw; FURN.front = r.front;
+  FURN.pos = r.foot.clone().addScaledVector(r.front, -(ROAD_W / 2 + 0.6 + FURN.W / 2)); FURN.door = r.foot.clone().addScaledVector(r.front, -ROAD_W / 2);
+  FURN.at = toMap(FURN.pos.x, FURN.pos.z); block(FURN.pos.x, FURN.pos.z, 3.0); })();
 
 // 地域の名前（お店のない地域・目じるし）
-[['ビーチ', [250, 205]], ['湖（冬は スケート場）', [265, 592]], ['田んぼ', [826, 424]], ['表：夏山登山　裏：冬スキー', [520, 392]],
+[['ビーチ', [250, 205]], ['湖（冬は スケート場）', [265, 592]], ['田んぼ', [770, 532]], ['表：夏山登山　裏：冬スキー', [520, 392]],
   ['フェリー乗り場（となりの国へ）', [125, 458]]].forEach(([text, at]) => {
   const p = toWorld(...at);
   const s = overviewSign(text, '', '', text.length > 10 ? 11 : text.length > 4 ? 7.5 : 4.5);
@@ -1386,13 +1421,15 @@ function tree(x, z, kind) {
   const field = toWorld(408, 585); patch(ellipse(408, 585, 26, 20), '#d6a874', 0.07); block(field.x, field.z, 3.2, 0);
 
   // 家具屋：木の 色の 店。入口の 上に 看板、店先に ソファと 観葉植物
+  //（道に 向けて 建てるので、部品は 店の 向きの グループに 入れる。ローカルの +z が 道がわ）
   (() => {
-    const { pos: p, W, H } = FURN; const fz = p.z - W / 2; // 北がわ（通りがわ）の 壁
-    building(p.x, p.z, W, W, H, '#d9b48a');
-    addBox(p.x, H + 0.15, p.z, W + 0.4, 0.3, W + 0.4, '#8a6a46');
-    addBox(p.x, 1.1, fz - 0.03, 1.4, 2.2, 0.06, '#6b4a2a'); // 入口
+    const { pos: p, W, H } = FURN; const fz = W / 2; // 道がわの 壁
+    const g = new THREE.Group(); g.position.copy(p); g.rotation.y = FURN.yaw; scene.add(g); FURN.group = g;
+    g.add(building(0, 0, W, W, H, '#d9b48a'));
+    g.add(addBox(0, H + 0.15, 0, W + 0.4, 0.3, W + 0.4, '#8a6a46'));
+    g.add(addBox(0, 1.1, fz + 0.03, 1.4, 2.2, 0.06, '#6b4a2a')); // 入口
     const sign = new Board(3.2, 0.8, 120); sign.draw((ctx, w, h) => { ctx.fillStyle = '#8a6a46'; roundRect(ctx, 0, 0, w, h, h * 0.2); ctx.fill(); ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = '700 ' + Math.round(h * 0.55) + 'px ' + FONT_DISPLAY; ctx.fillText('家具屋', w / 2, h * 0.54); });
-    sign.mesh.position.set(p.x, H - 0.8, fz - 0.06); sign.mesh.rotation.y = Math.PI; scene.add(sign.mesh);
+    sign.mesh.position.set(0, H - 0.8, fz + 0.06); g.add(sign.mesh);
     const pin = overviewSign('家具屋', '家具を 買う', '#8a6a46', 5); pin.position.set(p.x, 8, p.z); pin.lookAt(OVERVIEW.pos); scene.add(pin); overviewOnly.push(pin);
   })();
 
@@ -1429,6 +1466,15 @@ function tree(x, z, kind) {
       patch([[px + 2, py + 2], [px + 40, py + 2], [px + 40, py + 28], [px + 2, py + 28]], pick(['#c9b36a', '#88b25a', '#a7c46a', '#b98f5a']), 0.06);
     }
   }
+  // 農家：田んぼの そばに、道に 向けて 建てる
+  [[722, 478], [835, 540]].forEach((near) => {
+    const r = roadside(near); const c = r.foot.clone().addScaledVector(r.front, -(ROAD_W / 2 + 0.5 + 1.1));
+    block(c.x, c.z, 1.6);
+    const g = new THREE.Group(); g.position.copy(c); g.rotation.y = r.yaw; scene.add(g);
+    const body = new THREE.Mesh(new THREE.BoxGeometry(2.8, 1.9, 2.2), cmat('#f1e4d0')); body.position.y = 0.95; g.add(body);
+    const roof = new THREE.Mesh(new THREE.ConeGeometry(1.95, 1.1, 4), cmat('#6b4a2a')); roof.position.y = 2.45; roof.rotation.y = Math.PI / 4; roof.scale.set(1.0, 1, 0.8); g.add(roof);
+    const door = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.5, 0.06), cmat('#8a6a46')); door.position.set(0, 0.75, 1.12); g.add(door);
+  });
   const barn = toWorld(800, 520);
   if (isFree(barn.x, barn.z, 2.8)) {
     block(barn.x, barn.z, 2.8); addBox(barn.x, 1.5, barn.z, 4, 3, 3, '#b8453a');
@@ -2345,9 +2391,9 @@ const FURNITURE = {
   bed() { const g = new THREE.Group(); part(g, box(1.05, 0.3, 1.95), '#8a6a46', 0, 0.15, 0); part(g, box(1.0, 0.16, 1.9), '#fbfaf4', 0, 0.38, 0); part(g, box(0.7, 0.1, 0.32), '#ffffff', 0, 0.5, -0.7); part(g, box(1.02, 0.08, 1.2), '#e07fa4', 0, 0.48, 0.32); part(g, box(1.05, 0.7, 0.06), '#8a6a46', 0, 0.35, -0.98); return g; },
 };
 // 家具屋の 店先に 見本の ソファと 観葉植物
-(() => { const p = FURN.pos; const fz = p.z - FURN.W / 2;
-  const sofa = FURNITURE.sofa(); sofa.position.set(p.x - 1.4, 0, fz - 0.7); sofa.rotation.y = Math.PI; scene.add(sofa);
-  const plant = FURNITURE.plant(); plant.position.set(p.x + 1.3, 0, fz - 0.5); scene.add(plant); })();
+(() => { const fz = FURN.W / 2;
+  const sofa = FURNITURE.sofa(); sofa.position.set(1.4, 0, fz + 0.7); FURN.group.add(sofa);
+  const plant = FURNITURE.plant(); plant.position.set(-1.3, 0, fz + 0.5); FURN.group.add(plant); })();
 function trophyMesh(color, ghost) {
   const g = new THREE.Group(); const ex = ghost ? { transparent: true, opacity: 0.2 } : { metalness: 0.6, roughness: 0.3 };
   const c = ghost ? '#c9ced2' : color;
@@ -2551,7 +2597,7 @@ function goHome(instant) {
 }
 function exitHome() { startWalk(home.group.position.clone().addScaledVector(home.front, home.HD / 2 + 3.2), home.yaw + Math.PI); }
 // 家具屋の 入口の 前へ（お店に 向いて 立つ）
-function goFurniture() { const d = FURN.door; const p = new THREE.Vector3(d.x, 0, d.z - 1.5); startWalk(p, Math.PI); toast('家具屋に 着きました。入口の 前で「家具屋で ' + (profile.mode === 'money' ? '買う' : 'もらう') + '」を おしてください'); }
+function goFurniture() { const p = FURN.door.clone().addScaledVector(FURN.front, 1.5); startWalk(p, FURN.yaw); toast('家具屋に 着きました。入口の 前で「家具屋で ' + (profile.mode === 'money' ? '買う' : 'もらう') + '」を おしてください'); }
 function goPlaza() {
   stopSpeech();
   clearWork();
@@ -2662,7 +2708,7 @@ const SNOW_TINT = {
   '#9cc47f': '#eef3f5', '#8fbc6e': '#eef3f5', '#7fa865': '#e2ebe4', '#7fa7a0': '#eef3f5', // 草地・丘・林・ドーム
   '#c9b36a': '#e8edf0', '#88b25a': '#e8edf0', '#a7c46a': '#e8edf0', '#b98f5a': '#e8edf0', '#d6a874': '#e8edf0', // 畑・校庭
   '#ecdcae': '#f2f0e8', '#e3d9b5': '#eef2f4', // 砂浜・湖の まわり
-  '#5aa7d2': '#d9eef8', '#9cc78a': '#e8eef0', // 湖は 氷（スケート場）・田んぼも 雪
+  '#5aa7d2': '#d9eef8', '#8cc7a4': '#e8eef0', // 湖は 氷（スケート場）・田んぼも 雪
   '#b9573f': '#f4f7f9', '#5a6f8a': '#f4f7f9', '#7a8a4f': '#f4f7f9', '#3d6f9e': '#f4f7f9', '#4f7f7a': '#f4f7f9', '#9e4f3d': '#f4f7f9', '#5a3a2e': '#f4f7f9', // 屋根
   '#3f7a3a': '#cfe0d4', '#4d8a45': '#d6e6da', // 針葉樹に 雪
 };
@@ -4220,7 +4266,7 @@ $('btn-season').addEventListener('click', () => setSeason(season === 'winter' ? 
 $('btn-home').addEventListener('click', () => goHome());
 $('btn-settings').addEventListener('click', openSettings);
 window.hopeTown = {
-  state, goBooth, startSession, select: onSelectItem, nextTargetKey, setSeason, startWalk, exitToWalk, walkKeys, rig, booths, goHome, exitHome, goPlaza,
+  state, goBooth, startSession, select: onSelectItem, nextTargetKey, setSeason, startWalk, exitToWalk, walkKeys, rig, look, booths, goHome, exitHome, goPlaza,
   get profile() { return profile; }, home, FURN, goFurniture, cheatCover() { const r = state.round; if (r && r.cover) { r.cover.surf.clearAll(); coverProgress(r, 1, performance.now()); } }, seasonal, LAKE, toWorld, nearbyActions, openShop, openBadgeBook, openSettings, openAreaPicker,
   // テスト用：オープニングを とばして 家を 用意する
   quickStart(homeKey, mode) { profile = { name: 'テスト', gender: 'n', mode: mode || 'money', home: homeKey || 'downtown', money: 0, badges: {}, owned: [], since: new Date().toISOString() }; saveProfile(); closeModal(); buildHome(); renderWallet(); goPlaza(); },
