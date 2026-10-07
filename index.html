@@ -252,7 +252,7 @@ const ROUNDS_PER_SESSION = 5;
 const JOBS = [
   {
     id: 'logi', area: '漁港', name: '物流センター', work: 'ピッキング', color: '#2f7d6d', category: '実務',
-    intro: '注文票の しなものを たなから ひろって かごに 入れます。',
+    intro: '注文票を 見て、手前に ならんだ 品物を ひろい、段ボール箱に 入れます。',
     defect: 'ちがう しなものを ひろう',
     round() {
       const pool = [
@@ -262,7 +262,7 @@ const JOBS = [
       ];
       const n = 2 + Math.floor(Math.random() * 2);
       const need = sample(pool, n).map((p) => p.label);
-      return { title: '注文票：' + need.join('・'), shortTitle: '注文の しなものを ひろう', items: shuffle(pool), need, ordered: false, carryText: '注文票：' + need.join('・') };
+      return { title: '注文票：' + need.join('・'), shortTitle: '注文の しなものを ひろう', items: shuffle(pool), need, ordered: false, layout: 'picking' };
     },
   },
   {
@@ -628,11 +628,11 @@ function bagRound(goods) {
 // ---- 冬の しごと（お店ごとに 1 つ。夏の しごとと 同じ 道具立てで、冬の 中身に かえる）
 const WINTER = {
   logi: {
-    work: '冬の注文のピッキング', intro: '冬の 注文票の しなものを たなから ひろって かごに 入れます。', defect: 'ちがう しなものを ひろう',
+    work: '冬の注文のピッキング', intro: '冬の 注文票を 見て、手前に ならんだ 品物を ひろい、段ボール箱に 入れます。', defect: 'ちがう しなものを ひろう',
     round() {
       const pool = ['みかん', 'もち', 'カイロ', '手袋', 'マフラー', '鍋つゆ'].map((label) => ({ label, color: '#ffffff' }));
       const need = sample(pool, 2 + Math.floor(Math.random() * 2)).map((p) => p.label);
-      return { title: '注文票：' + need.join('・'), shortTitle: '注文の しなものを ひろう', items: shuffle(pool), need, ordered: false, carryText: '注文票：' + need.join('・') };
+      return { title: '注文票：' + need.join('・'), shortTitle: '注文の しなものを ひろう', items: shuffle(pool), need, ordered: false, layout: 'picking' };
     },
   },
   store: {
@@ -2806,6 +2806,7 @@ function nextRound() {
   const cols = Math.min(n, 4);
   const rows = Math.ceil(n / cols);
   const labels = [];
+  if (def.layout === 'picking') return startPicking(b, def);
   def.items.forEach((spec, idx) => {
     const col = idx % cols; const row = Math.floor(idx / cols);
     const holder = new THREE.Group();
@@ -2852,6 +2853,69 @@ function nextRound() {
   drawWorkBoard();
   renderHud();
   if (state.withSupport) speak(def.title + '。' + (def.ordered ? '最初は、' + stepLabel(def.need[0]) + '。' : ''));
+}
+
+// ピッキング（物流センター）：左に 注文票、まん中に 段ボール箱、手前に 品物の 箱を ならべる。
+//   ひろった 品物は 段ボール箱の 中に 入り、注文票に チェックが つく。
+const PICK_BOX = { x: -0.25, z: 2.42, w: 0.66, h: 0.17, d: 0.46 }; // 店員は +z を 向くので、+x が 店員の 左
+function startPicking(b, def) {
+  const W = b.workArea; const slots = [];
+  // 注文票（台の 左に 立てる）
+  const slip = new Board(0.62, 0.84, 600);
+  const paintSlip = () => slip.draw((ctx, w, h) => {
+    ctx.fillStyle = '#fffef8'; ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = '#2f7d6d'; ctx.lineWidth = 10; ctx.strokeRect(5, 5, w - 10, h - 10);
+    ctx.fillStyle = '#2f7d6d'; ctx.font = '700 64px ' + FONT_DISPLAY; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('注文票', w / 2, h * 0.11);
+    ctx.fillRect(w * 0.08, h * 0.19, w * 0.84, 4);
+    const done = new Set(slots.filter((sl) => sl.done).map((sl) => sl.key));
+    ctx.textAlign = 'left';
+    def.need.forEach((k, i) => {
+      const y = h * (0.3 + i * 0.15); const ok = done.has(k);
+      ctx.strokeStyle = '#1f2a33'; ctx.lineWidth = 5; ctx.strokeRect(w * 0.1, y - 26, 52, 52);
+      if (ok) { ctx.strokeStyle = '#2e9d57'; ctx.lineWidth = 10; ctx.beginPath(); ctx.moveTo(w * 0.1 + 8, y); ctx.lineTo(w * 0.1 + 22, y + 16); ctx.lineTo(w * 0.1 + 48, y - 20); ctx.stroke(); }
+      ctx.fillStyle = ok ? '#8a949c' : '#1f2a33'; ctx.font = '700 56px ' + FONT_BODY; ctx.fillText(k, w * 0.1 + 76, y + 2);
+    });
+  });
+  paintSlip();
+  const stand = new THREE.Group(); stand.position.set(0.95, 0.9, 2.45); stand.rotation.y = Math.PI; W.add(stand);
+  const tilt = new THREE.Group(); tilt.rotation.x = -0.2; stand.add(tilt);
+  slip.mesh.position.set(0, 0.44, 0); tilt.add(slip.mesh);
+  part(tilt, box(0.68, 0.9, 0.03), '#7a5a3a', 0, 0.44, -0.02); // 板
+  part(tilt, box(0.2, 0.05, 0.05), '#b9bcb8', 0, 0.86, 0.02);  // クリップ
+  // 段ボール箱（ふたが ひらいている）
+  const { x: bx, z: bz, w: bw, h: bh, d: bd } = PICK_BOX; const kraft = '#c49a6c';
+  part(W, box(bw, 0.02, bd), kraft, bx, 0.91, bz);
+  [-1, 1].forEach((sd) => { part(W, box(bw, bh, 0.02), kraft, bx, 0.9 + bh / 2, bz + sd * bd / 2); part(W, box(0.02, bh, bd), kraft, bx + sd * bw / 2, 0.9 + bh / 2, bz); });
+  [-1, 1].forEach((sd) => {
+    // 前後の ふた：奥は 立てて、店員がわ（-z）は 外に たらして 中が 見えるように
+    const f = sd > 0 ? part(W, box(bw, 0.015, bd * 0.48), '#d1a877', bx, 0.9 + bh + 0.08, bz + bd / 2 + 0.1) : part(W, box(bw, bd * 0.48, 0.015), '#d1a877', bx, 0.9 + bh - bd * 0.24, bz - bd / 2 - 0.012);
+    if (sd > 0) f.rotation.x = -0.9;
+    const s2 = part(W, box(bw * 0.4, 0.015, bd), '#d1a877', bx + sd * (bw / 2 + 0.07), 0.9 + bh + 0.06, bz); s2.rotation.z = sd * 0.9; // 左右の ふた
+  });
+  // 品物（手前に 1 列。ひとつずつ 名前の 書いた 箱に 入っている）
+  const n = def.items.length; const span = 2.0;
+  def.items.forEach((spec, idx) => {
+    const x = -span / 2 + (idx + 0.5) * (span / n);
+    const holder = new THREE.Group(); holder.position.set(x, 0.9, 1.98); holder.rotation.y = Math.PI; W.add(holder);
+    const grp = new THREE.Group(); holder.add(grp);
+    const bin = new THREE.Group(); grp.add(bin);
+    const BW = Math.min(0.36, span / n - 0.06); const BH = 0.12; const BD = 0.3;
+    part(bin, box(BW, 0.015, BD), '#d6b48a', 0, 0.008, 0);
+    [-1, 1].forEach((sd) => { part(bin, box(BW, BH, 0.015), '#c49a6c', 0, BH / 2, sd * BD / 2); part(bin, box(0.015, BH, BD), '#c49a6c', sd * BW / 2, BH / 2, 0); });
+    const plate = new Board(BW * 0.92, 0.1, 900);
+    plate.draw((ctx, w, h) => { ctx.fillStyle = '#ffffff'; roundRect(ctx, 0, 0, w, h, 14); ctx.fill(); ctx.fillStyle = '#1f2a33'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      let px = Math.round(h * 0.7); ctx.font = '700 ' + px + 'px ' + FONT_BODY; while (px > 20 && ctx.measureText(spec.label).width > w * 0.9) { px -= 4; ctx.font = '700 ' + px + 'px ' + FONT_BODY; } ctx.fillText(spec.label, w / 2, h * 0.54); });
+    plate.mesh.position.set(0, BH * 0.55, BD / 2 + 0.01); bin.add(plate.mesh); // 店員がわ（holder を 180° まわしているので +z が 手前）
+    const item = fitInto(makeItemMesh(spec), BW * 0.7, 0.2, BD * 0.7); item.position.y = 0.02; grp.add(item);
+    grp.traverse((o) => { o.userData.slotIndex = idx; });
+    const ringMesh = makeGlowRing(); ringMesh.scale.setScalar(BW / 0.26); ringMesh.position.y = 0.01; holder.add(ringMesh);
+    slots.push({ spec, key: itemKey(spec), mesh: grp, item, ring: ringMesh, holder, done: false });
+  });
+  state.round = { def, slots, pos: 0, lastActionAt: performance.now(), hintShown: false, mistakeThisRound: false, paintSlip, inBox: 0 };
+  state.feedback = { text: '', kind: '' };
+  drawWorkBoard();
+  renderHud();
+  if (state.withSupport) speak(def.title + '。');
 }
 
 function remainingKeys() {
@@ -2917,7 +2981,7 @@ function onSelectItem(slotIndex) {
   if (ok) {
     slot.done = true; if (r.def.ordered) r.pos++;
     slot.ring.visible = false; r.hintShown = false;
-    animateDone(slot);
+    if (r.def.layout === 'picking') { dropIntoBox(slot, r.inBox++); r.paintSlip(); } else animateDone(slot);
     state.feedback = { text: 'OK！', kind: 'ok' };
     if (remainingKeys().length === 0) return finishRound();
     if (state.withSupport && r.def.ordered) speak('つぎは、' + stepLabel(nextTargetKey()) + '。');
@@ -3007,6 +3071,14 @@ function useHint(auto) {
 // 動き
 const anims = [];
 function animateDone(slot) { anims.push({ kind: 'done', slot, t0: performance.now() }); }
+// ひろった 品物を 段ボール箱の 中へ（箱に 入ったまま 見えている）
+function dropIntoBox(slot, k) {
+  const it = slot.item; const from = slot.holder.position.clone().add(new THREE.Vector3(0, it.position.y, 0));
+  slot.holder.remove(it); slot.mesh.remove(it); state.booth.workArea.add(it); it.position.copy(from); it.rotation.y = Math.PI;
+  it.traverse((o) => { delete o.userData.slotIndex; });
+  const to = new THREE.Vector3(PICK_BOX.x - 0.18 + (k % 3) * 0.18, 0.93, PICK_BOX.z + (k >= 3 ? 0.1 : -0.06));
+  anims.push({ kind: 'box', obj: it, from, to, t0: performance.now() });
+}
 function flashWrong(slot) {
   const mats = [];
   slot.mesh.traverse((o) => { if (o.isMesh && o.material.emissive) mats.push(o.material); });
@@ -3019,6 +3091,10 @@ function stepAnims(now) {
     if (a.kind === 'done') {
       a.slot.holder.position.y += 0.012; a.slot.holder.scale.setScalar(Math.max(0.01, 1 - t * 2));
       if (t > 0.5) { a.slot.holder.visible = false; anims.splice(i, 1); }
+    } else if (a.kind === 'box') {
+      const u = Math.min(1, t / 0.55); const e = u * u * (3 - 2 * u);
+      a.obj.position.lerpVectors(a.from, a.to, e); a.obj.position.y += Math.sin(u * Math.PI) * 0.35;
+      if (u >= 1) anims.splice(i, 1);
     } else if (a.kind === 'wrong') {
       a.slot.holder.position.x += Math.sin(t * 60) * 0.003;
       if (t > 0.4) { a.mats.forEach((m) => m.emissive.copy(m.userData.baseEmissive)); anims.splice(i, 1); }
