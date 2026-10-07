@@ -2977,7 +2977,7 @@ booths.forEach((b) => {
   const guests = { rink: ['#e07fa4', '#3c7fc4'], yatai: ['#3c7fc4', '#f2c230'], super: ['#4f9a45', '#c4577a'], store: ['#3b6fb6', '#e3a33c'], cafe: ['#c4577a'], ski: ['#d0453a', '#3c7fc4'], hut: ['#4f9a45'] }[b.job.id];
   if (!guests) return;
   guests.forEach((c, k) => {
-    const p = person(c, '#3d4a54'); p.scale.setScalar(4.6); p.rotation.y = Math.PI;
+    const p = person(c, '#3d4a54'); p.scale.setScalar(4.6); p.rotation.y = Math.PI; (b.guests = b.guests || []).push(p);
     p.position.set((k ? 1.35 : -1.3), 0.1, COUNTER_Z + 2.0 + k * 0.3); b.group.add(p); // 台と モニターを かくさない よう はしに
     if (b.job.id === 'store') p.position.set(k ? 0.75 : -0.7, 0.1, SHOP_DEPTH - 0.35); // コンビニは 両がわが たなの 売り場なので 入口の そばに
   });
@@ -3373,6 +3373,7 @@ function clearWork() {
   Object.values(FIELDS).forEach((f) => { while (f.work.children.length) f.work.remove(f.work.children[0]); });
   if (b.panelOut) { b.group.add(b.panel); b.panel.position.set(0, 0, PANEL_Z); b.panel.rotation.y = Math.PI; b.panel.scale.setScalar(1); b.panelOut = false; } // 指示モニターを お店に もどす
   b.inField = false; b.away = false;
+  if (b.guests) b.guests.forEach((p) => { p.visible = true; }); // 倉庫整理の 間は お客さんを 出さない
   applyRoomMode(b); // 部屋の ようすを 作業に 合わせて もどす
   if (b.counter.userData.base) b.counter.material.color.copy(b.counter.userData.base);
 }
@@ -4460,7 +4461,9 @@ function startLaptop(b, def) {
 // 倉庫整理（スーパー）：左に 4 だんの たな（上から A・B・C・D の 札）、右に 箱を つんだ 台車。
 //   台車の 箱は 上から 順に おろして、同じ 記号の たなの あいている ところへ 置く。たなを えらぶと 箱が 動く。
 //   店員は +z を 向くので、+x が 店員の 左。札・箱の 文字は 店員がわ（-z）に 向ける。
-const STOCK = { x: 0.25, z: 2.55, w: 1.7, d: 0.45, boards: [1.1, 0.78, 0.46, 0.14], spotX: 0.58, cartX: -1.35, cartZ: 2.3 };
+// 倉庫の たなは 右の かべ（入口がわ。売り場の たなの 手前）に つける。たな・台車は wall の 中で 組み、wall ごと かべへ 向ける
+//   wall：お店の 中の 位置と 向き（ローカルの -z が たなの 正面＝部屋の まん中）。stand：店員の 立つ ところ（かべの 方を 向く）
+const STOCK = { x: 0.25, z: 2.55, w: 1.7, d: 0.45, boards: [1.1, 0.78, 0.46, 0.14], spotX: 0.58, cartX: -0.75, cartZ: 1.325, wall: { x: 0.625, z: 3.05, ry: -Math.PI / 2 }, stand: [0.5, 3.3] };
 function stockBox(W, label, w, h, d, x, y, z) {
   const g = new THREE.Group(); g.position.set(x, y, z); W.add(g);
   part(g, box(w, h, d), '#c49a6c', 0, h / 2, 0);
@@ -4472,7 +4475,9 @@ function stockBox(W, label, w, h, d, x, y, z) {
   return g;
 }
 function startStock(b, def) {
-  const W = b.workArea; const slots = []; const { x: sx, z: sz, w: sw, d: sd } = STOCK;
+  const W = new THREE.Group(); W.position.set(STOCK.wall.x, 0, STOCK.wall.z); W.rotation.y = STOCK.wall.ry; b.workArea.add(W); const slots = [];
+  if (b.guests) b.guests.forEach((p) => { p.visible = false; }); // 倉庫に お客さんは いない
+  const { x: sx, z: sz, w: sw, d: sd } = STOCK;
   b.counter.visible = false; // 作業台の かわりに たなと 台車
   const metal = '#8f99a3';
   // たな（柱 4 本と 板 5 まい）
@@ -4504,7 +4509,8 @@ function startStock(b, def) {
   [-1, 1].forEach((ex) => part(W, box(0.025, 0.85, 0.025), '#3d5a80', cx + ex * (CW / 2 - 0.02), 0.65, cz + CD / 2 - 0.02));
   part(W, box(CW, 0.03, 0.03), '#3d5a80', cx, 1.07, cz + CD / 2 - 0.02);
   const cartBoxes = def.need.map((k, n) => stockBox(W, '商品' + k, BW, BH, BD, cx, 0.24 + (def.need.length - 1 - n) * (BH + 0.005), cz - 0.06));
-  look.pitch = 0.2; // たなの 下の だんと 台車が 見えるように 少し 下を 向く
+  moveRig(b.group.localToWorld(new THREE.Vector3(STOCK.stand[0], 0, STOCK.stand[1])), b.yaw + Math.PI / 2, 0.17, state.session.roundIndex ? 500 : undefined); // かべの たなの 方を 向く。下の だんと 台車が 見えるように 少し 下を 向く
+  b.panel.position.set(-SHOP_W / 2 + 0.12, 0.28, 3.3); b.panel.rotation.y = Math.PI / 2; b.panelOut = true; // 指示モニターは たなの 上の かべに
   state.round = { def, slots, pos: 0, lastActionAt: performance.now(), hintShown: false, mistakeThisRound: false, stock: { cartBoxes, next: 0 } };
   state.feedback = { text: '', kind: '' };
   drawWorkBoard();
