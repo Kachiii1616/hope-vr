@@ -2618,12 +2618,25 @@ const furnCan = (it) => profile && (profile.mode === 'money' ? profile.money >= 
 function paintFurnTags() {
   Object.values(furnShop.items).forEach((d) => {
     const it = d.it; const own = profile && profile.owned.includes(it.id); const sel = furnShop.selected === it.id;
-    const buy = profile && profile.mode === 'money' ? '買う' : 'もらう';
-    const text = own ? it.name + '（もっている）' : sel ? it.name + ' ' + furnPrice(it) + '：もう一度で ' + buy : it.name + ' ' + furnPrice(it);
+    const text = own ? it.name + '（もっている）' : it.name + ' ' + furnPrice(it);
     const o = own ? { bg: 'rgba(220,226,230,0.92)', fg: '#55626d' } : sel ? { bg: 'rgba(255,214,90,0.97)' } : furnCan(it) ? {} : { fg: '#b93a32' };
     if (d.tag) { FURN.group.remove(d.tag); d.tag.material.map.dispose(); d.tag.material.dispose(); }
     d.tag = labelSprite(text, Object.assign({ h: sel ? 0.17 : 0.14 }, o)); d.tag.position.set(d.tagAt[0], d.tagY, d.tagAt[1]); FURN.group.add(d.tag);
   });
+  // えらんだ 家具の 札の 下に「買う」「やめる」の ボタン（VR でも 押せる）
+  (furnShop.btns || []).forEach((b) => { FURN.group.remove(b); b.material.map.dispose(); b.material.dispose(); });
+  furnShop.btns = [];
+  const d = furnShop.selected && furnShop.items[furnShop.selected];
+  if (d) {
+    const buy = labelSprite(profile.mode === 'money' ? '買う' : 'もらう', { h: 0.18, bg: 'rgba(224,102,47,0.97)', fg: '#ffffff' });
+    const no = labelSprite('やめる', { h: 0.18, bg: 'rgba(85,98,109,0.95)', fg: '#ffffff' });
+    buy.userData.furnBuy = furnShop.selected; no.userData.furnCancel = true;
+    // 札の 下に ならべる（家具に うもれないよう、通路がわ＝まん中寄りに 少し 出す）
+    const [x, z] = d.tagAt; const k = Math.hypot(x, z) || 1; const ox = x - (x / k) * 0.3; const oz = z - (z / k) * 0.3;
+    const y = d.tagY - 0.27;
+    buy.position.set(ox, y, oz); no.position.set(ox, y - 0.22, oz);
+    [buy, no].forEach((b) => { FURN.group.add(b); furnShop.btns.push(b); });
+  }
 }
 function furnFree(x, z) {
   const h = FURN.W / 2 - 0.35; const door = Math.abs(x) < 0.5 && z > h;
@@ -2853,8 +2866,7 @@ function pickFurn(id) {
   const it = CATALOG.find((c) => c.id === id); if (!it || !profile) return;
   if (profile.owned.includes(id)) { toast(it.name + 'は もう もっています'); return; }
   if (!furnCan(it)) { toast(profile.mode === 'money' ? 'お金が たりません（' + yen(it.price) + '）' : 'バッジが あと ' + (it.badges - badgeCount()) + 'こ いります'); return; }
-  if (furnShop.selected === id) { buyFurn(id); return; }
-  furnShop.selected = id; paintFurnTags(); renderHud();
+  furnShop.selected = furnShop.selected === id ? null : id; paintFurnTags(); renderHud(); // もう一度 えらぶと えらぶのを やめる
 }
 function buyFurn(id) {
   const it = CATALOG.find((c) => c.id === id); if (!it || !furnCan(it) || profile.owned.includes(id)) return;
@@ -3927,7 +3939,7 @@ function dirtSurface(W, xc, zc, w, d, y, paint) {
   mesh.rotation.x = -Math.PI / 2; mesh.position.set(xc, y, zc); mesh.renderOrder = 2; W.add(mesh);
   const CELL = 0.12; const nx = Math.ceil(w / CELL); const nz = Math.ceil(d / CELL);
   const x0 = xc - w / 2; const z0 = zc - d / 2;
-  const dirty = new Uint8Array(nx * nz).fill(1);
+  const dirty = new Uint8Array(nx * nz).fill(1); const reach = new Uint8Array(nx * nz); // reach：モップが 届く ます
   const cx = (i) => x0 + (i + 0.5) * CELL; const cz = (j) => z0 + (j + 0.5) * CELL;
   const surf = {
     mesh, total: nx * nz, left: nx * nz,
@@ -3943,6 +3955,8 @@ function dirtSurface(W, xc, zc, w, d, y, paint) {
     ratio() { return surf.total ? 1 - surf.left / surf.total : 1; },
     isDirty(x, z) { const i = Math.floor((x - x0) / CELL); const j = Math.floor((z - z0) / CELL); return i >= 0 && j >= 0 && i < nx && j < nz && !!dirty[j * nx + i]; },
     nearestDirty(x, z) { let best = null; let bd = Infinity; for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) if (dirty[j * nx + i]) { const dd = Math.hypot(cx(i) - x, cz(j) - z); if (dd < bd) { bd = dd; best = { x: cx(i), z: cz(j) }; } } return best; },
+    markReach(x, z, r) { for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) if (Math.abs(cx(i) - x) < r + CELL && Math.abs(cz(j) - z) < r + CELL && Math.hypot(cx(i) - x, cz(j) - z) < r + CELL * 0.35) reach[j * nx + i] = 1; },
+    keepReachable() { for (let k = 0; k < dirty.length; k++) if (dirty[k] && !reach[k]) { dirty[k] = 0; surf.total--; surf.left--; } },
     clearAll() { for (let k = 0; k < dirty.length; k++) dirty[k] = 0; surf.left = 0; c.clearRect(0, 0, cw, ch); tex.needsUpdate = true; },
   };
   return surf;
@@ -3967,6 +3981,18 @@ function roomThing(W, o) {
   }
 }
 const ROOM = { x0: -2.1, x1: 2.1, z0: 0.15, z1: 4.3 }; // 部屋の ゆか（お店の 中）
+// モップ：自分が 立てる ところ・家具に ぶつかるか・ヘッドの 位置（家具や かべの 手前で 止める）
+const mopFree = (x, z) => x > ROOM.x0 + 0.3 && x < ROOM.x1 - 0.3 && z > ROOM.z0 + 0.2 && z < ROOM.z1 - 0.35;
+const mopHits = (things, x, z) => things.some((o) => x > o.x - o.w / 2 - 0.4 && x < o.x + o.w / 2 + 0.4 && z > o.z - o.d / 2 - 0.4 && z < o.z + o.d / 2 + 0.4); // ヘッドを 家具の 手前に 置ける 間を とる
+function mopHead(things, px, pz, dx, dz) {
+  const HR = 0.2; // ヘッドの 大きさ（半分）
+  const bad = (x, z) => x < ROOM.x0 + HR || x > ROOM.x1 - HR || z < ROOM.z0 + 0.1 || z > ROOM.z1 - 0.1
+    || things.some((o) => x > o.x - o.w / 2 - HR && x < o.x + o.w / 2 + HR && z > o.z - o.d / 2 - HR && z < o.z + o.d / 2 + HR);
+  let reach = 0.85;
+  while (reach > 0.15 && bad(px + dx * reach, pz + dz * reach)) reach -= 0.05;
+  const x = px + dx * reach; const z = pz + dz * reach;
+  return { x, z, blocked: bad(x, z) };
+}
 const MOP_ROOMS = [
   [{ kind: 'bed', x: -1.5, z: 3.1, w: 1.0, d: 2.0 }, { kind: 'cabinet', x: 1.55, z: 3.6, w: 1.0, d: 0.5 }, { kind: 'bucket', x: 1.75, z: 1.0, w: 0.36, d: 0.36 }],
   [{ kind: 'bed', x: 1.5, z: 3.1, w: 1.0, d: 2.0 }, { kind: 'cabinet', x: -1.55, z: 3.6, w: 1.0, d: 0.5 }, { kind: 'chair', x: -0.3, z: 2.3, w: 0.5, d: 0.5 }, { kind: 'bucket', x: -1.75, z: 1.0, w: 0.36, d: 0.36 }],
@@ -3981,6 +4007,16 @@ const CLEAN_LAYOUTS = {
       for (let k = 0; k < 40; k++) { c.fillStyle = def.winter ? 'rgba(90,140,180,0.5)' : 'rgba(95,70,45,0.55)'; c.beginPath(); c.ellipse(Math.random() * w, Math.random() * h, 8 + Math.random() * 26, 6 + Math.random() * 16, Math.random() * 3, 0, Math.PI * 2); c.fill(); }
     });
     things.forEach((o) => surf.exclude(o.x - o.w / 2, o.z - o.d / 2, o.x + o.w / 2, o.z + o.d / 2));
+    // モップの ヘッドが どこからも 届かない 床（家具と かべの すきま など）は 数えない
+    //（立ち位置から 歩いて 行ける ところだけ：0.1m の ます目を たどる）
+    const S = 0.1; const ok = (i, j) => { const x = i * S; const z = STAFF_Z + j * S; return mopFree(x, z) && !mopHits(things, x, z); };
+    const seen = new Set(['0,0']); const todo = [[0, 0]];
+    while (todo.length) {
+      const [i, j] = todo.pop(); const x = i * S; const z = STAFF_Z + j * S;
+      for (let a = 0; a < 24; a++) { const hd = mopHead(things, x, z, Math.sin(a / 24 * TAU), Math.cos(a / 24 * TAU)); if (!hd.blocked) surf.markReach(hd.x, hd.z, 0.28); }
+      [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([di, dj]) => { const k = (i + di) + ',' + (j + dj); if (!seen.has(k) && ok(i + di, j + dj)) { seen.add(k); todo.push([i + di, j + dj]); } });
+    }
+    surf.keepReachable();
     // モップ（店員の 前の ゆかに ヘッド、手もとへ 柄）
     const mop = new THREE.Group(); W.add(mop);
     part(mop, box(0.5, 0.05, 0.14), '#3d6f85', 0, 0.03, 0);
@@ -4065,8 +4101,7 @@ function stepCover(dt, now) {
   if (tween) return;
   if (turn && !renderer.xr.isPresenting) look.yaw -= turn * 1.8 * dt;
   const dir = coverLocalDir(b); if (!dir) return;
-  const free = (x, z) => x > ROOM.x0 + 0.3 && x < ROOM.x1 - 0.3 && z > ROOM.z0 + 0.2 && z < ROOM.z1 - 0.35;
-  const hits = (x, z) => cv.things.some((o) => x > o.x - o.w / 2 - 0.25 && x < o.x + o.w / 2 + 0.25 && z > o.z - o.d / 2 - 0.25 && z < o.z + o.d / 2 + 0.25);
+  const free = mopFree; const hits = (x, z) => mopHits(cv.things, x, z);
   if (fwd || strafe) {
     const sp = 1.3 * dt; const dx = (dir.x * fwd - dir.z * strafe) * sp; const dz = (dir.z * fwd + dir.x * strafe) * sp;
     const nx = cv.pos.x + dx; const nz = cv.pos.z + dz;
@@ -4075,12 +4110,10 @@ function stepCover(dt, now) {
     } else if (free(nx, nz)) { cv.pos.x = nx; cv.pos.z = nz; } else if (free(nx, cv.pos.z) && !hits(nx, cv.pos.z)) cv.pos.x = nx; else if (free(cv.pos.x, nz) && !hits(cv.pos.x, nz)) cv.pos.z = nz;
     const w = b.group.localToWorld(new THREE.Vector3(cv.pos.x, 0, cv.pos.z)); rig.position.x = w.x; rig.position.z = w.z;
   }
-  // モップの ヘッドは 前の ゆかへ（家具の 上には のせない）
-  let hx = cv.pos.x + dir.x * 0.85; let hz = cv.pos.z + dir.z * 0.85;
-  hx = Math.max(ROOM.x0 + 0.2, Math.min(ROOM.x1 - 0.2, hx)); hz = Math.max(ROOM.z0 + 0.1, Math.min(ROOM.z1 - 0.1, hz));
-  const inThing = cv.things.some((o) => hx > o.x - o.w / 2 && hx < o.x + o.w / 2 && hz > o.z - o.d / 2 && hz < o.z + o.d / 2);
-  cv.mop.position.set(hx, 0.1, hz); cv.mop.rotation.y = Math.atan2(dir.x, dir.z); cv.mop.visible = !inThing;
-  if (!inThing) coverProgress(r, cv.surf.erase(hx, hz, 0.28), now);
+  // モップの ヘッドは 前の ゆかへ。家具や かべに 当たる ときは その 手前で 止める（すり抜けない）
+  const hd = mopHead(cv.things, cv.pos.x, cv.pos.z, dir.x, dir.z);
+  cv.mop.position.set(hd.x, 0.1, hd.z); cv.mop.rotation.y = Math.atan2(dir.x, dir.z);
+  if (!hd.blocked) coverProgress(r, cv.surf.erase(hd.x, hd.z, 0.28), now);
 }
 
 
@@ -4357,7 +4390,7 @@ function currentClickables() {
   if (state.where === 'walk') return plazaClickables;
   if (state.where === 'home') return home.btns ? Object.values(home.btns) : [];
   if (state.where === 'opening' || state.where === 'play') return [];
-  if (state.where === 'furn') return furnShop.clickables;
+  if (state.where === 'furn') return (furnShop.btns || []).concat(furnShop.clickables); // 札の 下の ボタンも えらべる
   const b = state.booth; const list = Object.values(b.btns).filter((m) => m.visible);
   if (state.phase === 'work' && state.round) state.round.slots.forEach((s) => { if (!s.done && s.holder.visible) [s.mesh, s.extra].forEach((g) => g && g.traverse((o) => { if (o.isMesh) list.push(o); })); });
   return list; // お店の中では 壁ごしに ほかの お店を えらばない（もどるのは「島ぜんたいへ」）
@@ -4367,6 +4400,8 @@ function handleRay(ray) {
   const hits = ray.intersectObjects(currentClickables(), false);
   if (!hits.length) return;
   const obj = hits[0].object;
+  if (obj.userData.furnBuy) { if (state.where === 'furn') buyFurn(obj.userData.furnBuy); return; }
+  if (obj.userData.furnCancel) { furnShop.selected = null; paintFurnTags(); renderHud(); return; }
   if (obj.userData.furnId) { if (state.where === 'furn') pickFurn(obj.userData.furnId); return; }
   if (obj.userData.home) { goHome(); return; }
   if (state.where === 'home') { if (obj === home.btns.out) exitHome(); else if (obj === home.btns.plaza) goPlaza(); return; }
@@ -4393,6 +4428,7 @@ for (let i = 0; i < 2; i++) {
   c.addEventListener('selectend', () => { const r = state.round; if (r && r.cover && r.cover.ctrl === c) r.cover.ctrl = null; });
   c.addEventListener('select', () => {
     tempMatrix.identity().extractRotation(c.matrixWorld);
+    raycaster.camera = camera; // 札の ボタン（スプライト）を えらぶ ときに いる
     raycaster.ray.origin.setFromMatrixPosition(c.matrixWorld);
     raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
     handleRay(raycaster);
@@ -4599,7 +4635,7 @@ function renderHud() {
   if (state.where === 'furn') {
     const money = profile.mode === 'money'; const sel = furnShop.selected && CATALOG.find((c) => c.id === furnShop.selected);
     el.innerHTML = '<span class="tag">家具屋</span><h2>家具を えらぶ</h2>' +
-      '<div>お店の 中を 歩いて、家具の 上の 値段を 見ます。家具を えらぶと 札が 黄色に なり、もう一度 えらぶと ' + (money ? '買えます' : 'もらえます') + '。</div>' +
+      '<div>お店の 中を 歩いて、家具の 上の 値段を 見ます。家具を えらぶと 札が 黄色に なり、下に 出る「' + (money ? '買う' : 'もらう') + '」ボタンを おすと ' + (money ? '買えます' : 'もらえます') + '。</div>' +
       '<div class="meta">' + (money ? '<span>お金 ' + yen(profile.money) + '</span>' : '') + '<span>バッジ ' + badgeCount() + 'こ</span><span>パソコン：W A S D・矢印 ／ スマホ：右下の ボタン ／ VR：左スティック</span></div>' +
       (sel ? '<div class="feedback ok">' + esc(sel.name) + '　' + furnPrice(sel) + '</div><div class="row"><button type="button" class="primary" id="f-buy">' + (money ? '買う' : 'もらう') + '</button><button type="button" id="f-cancel">やめる</button></div>' : '') +
       '<div class="row"><button type="button" id="f-out">外に出る</button>' + (home.group ? '<button type="button" id="f-home">家に 帰る</button>' : '') + '<button type="button" id="f-plaza">島ぜんたいへ</button></div>';
