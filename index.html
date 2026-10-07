@@ -292,7 +292,7 @@ const JOBS = [
       });
       const wipe = {
         work: '台ふき', short: '台ふき', rounds: 3,
-        intro: '台ふきを 持って、台の 上を ぜんぶ ふきます。ふき残しが ないように。',
+        intro: '部屋の 台・机・テーブル・ローテーブルの うち、よごれている 家具の 前へ 行って、上を ぜんぶ ふきます。ふき残しが ないように。',
         defect: '（ふき残しが あると おわらない）',
         round() {
           return { title: '台ふきで 台の 上を ぜんぶ ふく', shortTitle: '台の 上を ぜんぶ ふく', items: [], need: [], ordered: false, layout: 'wipe' };
@@ -1346,6 +1346,7 @@ JOBS.forEach((job, i) => {
     without: makeButton('はじめる：配慮なし', '#55626d', 0.78, 0.16),
     with: makeButton('はじめる：配慮あり', job.color, 0.78, 0.16),
     hint: makeButton('ヒント', '#e0a23a', 0.36, 0.14),
+    quit: makeButton('作業を やめる', '#b93a32', 0.56, 0.14),
     back: makeButton('島ぜんたいへ', '#3d4a54', 0.56, 0.14),
     again: makeButton('もう一度', job.color, 0.46, 0.14),
     exit: makeButton('外に出る', '#2f7d4f', 0.56, 0.14),
@@ -1356,7 +1357,7 @@ JOBS.forEach((job, i) => {
   //（モニターの 左右。店員から 見て 左が はじめる・ヒント、右が もどる）
   const bx = 0.84 * 2.4 * PANEL_SCALE / 2 + 0.06;
   btns.with.position.set(-bx - 0.32, PANEL_Y + 0.17, 0.01); btns.without.position.set(-bx - 0.32, PANEL_Y - 0.03, 0.01);
-  btns.hint.position.set(-bx - 0.32, PANEL_Y - 0.03, 0.01); btns.again.position.set(bx + 0.32, PANEL_Y + 0.17, 0.01); btns.back.position.set(bx + 0.32, PANEL_Y - 0.03, 0.01); btns.exit.position.set(bx + 0.32, PANEL_Y - 0.23, 0.01);
+  btns.hint.position.set(-bx - 0.32, PANEL_Y - 0.03, 0.01); btns.again.position.set(bx + 0.32, PANEL_Y + 0.17, 0.01); btns.back.position.set(bx + 0.32, PANEL_Y - 0.03, 0.01); btns.exit.position.set(bx + 0.32, PANEL_Y - 0.23, 0.01); btns.quit.position.set(-bx - 0.32, PANEL_Y - 0.23, 0.01);
   ['v0', 'v1', 'v2'].forEach((k, n) => { if (btns[k]) btns[k].position.set(-bx - 0.32, PANEL_Y + 0.17 - n * 0.2, 0.01); });
   Object.values(btns).forEach((m) => { m.scale.setScalar(0.85); panel.add(m); m.visible = false; });
 
@@ -2380,7 +2381,7 @@ function decorateInterior(b) {
     STORE_SHELVES.forEach((u) => { b.storeUnits[u.label] = storeWallUnit(g, u); });
   } else if (id === 'clean') {
     // 客室：奥（入口の 横）に 窓、すみに バケツ
-    part(g, cyl(0.14, 0.11, 0.26, 18), '#4f8b9b', 1.4, 0.16, 2.9); // バケツ
+    part(g, cyl(0.14, 0.11, 0.26, 18), '#4f8b9b', 1.8, 0.16, 0.45); // バケツ（入口から 見て 左の 奥の すみ）
   } else if (id === 'cafe') {
     wallShelf(g, 1, ['カップ', 'ホット用カップ', '牛乳'], '#8a5a3c');
     // 奥の 作業台（ドリンクを つくる）。前の 扉が ならぶ
@@ -2950,6 +2951,19 @@ function startWalk(pos, yaw) {
   renderHud();
 }
 // お店から 外へ（入口の 前に 出て、お店に 背中を 向ける）
+// 作業を とちゅうで やめる（きろくは 残さない）。お店の 立ち位置に もどって、はじめる 前の 画面へ
+function quitWork() {
+  const b = state.booth; if (!b || (state.phase !== 'work' && state.phase !== 'between')) return;
+  stopSpeech();
+  const away = b.inField || b.away;
+  clearWork(); b.fieldArrived = false;
+  state.session = null; state.round = null; state.feedback = { text: '', kind: '' };
+  Object.keys(walkKeys).forEach((k) => { walkKeys[k] = false; }); syncPad();
+  moveRig(b.group.localToWorld(new THREE.Vector3(0, 0, STAFF_Z)), b.yaw + Math.PI, 0.12, away ? undefined : 600);
+  state.variantChosen = !!variantsNow(b.job) && variantsNow(b.job).length > 1; // えらんだ しごとの まま
+  showChoose(); renderHud();
+  toast('作業を やめました（きろくは 残りません）');
+}
 function exitToWalk() {
   if (state.phase === 'work' || state.phase === 'between') toast('体験を とちゅうで やめました（きろくは 残りません）');
   const b = state.booth; if (!b) return;
@@ -3170,7 +3184,7 @@ function startSession(withSupport) {
   if (!isOpen(state.booth.job)) return;
   state.withSupport = withSupport;
   state.session = { started: performance.now(), completed: 0, inspected: 0, defects: 0, promptCount: 0, questionCount: 0, roundIndex: 0, target: state.booth.job.rounds || ROUNDS_PER_SESSION };
-  setButtons(['hint', 'back']);
+  setButtons(['hint', 'quit', 'back']);
   state.booth.fieldArrived = false; // 畑へは ゆっくり 歩いて いく（2 回めからは すぐ となり）
   nextRound();
 }
@@ -4133,6 +4147,34 @@ function roomThing(W, o) {
   }
 }
 const ROOM = { x0: -2.1, x1: 2.1, z0: 0.15, z1: 4.3 }; // 部屋の ゆか（お店の 中）
+// 台ふきの 部屋の 家具（いつも 同じ 場所）。店員から 見て 左が +x。h は 天板の 高さ
+const WIPE_FURN = [
+  { name: '台', kind: 'counter', x: 0, z: 2.2, w: 1.4, d: 0.6, h: 0.85 },
+  { name: '机', kind: 'desk', x: 1.3, z: 3.55, w: 1.1, d: 0.6, h: 0.72 },
+  { name: 'テーブル', kind: 'table', x: -1.25, z: 3.4, w: 1.0, d: 0.8, h: 0.7 },
+  { name: 'ローテーブル', kind: 'low', x: 1.35, z: 1.45, w: 0.9, d: 0.55, h: 0.4 },
+];
+function wipeFurniture(W, o) {
+  const g = new THREE.Group(); g.position.set(o.x, 0.1, o.z); W.add(g);
+  const leg = (h) => [-1, 1].forEach((sx) => [-1, 1].forEach((sz) => part(g, box(0.05, h, 0.05), '#8a6a46', sx * (o.w / 2 - 0.05), h / 2, sz * (o.d / 2 - 0.05))));
+  if (o.kind === 'counter') {
+    part(g, box(o.w, o.h - 0.04, o.d), '#d9c4a2', 0, (o.h - 0.04) / 2, 0);
+    [-1, 1].forEach((sd) => { part(g, box(o.w / 2 - 0.06, o.h - 0.2, 0.012), '#e3d2b4', sd * o.w / 4, o.h / 2, -o.d / 2 - 0.006); part(g, ball(0.03, 12, 8), '#8a6a46', sd * 0.07, o.h / 2 + 0.05, -o.d / 2 - 0.03); });
+    part(g, box(o.w + 0.04, 0.04, o.d + 0.04), '#c4a87e', 0, o.h - 0.02, 0);
+  } else if (o.kind === 'desk') {
+    leg(o.h - 0.03); part(g, box(o.w, 0.03, o.d), '#e6e1d6', 0, o.h - 0.015, 0);
+    part(g, box(0.42, 0.14, o.d - 0.06), '#d9d4c8', o.w / 2 - 0.26, o.h - 0.1, 0); // 引き出し
+    part(g, box(0.1, 0.02, 0.01), '#8a8f96', o.w / 2 - 0.26, o.h - 0.1, -o.d / 2 + 0.02);
+    const ch = new THREE.Group(); ch.position.set(-o.w / 4, 0, -o.d / 2 + 0.12); g.add(ch); // いす（机の 下に 入れて ある）
+    part(ch, box(0.42, 0.04, 0.42), '#5a7fa8', 0, 0.45, 0); part(ch, box(0.42, 0.42, 0.04), '#5a7fa8', 0, 0.68, -0.19);
+    [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([a, c]) => part(ch, box(0.03, 0.45, 0.03), '#55626d', a * 0.18, 0.22, c * 0.18));
+  } else if (o.kind === 'table') {
+    leg(o.h - 0.04); part(g, box(o.w, 0.04, o.d), '#c98f5a', 0, o.h - 0.02, 0);
+  } else {
+    leg(o.h - 0.04); part(g, box(o.w, 0.04, o.d), '#a0784a', 0, o.h - 0.02, 0);
+    part(g, box(o.w + 0.5, 0.01, o.d + 0.5), '#cfe0ec', 0, 0.005, 0); // しきもの
+  }
+}
 // モップ：自分が 立てる ところ・家具に ぶつかるか・ヘッドの 位置（家具や かべの 手前で 止める）
 const mopFree = (x, z) => x > ROOM.x0 + 0.3 && x < ROOM.x1 - 0.3 && z > ROOM.z0 + 0.2 && z < ROOM.z1 - 0.35;
 const mopHits = (things, x, z) => things.some((o) => x > o.x - o.w / 2 - 0.4 && x < o.x + o.w / 2 + 0.4 && z > o.z - o.d / 2 - 0.4 && z < o.z + o.d / 2 + 0.4); // ヘッドを 家具の 手前に 置ける 間を とる
@@ -4179,32 +4221,35 @@ const CLEAN_LAYOUTS = {
     moveRig(b.group.localToWorld(new THREE.Vector3(0, 0, STAFF_Z)), b.yaw + Math.PI, 0.55, 400);
   },
   wipe(ctx, def) {
-    const { W } = ctx;
-    const cx = 0; const cz = 2.35; const TW = 1.5; const TD = 0.66; const TH = 0.85;
-    part(W, box(TW, TH, TD), '#d9c4a2', cx, TH / 2 + 0.1, cz);
-    part(W, box(TW + 0.04, 0.04, TD + 0.04), '#c4a87e', cx, TH + 0.12, cz);
-    [-1, 1].forEach((sd) => {
-      part(W, box(TW / 2 - 0.06, TH - 0.16, 0.012), '#e3d2b4', cx + sd * TW / 4, TH / 2 + 0.1, cz - TD / 2 - 0.006);
-      part(W, ball(0.035, 14, 10), '#8a6a46', cx + sd * 0.07, TH / 2 + 0.16, cz - TD / 2 - 0.03);
-    });
-    const topY = TH + 0.142;
-    const surf = dirtSurface(W, cx, cz, TW, TD, topY + 0.002, (c, w, h) => {
+    const { W, b } = ctx; const s = state.session;
+    // 家具は いつも 同じ 場所に ある。体験の はじめに ふく 順を きめ、毎回 その 1 つだけ よごれている
+    if (!s.wipeOrder) s.wipeOrder = shuffle(WIPE_FURN.map((_, i) => i));
+    const f = WIPE_FURN[s.wipeOrder[s.roundIndex % WIPE_FURN.length]];
+    WIPE_FURN.forEach((o) => wipeFurniture(W, o));
+    const { x: cx, z: cz, w: TW, d: TD } = f; const topY = f.h + 0.1 + 0.004;
+    const surf = dirtSurface(W, cx, cz, TW - 0.04, TD - 0.04, topY + 0.002, (c, w, h) => {
       c.fillStyle = 'rgba(150,135,110,0.4)'; c.fillRect(0, 0, w, h);
       for (let k = 0; k < 14; k++) { c.fillStyle = 'rgba(105,85,60,0.6)'; c.beginPath(); c.ellipse(Math.random() * w, Math.random() * h, 6 + Math.random() * 16, 4 + Math.random() * 10, Math.random() * 3, 0, Math.PI * 2); c.fill(); }
       for (let k = 0; k < 60; k++) { c.fillStyle = 'rgba(90,70,50,0.7)'; c.fillRect(Math.random() * w, Math.random() * h, 3, 3); }
     });
-    // 台ふき（右手前に 置いてある。持って 動かすと ふける）
+    // 台ふき（家具の 手前の 右はしに 置いてある。持って 動かすと ふける）
     const cloth = new THREE.Group(); W.add(cloth);
     part(cloth, box(0.2, 0.03, 0.14), '#5aa7d1', 0, 0.015, 0);
     part(cloth, box(0.2, 0.004, 0.02), '#ffffff', 0, 0.032, 0.03);
     cloth.position.set(cx - TW / 2 + 0.15, topY, cz - TD / 2 + 0.12);
+    // よごれた 家具の 上に 名札
+    const tag = labelSprite('この ' + f.name + 'を ふく', { h: 0.1, bg: 'rgba(255,240,200,0.95)' }); tag.position.set(cx, topY + 0.35, cz); W.add(tag);
+    def.title = '台ふきで ' + f.name + 'の 上を ぜんぶ ふく'; def.shortTitle = f.name + 'の 上を ぜんぶ ふく';
+    // その 家具の 前に 立って、上が 見えるように 下を 向く
+    const dist = 0.62 + TD / 2;
+    moveRig(b.group.localToWorld(new THREE.Vector3(cx, 0, cz - dist)), b.yaw + Math.PI, Math.atan2(1.6 - topY, dist) * 0.95, s.roundIndex ? 900 : undefined);
     ctx.cover = { kind: 'wipe', surf, cloth, topY, bounds: { x0: cx - TW / 2 + 0.08, x1: cx + TW / 2 - 0.08, z0: cz - TD / 2 + 0.06, z1: cz + TD / 2 - 0.06 }, mark: hintMark(W, 0.1) };
   },
 };
 function startCleaning(b, def) {
   const ctx = { b, W: b.workArea, slots: [] };
   CLEAN_LAYOUTS[def.layout](ctx, def);
-  look.pitch = { mop: 0.55, wipe: 0.35 }[def.layout] || look.pitch; // ゆかや 台が 見えるように 少し 下を 向く
+  if (def.layout === 'mop') look.pitch = 0.55; // ゆかが 見えるように 下を 向く（台ふきは 家具の 前で きめる）
   state.round = { def, slots: ctx.slots, pos: 0, lastActionAt: performance.now(), hintShown: false, mistakeThisRound: false, clean: ctx, cover: ctx.cover || null };
   state.feedback = { text: '', kind: '' };
   drawWorkBoard();
@@ -4565,6 +4610,7 @@ function handleRay(ray) {
   else if (obj === b.btns.with) startSession(true);
   else if (obj === b.btns.again) showChoose();
   else if (obj === b.btns.hint) useHint(false);
+  else if (obj === b.btns.quit) quitWork();
   else if (obj === b.btns.back) goPlaza();
   else if (obj === b.btns.exit) exitToWalk();
   else { const k = Object.keys(b.btns).find((key) => b.btns[key] === obj); if (k && /^v\d$/.test(k)) pickVariant(Number(k.slice(1))); }
@@ -4869,8 +4915,8 @@ function renderHud() {
     (r.def.carryText ? '<div>' + esc(r.def.carryText) + '</div>' : '') + steps +
     '<div class="feedback ' + state.feedback.kind + '">' + esc(state.feedback.text) + '</div>' +
     '<div class="meta"><span>できた ' + s.completed + (state.withSupport ? ' / ' + s.target : '') + '</span><span>ミス ' + s.defects + '</span><span>ヒント ' + s.questionCount + '</span></div>' +
-    '<div class="row"><button type="button" id="h-hint">ヒント</button><button type="button" id="h-back">島ぜんたいへ</button>' + exitBtn + '</div>';
-  $('h-hint').onclick = () => useHint(false); $('h-back').onclick = goPlaza; $('h-exit').onclick = exitToWalk;
+    '<div class="row"><button type="button" id="h-hint">ヒント</button><button type="button" id="h-quit">作業を やめる</button><button type="button" id="h-back">島ぜんたいへ</button>' + exitBtn + '</div>';
+  $('h-hint').onclick = () => useHint(false); $('h-quit').onclick = quitWork; $('h-back').onclick = goPlaza; $('h-exit').onclick = exitToWalk;
 }
 function showChoose_() { showChoose(); renderHud(); }
 
@@ -5249,7 +5295,7 @@ $('btn-home').addEventListener('click', () => goHome());
 $('btn-settings').addEventListener('click', openSettings);
 window.hopeTown = {
   state, goBooth, pickVariant, startSession, select: onSelectItem, nextTargetKey, setSeason, startWalk, exitToWalk, walkKeys, rig, look, walkable, booths, goHome, exitHome, goPlaza,
-  get profile() { return profile; }, home, FURN, goFurniture, furnShop, pickFurn, exitFurniture, cheatCover() { const r = state.round; if (r && r.cover) { r.cover.surf.clearAll(); coverProgress(r, 1, performance.now()); } }, seasonal, LAKE, toWorld, nearbyActions, openShop, openBadgeBook, openSettings, openAreaPicker,
+  get profile() { return profile; }, quitWork, home, FURN, goFurniture, furnShop, pickFurn, exitFurniture, cheatCover() { const r = state.round; if (r && r.cover) { r.cover.surf.clearAll(); coverProgress(r, 1, performance.now()); } }, seasonal, LAKE, toWorld, nearbyActions, openShop, openBadgeBook, openSettings, openAreaPicker,
   // テスト用：オープニングを とばして 家を 用意する
   quickStart(homeKey, mode) { profile = { name: 'テスト', gender: 'n', mode: mode || 'money', home: homeKey || 'downtown', money: 0, badges: {}, owned: [], since: new Date().toISOString() }; saveProfile(); closeModal(); buildHome(); renderWallet(); goPlaza(); },
 };
