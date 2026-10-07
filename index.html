@@ -750,12 +750,12 @@ const WINTER = {
     },
   },
   farm: {
-    work: 'いちごの収穫', intro: 'ハウスの 中で、赤く じゅくした いちごだけを とります。白い いちごは のこします。', defect: '白い いちごを とる',
+    work: 'いちごの収穫', rounds: 3, intro: 'ハウスの 中の こしの 高さの いちごの 台から、赤く じゅくした いちごだけを とって、足もとの かごに 入れます。白い いちごは のこします。', defect: '白い いちごを とる',
     round() {
       const n = 3 + Math.floor(Math.random() * 2); const items = [];
       for (let i = 0; i < n; i++) items.push({ label: '', id: 'red' + i, shape: 'strawberry', color: '#d6283a' });
       for (let i = 0; i < 3; i++) items.push({ label: '', id: 'green' + i, shape: 'strawberry', color: '#f1ecc8' });
-      return { title: '赤い いちごを ぜんぶ とる（' + n + 'こ）', shortTitle: '赤い いちごを とる', items: shuffle(items), need: items.filter((i) => i.id.startsWith('red')).map((i) => i.id), ordered: false };
+      return { title: '赤い いちごを ぜんぶ とって かごへ（' + n + 'こ）', shortTitle: '赤い いちごを とる', items: shuffle(items), need: items.filter((i) => i.id.startsWith('red')).map((i) => i.id), ordered: false, layout: 'strawberry' };
     },
   },
   craft: {
@@ -2759,6 +2759,47 @@ function drawBadgeBoard() {
     });
   });
 }
+// 余暇の すごしかた（家の 中で えらぶ）。お金が かからない もの・かかる もの に わける。季節に 合う ものだけ 出す
+const LEISURE = [
+  { id: 'walk', name: '島を さんぽ', cost: 0, ok: () => true, go: () => exitHome() },
+  { id: 'climb', name: '山に のぼる', cost: 0, ok: () => season === 'summer', go: () => startClimb() },
+  { id: 'swim', name: '海で 泳ぐ', cost: 0, ok: () => season === 'summer', go: () => { goBeach(); startSwim(); } },
+  { id: 'sun', name: 'ビーチで 日向ぼっこ', cost: 0, ok: () => season === 'summer', go: () => { goBeach(); startSun(); } },
+  { id: 'skate', name: '湖で スケート', cost: 0, ok: () => season === 'winter', go: () => { const c = LAKE.blk; startWalk(new THREE.Vector3(c.x, 0, c.z), 0); } },
+  { id: 'ski', name: 'スキー', price: 500, label: 'リフト券 500円', ok: () => season === 'winter', go: () => startSki() },
+  { id: 'yatai', name: '屋台で 食べる', label: '150円〜', ok: () => true, go: () => openYataiShop() },
+  { id: 'furn', name: '家具屋で 買い物', label: '300円〜', ok: () => true, go: () => goFurniture() },
+];
+const leisureFree = (l) => !l.price && !l.label;
+function doLeisure(id) {
+  const l = LEISURE.find((x) => x.id === id); if (!l || !l.ok()) return;
+  if (l.price && profile && profile.mode === 'money') {
+    if (profile.money < l.price) { toast('お金が たりません（' + yen(l.price) + '）'); return; }
+    profile.money -= l.price; saveProfile(); renderWallet(); toast(l.label + 'を 買いました');
+  }
+  l.go();
+}
+function goBeach() { const q = seasonal.parasols[0]; rig.position.set(q.x + 1, 0, q.z); }
+// 家の 右の かべに 余暇の 板（2 れつ。ボタンを おすと その あそびへ）
+function buildLeisureWall() {
+  if (home.leisure) home.group.remove(home.leisure);
+  const g = new THREE.Group(); home.group.add(g); home.leisure = g; home.leisureBtns = [];
+  const X = 4.4 / 2 - 0.07; const board = new Board(2.9, 1.5, 300);
+  board.draw((ctx, W, H) => {
+    ctx.fillStyle = '#fffdf8'; roundRect(ctx, 0, 0, W, H, 24); ctx.fill();
+    ctx.fillStyle = '#1f2a33'; ctx.font = '700 ' + Math.round(H * 0.11) + 'px ' + FONT_DISPLAY; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('よかの すごしかた（' + SEASON_NAME[season] + '）', W / 2, H * 0.09);
+    [['お金が かからない', '#2f7d4f', 0.25], ['お金が かかる', '#e0662f', 0.75]].forEach(([t, c, u]) => { ctx.fillStyle = c; roundRect(ctx, W * (u - 0.23), H * 0.17, W * 0.46, H * 0.12, 14); ctx.fill(); ctx.fillStyle = '#ffffff'; ctx.font = '700 ' + Math.round(H * 0.08) + 'px ' + FONT_BODY; ctx.fillText(t, W * u, H * 0.235); });
+  });
+  board.mesh.position.set(X, 1.9, -0.2); board.mesh.rotation.y = -Math.PI / 2; g.add(board.mesh);
+  const cols = { free: LEISURE.filter((l) => leisureFree(l) && l.ok()), paid: LEISURE.filter((l) => !leisureFree(l) && l.ok()) };
+  Object.entries(cols).forEach(([k, list]) => list.forEach((l, n) => {
+    const text = l.name + (l.label ? '（' + l.label + '）' : '');
+    const btn = makeButton(text, k === 'free' ? '#2f7d4f' : '#e0662f', 1.25, 0.15);
+    btn.position.set(X - 0.01, 2.06 - n * 0.19, -0.2 + (k === 'free' ? -0.725 : 0.725)); btn.rotation.y = -Math.PI / 2; btn.userData.leisure = l.id;
+    g.add(btn); home.leisureBtns.push(btn);
+  }));
+}
 function refreshHome() {
   if (!home.group || !profile) return;
   home.plate.draw((ctx, W, H) => { ctx.fillStyle = '#6b4a2e'; roundRect(ctx, 0, 0, W, H, 18); ctx.fill(); ctx.fillStyle = '#fffaf0'; ctx.font = '700 ' + Math.round(H * 0.5) + 'px ' + FONT_DISPLAY; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(profile.name + 'さんの 家', W / 2, H / 2 + 2); });
@@ -2772,6 +2813,7 @@ function refreshHome() {
     if (!profile.owned.includes(it.id)) return;
     const m = FURNITURE[it.id](); m.position.set(it.at[0], it.at[1] + (it.id === 'picture' || it.id === 'rug' ? 0 : 0.1), it.at[2]); m.rotation.y = it.ry; inner.add(m);
   });
+  buildLeisureWall();
 }
 function homeStand() { return home.group.localToWorld(new THREE.Vector3(0, 0, home.HD / 2 - 0.7)); }
 
@@ -3128,6 +3170,7 @@ function applySeason() {
 function setSeason(next) {
   if (state.phase === 'work' || state.phase === 'between') { toast('体験が おわってから 季節を かえられます'); return; }
   season = next; applySeason();
+  if (home.group && profile) buildLeisureWall(); // 家の 余暇の 板も 季節に 合わせる
   renderChips(); shownChip = -1; updateChipNav();
   if (state.where === 'booth' && (state.phase === 'choose' || state.phase === 'pick')) { state.variantChosen = false; showChoose(); }
   renderHud();
@@ -3267,7 +3310,8 @@ function startPaddy(b, def) {
 const HARVEST_SPOTS = [[0, 0.07, 0]].concat([0, 1, 2, 3, 4, 5].map((k) => [Math.cos(k / 6 * Math.PI * 2) * 0.16, 0.07, Math.sin(k / 6 * Math.PI * 2) * 0.16]),
   [0, 1, 2, 3, 4].map((k) => [Math.cos(k / 5 * Math.PI * 2 + 0.6) * 0.09, 0.17, Math.sin(k / 5 * Math.PI * 2 + 0.6) * 0.09]));
 const harvestSpot = (k) => HARVEST_SPOTS[Math.min(k, HARVEST_SPOTS.length - 1)];
-function fruitMesh(kind) { return kind === 'tomato' ? SHAPE_MODELS.tomato({ color: '#d63c2f' }) : ITEM_MODELS['りんご']({ color: '#d0392b' }); }
+function fruitMesh(kind) { return kind === 'tomato' ? SHAPE_MODELS.tomato({ color: '#d63c2f' }) : kind === 'strawberry' ? SHAPE_MODELS.strawberry({ color: '#d6283a' }) : ITEM_MODELS['りんご']({ color: '#d0392b' }); }
+const FRUIT_NAME = { apple: 'りんご', tomato: 'トマト', strawberry: 'いちご' };
 // かごを 置いて、もう とった 実（n こ）を 入れて おく
 function harvestBasket(parent, pos, kind, n, hands) {
   const g = new THREE.Group(); g.position.copy(pos); parent.add(g);
@@ -3324,6 +3368,48 @@ function tomatoPlant(W) {
     leaf(sd * 0.42, 0.1 + y + 0.16, z + 0.02, 0.1, sd * 0.4 + i); leaf(sd * 0.3, 0.1 + y + 0.2, z - 0.06, 0.08, -sd * 0.6);
   }));
   [[0, 2.0, 0, 0.11], [-0.1, 1.9, 0.05, 0.09], [0.1, 1.88, -0.04, 0.09]].forEach(([x, y, zz, r]) => leaf(x, y, z + zz, r, x * 9)); // てっぺんの 葉
+}
+// いちごの 収穫（ハウスの 中）：こしの 高さの 台（高設）に 株が ならび、実は 台の 前の ふちから さがる。かごは 右の 足もと
+const BERRY = { z: 2.15, d: 0.4, top: 0.9, len: 2.2, stand: 0.4, basket: [-1.1, 1.75] };
+function berryBench(W) {
+  const { z, d, top, len } = BERRY; const zf = z - d / 2;
+  part(W, box(len, 0.22, d), '#e8ecef', 0, 0.1 + top - 0.11, z);                          // 台（発泡の 箱）
+  part(W, box(len - 0.04, 0.02, d - 0.04), '#5a4636', 0, 0.1 + top + 0.005, z);              // 土
+  [-1, 1].forEach((sx) => [-1, 1].forEach((sz) => part(W, box(0.04, top - 0.22, 0.04), '#8a8f96', sx * (len / 2 - 0.1), 0.1 + (top - 0.22) / 2, z + sz * (d / 2 - 0.05)))); // 足
+  for (let x = -len / 2 + 0.18; x < len / 2 - 0.1; x += 0.27) { // 株（葉が 3 まいずつ）
+    for (let k = 0; k < 4; k++) { const a = k / 4 * Math.PI * 2 + x; const lf = part(W, ball(0.07, 8, 6), '#3f8a3a', x + Math.cos(a) * 0.06, 0.1 + top + 0.06, z + Math.sin(a) * 0.05, { flatShading: true }); lf.scale.set(1.2, 0.35, 0.9); lf.rotation.y = -a; }
+    part(W, cyl(0.004, 0.004, 0.06, 4), '#4f8a34', x, 0.1 + top + 0.03, zf + 0.08);
+  }
+  part(W, box(len, 0.012, 0.01), '#cfd6dc', 0, 0.1 + top, zf - 0.002); // 前の ふち
+}
+function startStrawberry(b, def) {
+  const W = b.workArea; const s = state.session; const slots = [];
+  s.harvestKind = 'strawberry'; s.harvest = s.harvest || 0;
+  b.counter.visible = false;
+  berryBench(W);
+  const basket = harvestBasket(W, new THREE.Vector3(BERRY.basket[0], 0.1, BERRY.basket[1]), 'strawberry', s.harvest, false);
+  const bkTag = labelSprite('とった いちごを 入れる かご', { h: 0.09, bg: 'rgba(255,240,200,0.95)' }); bkTag.position.set(BERRY.basket[0], 0.62, BERRY.basket[1]); W.add(bkTag);
+  // 実は 台の 前の ふちから さがる（8 か所の うち いくつか）
+  const xs = shuffle([0, 1, 2, 3, 4, 5, 6, 7].map((k) => -0.9 + k * 0.26));
+  def.items.forEach((spec, idx) => {
+    const holder = new THREE.Group(); holder.position.set(xs[idx % xs.length], 0.1 + BERRY.top + 0.01, BERRY.z - BERRY.d / 2 - 0.03); W.add(holder);
+    const mesh = new THREE.Group(); const bm = makeItemMesh(spec); bm.position.y = -0.2; mesh.add(bm); // holder の 0.14 下が いちごの 中心
+    const stem = part(mesh, cyl(0.004, 0.004, 0.1, 5), '#4f8a34', 0, -0.05, 0); holder.userData.stem = stem;
+    holder.add(mesh); mesh.traverse((o) => { o.userData.slotIndex = idx; });
+    const ring = makeGlowRing(); ring.position.y = -0.24; ring.scale.setScalar(0.7); holder.add(ring);
+    slots.push({ spec, key: itemKey(spec), mesh, ring, holder, done: false });
+  });
+  state.round = { def, slots, pos: 0, lastActionAt: performance.now(), hintShown: false, mistakeThisRound: false,
+    onPick(slot, ok) {
+      if (!ok) { flashWrong(slot); return; }
+      const h = slot.holder; h.userData.stem.visible = false; slot.ring.visible = false;
+      const [x, y, z] = harvestSpot(s.harvest++);
+      anims.push({ kind: 'box', obj: h, from: h.position.clone(), to: basket.position.clone().add(new THREE.Vector3(x, y + 0.14, z)), t0: performance.now() });
+    } };
+  moveRig(b.group.localToWorld(new THREE.Vector3(0, 0, BERRY.stand)), b.yaw + Math.PI, 0.32, s.roundIndex ? 600 : undefined); // 台の いちごと 足もとの かごが 見える ところ
+  state.feedback = { text: '', kind: '' };
+  drawWorkBoard(); renderHud();
+  if (state.withSupport) speak(def.title + '。');
 }
 function startTomato(b, def) {
   const W = b.workArea; const s = state.session; const slots = [];
@@ -3594,6 +3680,7 @@ function nextRound() {
   if (def.layout === 'paddy') return startPaddy(b, def);
   if (def.layout === 'orchard') return startOrchard(b, def);
   if (def.layout === 'tomato') return startTomato(b, def);
+  if (def.layout === 'strawberry') return startStrawberry(b, def);
   if (def.layout === 'cafe') return startCafe(b, def);
   if (def.layout === 'care') return startCare(b, def);
   if (def.layout === 'library') return startLibrary(b, def);
@@ -4494,7 +4581,7 @@ function showResult() {
   if (s.harvest) {
     // とった りんご・トマトを ぜんぶ 1 つの かごに 入れて、台の 上に 見せる
     harvestBasket(b.workArea, new THREE.Vector3(0, 0.9, COUNTER_Z), s.harvestKind, s.harvest, false);
-    const tag = labelSprite('とった ' + (s.harvestKind === 'tomato' ? 'トマト' : 'りんご') + '　' + s.harvest + 'こ', { h: 0.12, bg: 'rgba(255,240,200,0.95)' });
+    const tag = labelSprite('とった ' + FRUIT_NAME[s.harvestKind] + '　' + s.harvest + 'こ', { h: 0.12, bg: 'rgba(255,240,200,0.95)' });
     tag.position.set(0, 1.42, COUNTER_Z); b.workArea.add(tag);
   }
   const durationSec = Math.round((performance.now() - s.started) / 1000);
@@ -4661,7 +4748,7 @@ renderer.domElement.addEventListener('pointerup', (e) => {
 function currentClickables() {
   if (state.where === 'plaza') return booths.map((b) => b.pin).concat(plazaClickables);
   if (state.where === 'walk') return plazaClickables;
-  if (state.where === 'home') return home.btns ? Object.values(home.btns) : [];
+  if (state.where === 'home') return home.btns ? Object.values(home.btns).concat(home.leisureBtns || []) : [];
   if (state.where === 'opening' || state.where === 'play') return [];
   if (state.where === 'furn') return (furnShop.btns || []).concat(furnShop.clickables); // 札の 下の ボタンも えらべる
   const b = state.booth; const list = Object.values(b.btns).filter((m) => m.visible);
@@ -4677,7 +4764,7 @@ function handleRay(ray) {
   if (obj.userData.furnCancel) { furnShop.selected = null; paintFurnTags(); renderHud(); return; }
   if (obj.userData.furnId) { if (state.where === 'furn') pickFurn(obj.userData.furnId); return; }
   if (obj.userData.home) { goHome(); return; }
-  if (state.where === 'home') { if (obj === home.btns.out) exitHome(); else if (obj === home.btns.plaza) goPlaza(); return; }
+  if (state.where === 'home') { if (obj.userData.leisure) doLeisure(obj.userData.leisure); else if (obj === home.btns.out) exitHome(); else if (obj === home.btns.plaza) goPlaza(); return; }
   if (obj.userData.boothIndex !== undefined) { if (state.where === 'plaza' || state.phase !== 'work') goBooth(obj.userData.boothIndex); return; }
   if (obj.userData.slotIndex !== undefined) { onSelectItem(obj.userData.slotIndex); return; }
   const b = state.booth; if (!b) return;
@@ -4924,8 +5011,12 @@ function renderHud() {
   if (state.where === 'home') {
     el.innerHTML = '<span class="tag">' + esc(home.site.name) + '</span><h2>' + esc(profile.name) + 'さんの 家</h2>' +
       '<div class="meta"><span>バッジ ' + badgeCount() + ' / ' + JOBS.length + '</span>' + (profile.mode === 'money' ? '<span>お金 ' + yen(profile.money) + '</span>' : '') + '<span>トロフィー ' + MEDAL[trophyLevel()] + '</span></div>' +
-      '<div class="row"><button type="button" class="primary" id="h-out">外に出る</button><button type="button" id="h-shop">家具屋へ 行く</button><button type="button" id="h-badges">バッジ帳</button><button type="button" id="h-plaza">島ぜんたい</button></div>';
-    $('h-out').onclick = exitHome; $('h-shop').onclick = goFurniture; $('h-badges').onclick = openBadgeBook; $('h-plaza').onclick = goPlaza;
+      '<div class="row"><button type="button" class="primary" id="h-out">外に出る</button><button type="button" id="h-badges">バッジ帳</button><button type="button" id="h-plaza">島ぜんたい</button></div>' +
+      // 余暇の すごしかた（お金が かからない・かかる）
+      [['お金が かからない よか', true], ['お金が かかる よか', false]].map(([t, free]) => '<div class="tag" style="margin-top:8px">' + t + '</div><div class="row" style="margin-top:2px">' +
+        LEISURE.filter((l) => leisureFree(l) === free && l.ok()).map((l) => '<button type="button" data-leisure="' + l.id + '">' + esc(l.name) + (l.label ? '<small style="display:block;font-weight:400">' + esc(l.label) + '</small>' : '') + '</button>').join('') + '</div>').join('');
+    $('h-out').onclick = exitHome; $('h-badges').onclick = openBadgeBook; $('h-plaza').onclick = goPlaza;
+    el.querySelectorAll('[data-leisure]').forEach((btn) => { btn.onclick = () => doLeisure(btn.dataset.leisure); });
     return;
   }
   if (state.where === 'walk') {
@@ -5370,7 +5461,7 @@ $('btn-home').addEventListener('click', () => goHome());
 $('btn-settings').addEventListener('click', openSettings);
 window.hopeTown = {
   state, goBooth, pickVariant, startSession, select: onSelectItem, nextTargetKey, setSeason, startWalk, exitToWalk, walkKeys, rig, look, walkable, booths, goHome, exitHome, goPlaza,
-  get profile() { return profile; }, quitWork, home, FURN, goFurniture, furnShop, pickFurn, exitFurniture, cheatCover() { const r = state.round; if (r && r.cover) { r.cover.surf.clearAll(); coverProgress(r, 1, performance.now()); } }, seasonal, LAKE, toWorld, nearbyActions, openShop, openBadgeBook, openSettings, openAreaPicker,
+  get profile() { return profile; }, quitWork, doLeisure, LEISURE, home, FURN, goFurniture, furnShop, pickFurn, exitFurniture, cheatCover() { const r = state.round; if (r && r.cover) { r.cover.surf.clearAll(); coverProgress(r, 1, performance.now()); } }, seasonal, LAKE, toWorld, nearbyActions, openShop, openBadgeBook, openSettings, openAreaPicker,
   // テスト用：オープニングを とばして 家を 用意する
   quickStart(homeKey, mode) { profile = { name: 'テスト', gender: 'n', mode: mode || 'money', home: homeKey || 'downtown', money: 0, badges: {}, owned: [], since: new Date().toISOString() }; saveProfile(); closeModal(); buildHome(); renderWallet(); goPlaza(); },
 };
