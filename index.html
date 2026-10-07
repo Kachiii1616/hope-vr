@@ -571,7 +571,7 @@ const EXTRA_ACTS = {
 ACTIONS.super = (l) => l + 'を 入れる';
 ACTIONS.rink = (l) => l + 'を わたす';
 ACTIONS.school = (l) => l + 'の たなに もどす';
-ACTIONS.rice = (l) => ({ '苗箱': '苗箱を 受けとる', 'しおれた 苗箱': 'しおれた 苗箱を 受けとる', '空き箱': '空き箱を かさねる', '肥料': '肥料を まく' }[l] || (/列め$/.test(l) ? '苗を ' + l + 'に のせる' : l));
+ACTIONS.rice = (l) => ({ '元気な 苗': '元気な 苗を とる', 'しおれた 苗': 'しおれた 苗を とる', '苗箱': '苗箱を 受けとる', 'しおれた 苗箱': 'しおれた 苗箱を 受けとる', '空き箱': '空き箱を かさねる', '肥料': '肥料を まく' }[l] || (/列め$/.test(l) ? '苗を ' + l + 'に のせる' : l));
 function actionText(job, spec) {
   const a = ACTIONS[job.id]; const l = spec.label;
   if (l && EXTRA_ACTS[job.id] && EXTRA_ACTS[job.id][l]) return EXTRA_ACTS[job.id][l];
@@ -800,6 +800,40 @@ JOBS.filter((job) => job.id === 'super').forEach((job) => {
   job.variants.summer[0].short = '袋づめ'; job.variants.winter[0].short = '袋づめ';
   job.variants.summer.push(STOCKROOM); job.variants.winter.push(STOCKROOM);
 });
+// ---- 外で する 農作業。お店で えらんで はじめると、田んぼ・りんご畑に 出て 体験する（FIELDS）。
+//   苗植え：ひもに そって、元気な 苗を 左の 印から 順に 植える（1 列 = 1 回）
+const RICE_PLANT = {
+  work: '苗植え', short: '苗植え', rounds: 3, outdoor: true,
+  intro: '田んぼに 入って、ひもの 印に そって 苗を 植えます。元気な 苗を とって、左の 印から 順に 1 つずつ。印の ない ところには 植えません。',
+  defect: 'しおれた 苗を 植える・印から はずれる・順番ちがい',
+  round() {
+    const spots = [0, 1, 2, 3].map((k) => ({ label: '', id: 'p' + k, name: (k + 1) + 'つめの 印に 植える', spot: 'line', k }));
+    const off = [0, 1].map((k) => ({ label: '', id: 'x' + k, name: '印の ない ところ', spot: 'off', k }));
+    const items = [{ label: '元気な 苗', seedling: 'good' }, { label: 'しおれた 苗', seedling: 'wilt' }].concat(spots, off);
+    return { title: 'ひもに そって 苗を 植える（元気な 苗 → 左の 印から 順に 4 つ）', shortTitle: '苗を 植える', items, need: ['元気な 苗', 'p0', 'p1', 'p2', 'p3'], ordered: true, layout: 'paddy' };
+  },
+};
+//   りんご狩り：木に なっている 赤い りんごだけを もいで かごへ（青い りんごは のこす）。1 本の 木 = 1 回
+const APPLE_PICK = {
+  work: 'りんご狩り', short: 'りんご', rounds: 3, outdoor: true,
+  intro: 'りんご畑に 出て、木に なっている 赤い りんごだけを もいで、足もとの かごに 入れます。青い りんごは まだ のこします。',
+  defect: '青い りんごを もぐ',
+  round() {
+    const n = 3 + Math.floor(Math.random() * 2); const items = [];
+    for (let i = 0; i < n; i++) items.push({ label: '', id: 'red' + i, apple: '#d0392b', name: '赤い りんごを もぐ' });
+    for (let i = 0; i < 8 - n; i++) items.push({ label: '', id: 'green' + i, apple: '#9cc04a', name: '青い りんご' });
+    return { title: '赤い りんごを ぜんぶ もいで かごへ（' + n + 'こ）', shortTitle: '赤い りんごを もぐ', items: shuffle(items), need: items.filter((i) => i.id.startsWith('red')).map((i) => i.id), ordered: false, layout: 'orchard' };
+  },
+};
+JOBS.forEach((job) => {
+  if (job.id === 'rice') {
+    const base = { work: job.work, short: '苗受け', intro: job.intro, defect: job.defect, round: job.round };
+    job.variants = { summer: [base, RICE_PLANT], winter: [base, RICE_PLANT] }; // 冬は お休み（田んぼは 夏だけ）
+  } else if (job.id === 'farm') {
+    job.variants.summer[0].short = 'トマト'; job.variants.winter[0].short = 'いちご';
+    job.variants.summer.push(APPLE_PICK); job.variants.winter.push(APPLE_PICK); // 冬は おそく とれる りんご（ふじ）
+  }
+});
 
 // hope-work の SUPPORT_METHODS と同じ言い方にそろえる（記録をそのまま貼れるように）。
 const SUPPORTS_WITH = ['チェックリスト形式の手順書', '説明を一つずつ小分けにする', '治具・ガイドを使う', '目標数を伝える'];
@@ -978,6 +1012,7 @@ const BEACH = [[110, 320], [130, 270], [200, 210], [300, 150], [380, 115], [430,
 const LAKE = { at: [265, 592], rx: 40 * 0.12, rz: 36 * 0.12, blk: null };
 // 島の上の場所が空いているか（建物・木を散らすときに使う）
 const blocked = []; // { x, z, r }（m）
+const FIELDS = {}; // 外で する 農作業の 場所（paddy＝田んぼ、orchard＝りんご畑）
 function insideIsland(px, py) {
   let inside = false;
   for (let i = 0, j = ISLAND.length - 1; i < ISLAND.length; j = i++) {
@@ -1105,6 +1140,12 @@ function addCyl(x, y, z, rt, rb, h, color, seg) {
     [-L / 3, L / 3].forEach((s) => patch([q(s - 1, -W), q(s + 1, -W), q(s + 1, W), q(s - 1, W)], '#b08a5a', 0.068)); // あぜ
     patch([q(-L, -1), q(L, -1), q(L, 1), q(-L, 1)], '#b08a5a', 0.068);
     const c = toWorld(cx, cy); block(c.x, c.z, Math.hypot(L, W) * MAP_SCALE, 0);
+    // 1 まいめの 田んぼで 苗植えを する（ローカルの +x が 長い 辺。植えた 苗は つぎの 体験まで のこる）
+    if (!FIELDS.paddy) {
+      const g = new THREE.Group(); g.position.copy(c); g.rotation.y = -a; scene.add(g);
+      const work = new THREE.Group(); const planted = new THREE.Group(); g.add(work); g.add(planted);
+      FIELDS.paddy = { g, work, planted, yaw: -a, rows: [-1.3, 0, 1.3] };
+    }
   });
   // 湖：町の 家や 木は 5.8m よけるが、歩く ときは 季節で かわる（夏は 岸まで、冬は 氷の 上も 歩ける）
   LAKE.blk = (() => { const p = toWorld(...LAKE.at); return { x: p.x, z: p.z, r: 5.8, w: 3.6 }; })(); blocked.push(LAKE.blk);
@@ -1277,7 +1318,7 @@ JOBS.forEach((job, i) => {
   ['v0', 'v1', 'v2'].forEach((k, n) => { if (btns[k]) btns[k].position.set(-bx - 0.32, PANEL_Y + 0.17 - n * 0.2, 0.01); });
   Object.values(btns).forEach((m) => { m.scale.setScalar(0.85); panel.add(m); m.visible = false; });
 
-  booths.push({ job, group: g, yaw, front, door, board, workArea, btns, pin, paintSign, counter });
+  booths.push({ job, group: g, yaw, front, door, board, workArea, btns, pin, paintSign, counter, panel });
 });
 
 // 自分の 家を 建てられる 場所（地域ごと）。町の 家や 木が 重ならないよう、先に 場所を とって おく（家が ない 間は 歩いて 通れる）
@@ -1298,7 +1339,7 @@ const FURN = { near: [412, 636], W: 4.6, H: 4.2 };
   FURN.at = toMap(FURN.pos.x, FURN.pos.z); block(FURN.pos.x, FURN.pos.z, 3.0); })();
 
 // 地域の名前（お店のない地域・目じるし）
-[['ビーチ', [250, 205]], ['カフェの テラス', [195, 660]], ['湖（冬は スケート場）', [265, 592]], ['表：夏山登山　裏：冬スキー', [520, 392]],
+[['ビーチ', [250, 205]], ['カフェの テラス', [195, 660]], ['りんご畑', [745, 700]], ['湖（冬は スケート場）', [265, 592]], ['表：夏山登山　裏：冬スキー', [520, 392]],
   ['フェリー乗り場（となりの国へ）', [125, 458]]].forEach(([text, at]) => {
   const p = toWorld(...at);
   const s = overviewSign(text, '', '', text.length > 10 ? 11 : text.length > 4 ? 7.5 : 4.5);
@@ -1510,6 +1551,23 @@ function tree(x, z, kind) {
   const bw = toWorld(880, 312); addBox(bw.x, -0.05, bw.z, 1.6, 0.5, 6, '#b8b3a8');
   addCyl(bw.x, 2.4, bw.z - 2.2, 0.55, 0.75, 4.8, '#ffffff', 16); addCyl(bw.x, 5.1, bw.z - 2.2, 0.6, 0.6, 0.6, '#d0453a', 16);
 
+  // りんご畑（農村の 南。3 本の 木に 1 本ずつ りんご狩り。ローカルの +z が 南＝立つ がわ）
+  (() => {
+    const c = toWorld(745, 712); const g = new THREE.Group(); g.position.copy(c); scene.add(g);
+    const work = new THREE.Group(); g.add(work);
+    const trees = [-3.8, 0, 3.8].map((x) => ({ x, z: 0 }));
+    const put = (geo, color, x, y, z, flat) => { const m = new THREE.Mesh(geo, flat ? mat(color, { flatShading: true }) : cmat(color)); m.position.set(x, y, z); g.add(m); return m; };
+    patch(ellipse(745, 712, 52, 22), '#a9cf86', 0.055);
+    trees.forEach((t) => {
+      put(new THREE.CylinderGeometry(0.16, 0.22, 1.9, 10), '#7a5a3a', t.x, 0.95, t.z);
+      const br = put(new THREE.CylinderGeometry(0.06, 0.08, 1.4, 8), '#7a5a3a', t.x, 2.15, t.z + 0.45); br.rotation.x = Math.PI / 2.3; // 前へ のびた 枝（ここに りんごが さがる）
+      [[0, 3.0, -0.1, 1.15], [-0.85, 2.75, 0.1, 0.85], [0.85, 2.8, 0, 0.9], [0, 2.75, 0.55, 0.75], [0.1, 3.5, -0.3, 0.8]].forEach(([dx, y, dz, r]) => put(new THREE.IcosahedronGeometry(r, 0), '#5f9a42', t.x + dx, y, t.z + dz, true));
+      [[-0.9, 3.0, -0.4], [0.7, 3.3, -0.6], [0.95, 2.6, -0.3], [-0.4, 3.7, -0.5]].forEach(([dx, y, dz]) => put(new THREE.SphereGeometry(0.08, 10, 8), '#d0392b', t.x + dx, y, t.z + dz)); // 奥の りんご（かざり）
+      const w = g.localToWorld(new THREE.Vector3(t.x, 0, t.z)); block(w.x, w.z, 1.4);
+    });
+    FIELDS.orchard = { g, work, trees, yaw: 0 };
+    block(c.x, c.z + 1.8, 6.2, 0); // まわりに 畑や 家を 置かない（歩いて 入れる）
+  })();
   // 農村：畑と赤い納屋
   for (let py = 545; py < 760; py += 30) {
     for (let px = 620; px < 900; px += 42) {
@@ -2819,7 +2877,7 @@ const snowHead = new THREE.Vector3();
 function updateSnow(dt, now) {
   const winter = season === 'winter';
   if (winter && seasonal.rink && !reduceMotion) seasonal.rink.userData.place(now / 1000);
-  const inside = state.where === 'booth'; // お店の 中には 降らせない
+  const inside = state.where === 'booth' && !(state.booth && state.booth.inField); // お店の 中には 降らせない（畑の 作業中は 降る）
   snowWide.pts.visible = winter && !inside; snowNear.pts.visible = winter && state.where === 'walk';
   if (!winter || inside || reduceMotion) return;
   camera.getWorldPosition(snowHead);
@@ -2937,6 +2995,7 @@ function startSession(withSupport) {
   state.withSupport = withSupport;
   state.session = { started: performance.now(), completed: 0, inspected: 0, defects: 0, promptCount: 0, questionCount: 0, roundIndex: 0, target: state.booth.job.rounds || ROUNDS_PER_SESSION };
   setButtons(['hint', 'back']);
+  state.booth.fieldArrived = false; // 畑へは ゆっくり 歩いて いく（2 回めからは すぐ となり）
   nextRound();
 }
 
@@ -2944,6 +3003,89 @@ function clearWork() {
   const b = state.booth; if (!b) return;
   while (b.workArea.children.length) b.workArea.remove(b.workArea.children[0]);
   b.counter.visible = true; // 倉庫整理の 間は 台を かくしている
+  Object.values(FIELDS).forEach((f) => { while (f.work.children.length) f.work.remove(f.work.children[0]); });
+  if (b.panelOut) { b.group.add(b.panel); b.panel.position.set(0, 0, PANEL_Z); b.panel.rotation.y = Math.PI; b.panelOut = false; } // 指示モニターを お店に もどす
+  b.inField = false;
+}
+// 外の 作業：指示モニター（ボタンつき）を 畑へ 持って いき、自分も その 場所へ 行く
+function goField(b, f, stand, pitch, panelAt) {
+  f.g.add(b.panel); b.panel.position.set(panelAt[0], 0, panelAt[1]); b.panel.rotation.y = panelAt[2]; b.panelOut = true; b.inField = true;
+  moveRig(f.g.localToWorld(stand.clone()), f.yaw, pitch, b.fieldArrived ? 700 : undefined); b.fieldArrived = true;
+}
+// 田んぼの 苗植え
+function seedlingMesh(wilt) {
+  const g = new THREE.Group();
+  for (let i = 0; i < 7; i++) {
+    const a = (i / 7) * TAU; const h = wilt ? 0.1 : 0.16 + (i % 3) * 0.02;
+    const bl = part(g, box(0.012, h, 0.006), wilt ? '#b9a457' : '#5fae3a', Math.cos(a) * 0.015, h / 2, Math.sin(a) * 0.015);
+    bl.rotation.z = Math.cos(a) * (wilt ? 0.9 : 0.18); bl.rotation.x = Math.sin(a) * (wilt ? 0.9 : 0.18);
+  }
+  part(g, cyl(0.03, 0.035, 0.03, 10), '#6b4f32', 0, 0.015, 0); // 根の 土
+  return g;
+}
+function startPaddy(b, def) {
+  const F = FIELDS.paddy; const s = state.session; const W = F.work; const slots = [];
+  const zr = F.rows[s.roundIndex % F.rows.length];
+  if (s.roundIndex === 0) while (F.planted.children.length) F.planted.remove(F.planted.children[0]); // 新しい 体験は 田んぼを まっさらに
+  part(W, box(3.0, 0.012, 0.012), '#ffffff', 0, 0.1, zr); // 田植えの ひも
+  [-1.6, 1.6].forEach((x) => part(W, cyl(0.02, 0.02, 0.5, 6), '#b08a5a', x, 0.3, zr)); // ひもを はる 棒
+  let held = null;
+  def.items.forEach((spec, idx) => {
+    const holder = new THREE.Group(); W.add(holder); let mesh;
+    if (spec.seedling) { // 苗の 箱（右手前）
+      const x = spec.seedling === 'good' ? 0.85 : 1.35; holder.position.set(x, 0.08, zr + 0.7);
+      mesh = new THREE.Group(); part(mesh, box(0.36, 0.05, 0.26), '#2f3b4a', 0, 0.025, 0);
+      for (let k = 0; k < 6; k++) { const sm = seedlingMesh(spec.seedling === 'wilt'); sm.position.set(-0.12 + (k % 3) * 0.12, 0.05, k < 3 ? -0.06 : 0.06); mesh.add(sm); }
+      const sp = labelSprite(actionText(b.job, spec)); sp.position.y = 0.45; holder.add(sp);
+    } else { // 植える ところ（ひもの 印と、印の ない ところ）
+      const x = spec.spot === 'line' ? -0.9 + spec.k * 0.6 : -0.6 + spec.k * 1.2; const z = spec.spot === 'line' ? zr : zr + (spec.k ? -0.4 : 0.38);
+      holder.position.set(x, 0.08, z);
+      mesh = new THREE.Group(); part(mesh, cyl(0.11, 0.11, 0.015, 16), '#7d6646', 0, 0.01, 0, { transparent: true, opacity: 0.55 });
+      if (spec.spot === 'line') part(mesh, box(0.03, 0.02, 0.03), '#d0453a', 0, 0.025, 0); // ひもの 赤い 印
+    }
+    holder.add(mesh); mesh.traverse((o) => { o.userData.slotIndex = idx; });
+    const ring = makeGlowRing(); ring.position.y = 0.02; holder.add(ring);
+    slots.push({ spec, key: itemKey(spec), mesh, ring, holder, done: false });
+  });
+  goField(b, F, new THREE.Vector3(0, 0, zr + 1.15), 0.62, [-2.1, zr - 1.3, 0.75]);
+  state.round = { def, slots, pos: 0, lastActionAt: performance.now(), hintShown: false, mistakeThisRound: false,
+    onPick(slot, ok) {
+      if (!ok) { flashWrong(slot); return; }
+      if (slot.spec.seedling) { slot.holder.visible = false; held = seedlingMesh(false); held.scale.setScalar(0.7); held.position.set(0.55, 1.0, zr + 0.8); W.add(held); return; } // 手に 持つ（右手）
+      const p = slot.holder.position; const sm = seedlingMesh(false); sm.position.set(p.x, 0.07, p.z); F.planted.add(sm);
+      slot.holder.visible = false;
+      if (held && remainingKeys().length === 0) held.visible = false;
+    } };
+  state.feedback = { text: '', kind: '' };
+  drawWorkBoard(); renderHud();
+  if (state.withSupport) speak(def.title + '。最初は、' + stepLabel(def.need[0]) + '。');
+}
+// りんご狩り：木の 前に 立ち、前の 枝に さがった りんごを もぐ
+function startOrchard(b, def) {
+  const F = FIELDS.orchard; const s = state.session; const W = F.work; const slots = [];
+  const t = F.trees[s.roundIndex % F.trees.length];
+  const basket = new THREE.Vector3(t.x + 0.7, 0, t.z + 1.9);
+  const bk = fitInto(ITEM_MODELS['検品かご']({ color: '#a8865a' }), 0.6, 0.3, 0.6); bk.position.copy(basket); W.add(bk);
+  let inBasket = 0;
+  def.items.forEach((spec, idx) => {
+    const col = idx % 4; const row = Math.floor(idx / 4);
+    const holder = new THREE.Group(); holder.position.set(t.x - 0.75 + col * 0.5 + (row ? 0.25 : 0), 1.95 - row * 0.3 + (col % 2) * 0.06, t.z + 0.9 - row * 0.15); W.add(holder);
+    const mesh = new THREE.Group(); const ap = ITEM_MODELS['りんご']({ color: spec.apple }); ap.position.y = -0.14; mesh.add(ap);
+    part(mesh, cyl(0.004, 0.004, 0.16, 5), '#6b4a2a', 0, 0.0, 0); // 枝から さがる 軸
+    holder.add(mesh); mesh.traverse((o) => { o.userData.slotIndex = idx; });
+    const ring = makeGlowRing(); ring.position.y = -0.2; holder.add(ring);
+    slots.push({ spec, key: itemKey(spec), mesh, ring, holder, done: false });
+  });
+  goField(b, F, new THREE.Vector3(t.x, 0, t.z + 2.7), -0.05, [t.x - 2.1, t.z + 0.9, 0.7]);
+  state.round = { def, slots, pos: 0, lastActionAt: performance.now(), hintShown: false, mistakeThisRound: false,
+    onPick(slot, ok) {
+      if (!ok) { flashWrong(slot); return; }
+      const to = basket.clone().add(new THREE.Vector3(-0.12 + (inBasket % 3) * 0.12, 0.12 + Math.floor(inBasket / 3) * 0.08, (inBasket % 2) * 0.08 - 0.04)); inBasket++;
+      anims.push({ kind: 'box', obj: slot.holder, from: slot.holder.position.clone(), to, t0: performance.now() }); // かごへ
+    } };
+  state.feedback = { text: '', kind: '' };
+  drawWorkBoard(); renderHud();
+  if (state.withSupport) speak(def.title + '。');
 }
 
 function nextRound() {
@@ -2960,6 +3102,8 @@ function nextRound() {
   if (def.layout === 'laptop') return startLaptop(b, def);
   if (def.layout === 'wallShelf') return startWallShelf(b, def);
   if (def.layout === 'stock') return startStock(b, def);
+  if (def.layout === 'paddy') return startPaddy(b, def);
+  if (def.layout === 'orchard') return startOrchard(b, def);
   if (CLEAN_LAYOUTS[def.layout]) return startCleaning(b, def);
   def.items.forEach((spec, idx) => {
     const col = idx % cols; const row = Math.floor(idx / cols);
@@ -3558,7 +3702,9 @@ function finishRound() {
 
 function showResult() {
   const b = state.booth; const s = state.session;
+  const wasField = b.inField; b.fieldArrived = false;
   clearWork();
+  if (wasField) { moveRig(b.group.localToWorld(new THREE.Vector3(0, 0, STAFF_Z)), b.yaw + Math.PI, 0.12); } // 畑から お店に もどって 結果を 見る
   state.phase = 'result';
   const durationSec = Math.round((performance.now() - s.started) / 1000);
   const entry = {
