@@ -1204,7 +1204,7 @@ function addCyl(x, y, z, rt, rb, h, color, seg) {
     if (!FIELDS.paddy) {
       const g = new THREE.Group(); g.position.copy(c); g.rotation.y = -a; scene.add(g);
       const work = new THREE.Group(); const planted = new THREE.Group(); g.add(work); g.add(planted);
-      FIELDS.paddy = { g, work, planted, yaw: -a, rows: [-1.3, 0, 1.3] };
+      FIELDS.paddy = { g, work, planted, yaw: -a, rows: [-1.7, -1.1, -0.5] }; // まん中の あぜ（z=0）を よけて 片がわの 田に。奥の 列から 植えて、うしろへ さがる
     }
   });
   // 湖：町の 家や 木は 5.8m よけるが、歩く ときは 季節で かわる（夏は 岸まで、冬は 氷の 上も 歩ける）
@@ -3407,7 +3407,7 @@ function startPaddy(b, def) {
       for (let k = 0; k < 6; k++) { const sm = seedlingMesh(spec.seedling === 'wilt'); sm.position.set(-0.12 + (k % 3) * 0.12, 0.05, k < 3 ? -0.06 : 0.06); mesh.add(sm); }
       const sp = labelSprite(actionText(b.job, spec)); sp.position.y = 0.45; holder.add(sp);
     } else { // 植える ところ（ひもの 印と、印の ない ところ）
-      const x = spec.spot === 'line' ? -0.9 + spec.k * 0.6 : -0.6 + spec.k * 1.2; const z = spec.spot === 'line' ? zr : zr + (spec.k ? -0.4 : 0.38);
+      const x = spec.spot === 'line' ? -0.9 + spec.k * 0.6 : -0.6 + spec.k * 1.2; const z = spec.spot === 'line' ? zr : zr + (spec.k ? -0.3 : 0.3);
       holder.position.set(x, 0.08, z);
       mesh = new THREE.Group(); part(mesh, cyl(0.11, 0.11, 0.015, 16), '#7d6646', 0, 0.01, 0, { transparent: true, opacity: 0.55 });
       if (spec.spot === 'line') part(mesh, box(0.03, 0.02, 0.03), '#d0453a', 0, 0.025, 0); // ひもの 赤い 印
