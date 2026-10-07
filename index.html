@@ -571,6 +571,7 @@ const EXTRA_ACTS = {
 ACTIONS.super = (l) => l + 'を 入れる';
 ACTIONS.rink = (l) => l + 'を わたす';
 ACTIONS.school = (l) => l + 'の たなに もどす';
+ACTIONS.rice = (l) => ({ '苗箱': '苗箱を 受けとる', 'しおれた 苗箱': 'しおれた 苗箱を 受けとる', '空き箱': '空き箱を かさねる', '肥料': '肥料を まく' }[l] || (/列め$/.test(l) ? '苗を ' + l + 'に のせる' : l));
 function actionText(job, spec) {
   const a = ACTIONS[job.id]; const l = spec.label;
   if (l && EXTRA_ACTS[job.id] && EXTRA_ACTS[job.id][l]) return EXTRA_ACTS[job.id][l];
@@ -633,6 +634,20 @@ JOBS.push(
       const shelves = Object.keys(books).map((label) => ({ label, shape: 'bookShelf', color: colors[label] }));
       const k = pick(Object.keys(books)); const title = pick(books[k]);
       return { title: '「' + title + '」を たなに もどす', shortTitle: '本を たなに もどす', items: shuffle(shelves), need: [k], ordered: false, carryText: '返ってきた 本：「' + title + '」' };
+    },
+  },
+  {
+    id: 'rice', area: '農村の 北', season: 'summer', name: '田んぼ', work: '田植えの苗受け', color: '#6f9a2e', category: '実務',
+    intro: '田植え機の 苗が なくなった 列を 合図で 聞いて、軽トラから 元気な 苗箱を 受けとり、その 列に のせます。空いた 箱は かさねて もどします。',
+    defect: 'しおれた 苗を わたす・ちがう 列・手順ちがい',
+    round() {
+      const rows = [1, 2, 3, 4].map((n) => ({ label: n + '列め', shape: 'riceRow', color: '#d0453a', n }));
+      const n = pick([1, 2, 3, 4]);
+      const items = rows.concat([
+        { label: '苗箱', shape: 'naebako', color: '#5fa83a' }, { label: 'しおれた 苗箱', shape: 'naebako', color: '#b9a457', wilt: true },
+        { label: '空き箱', shape: 'naebako', color: '#2f3b4a', empty: true }, { label: '肥料', color: '#e8e2d6' },
+      ]);
+      return { title: '田植え機の ' + n + '列めに 苗を たす（苗箱 → ' + n + '列め → 空き箱）', shortTitle: '苗を たす', items: shuffle(items), need: ['苗箱', n + '列め', '空き箱'], ordered: true, carryText: '合図：' + n + '列めの 苗が なくなった' };
     },
   },
 );
@@ -909,6 +924,7 @@ const SITES = {
   hut: { at: [478, 512], face: 's' },      // 山の表（南）の登山口
   wind: { at: [200, 398], face: 's' },     // 風の丘のふもと
   it: { at: [548, 606], face: 'w' },       // IT街（南の 新しい 通りぞい）
+  rice: { at: [840, 378], face: 'w' },     // 田んぼの 北（夏だけ。田植えの 苗受け）
 };
 
 // 道。漁港 → 山の南 → 学校 → 首都 → 繁華街 が島の目抜き通り。
@@ -1108,7 +1124,7 @@ const PANEL_SCALE = 0.7;
 function buildShopShell(g, job) {
   const wallMat = () => mat(job.id === 'farm' ? '#dff0e4' : job.id === 'school' ? '#e9d6b8' : '#f4efe6', job.id === 'farm' ? { transparent: true, opacity: 0.35, roughness: 0.1 } : null);
   const add = (geo, m, x, y, z) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); g.add(o); return o; };
-  const floorColor = { rink: '#cfe3ee', yatai: '#d9c4a2', super: '#e9e6dc', school: '#b98f5a', fish: '#cfd8dc', forest: '#9c7a54', ski: '#d9dde3', logi: '#b9bcb8', store: '#e9e6dc', clean: '#d9cdb8', cafe: '#a87b55', care: '#d8c3a0', office: '#c9ccd3', farm: '#8f7a5a', craft: '#c4a27a', hut: '#9c7a54', wind: '#c9ccd3', it: '#c9ccd3' }[job.id] || '#d9cdb8';
+  const floorColor = { rink: '#cfe3ee', yatai: '#d9c4a2', super: '#e9e6dc', school: '#b98f5a', fish: '#cfd8dc', forest: '#9c7a54', ski: '#d9dde3', logi: '#b9bcb8', store: '#e9e6dc', clean: '#d9cdb8', cafe: '#a87b55', care: '#d8c3a0', office: '#c9ccd3', farm: '#8f7a5a', craft: '#c4a27a', hut: '#9c7a54', wind: '#c9ccd3', it: '#c9ccd3', rice: '#8a7a52' }[job.id] || '#d9cdb8';
   const floor = add(new THREE.PlaneGeometry(SHOP_W, SHOP_DEPTH), mat(floorColor), 0, 0.1, SHOP_DEPTH / 2); floor.rotation.x = -Math.PI / 2;
   [-1, 1].forEach((sd) => {
     add(new THREE.BoxGeometry(0.1, 3.0, SHOP_DEPTH), wallMat(), sd * (SHOP_W / 2 + 0.05), 1.5, SHOP_DEPTH / 2);
@@ -1231,7 +1247,7 @@ const FURN = { at: [445, 570], doorAt: [445, 528], W: 4.6, H: 4.2 };
 FURN.pos = toWorld(...FURN.at); FURN.door = toWorld(...FURN.doorAt); block(FURN.pos.x, FURN.pos.z, 3.0);
 
 // 地域の名前（お店のない地域・目じるし）
-[['ビーチ', [250, 205]], ['湖（冬は スケート場）', [265, 592]], ['田んぼ', [826, 424]], ['表：夏山登山　裏：冬スキー', [520, 392]],
+[['ビーチ', [250, 205]], ['湖（冬は スケート場）', [265, 592]], ['表：夏山登山　裏：冬スキー', [520, 392]],
   ['フェリー乗り場（となりの国へ）', [125, 458]]].forEach(([text, at]) => {
   const p = toWorld(...at);
   const s = overviewSign(text, '', '', text.length > 10 ? 11 : text.length > 4 ? 7.5 : 4.5);
@@ -1971,6 +1987,30 @@ Object.assign(SHAPE_MODELS, {
     for (let i = 0; i < 8; i++) { const a = (i / 8) * TAU; part(g, ball(0.004, 6, 4), '#f6e27a', Math.cos(a) * 0.035, 0.06, Math.sin(a) * 0.035); }
     return g;
   },
+  // 田んぼ：苗箱（元気な 苗・しおれた 苗・空き箱）
+  naebako(s) {
+    const g = new THREE.Group(); const W = 0.16; const D = 0.26;
+    part(g, box(W, 0.03, D), s.empty ? s.color : '#2f3b4a', 0, 0.015, 0);
+    if (s.empty) { [0.03, 0.06].forEach((y) => part(g, box(W, 0.03, D), s.color, 0, y + 0.015, 0)); return g; } // かさねた 空き箱
+    part(g, box(W - 0.01, 0.012, D - 0.01), '#6b4f32', 0, 0.034, 0); // 土（マット）
+    for (let i = 0; i < 5; i++) for (let k = 0; k < 9; k++) {
+      const h = s.wilt ? 0.04 : 0.07 + ((i + k) % 3) * 0.008;
+      const bl = part(g, box(0.006, h, 0.006), s.color, -0.06 + i * 0.03, 0.04 + h / 2, -0.11 + k * 0.0275);
+      if (s.wilt) bl.rotation.z = ((i + k) % 2 ? 1 : -1) * 0.9; // しおれて たおれている
+    }
+    return g;
+  },
+  // 田んぼ：田植え機の 苗のせ台の 列（番号つき）
+  riceRow(s) {
+    const g = new THREE.Group();
+    const bed = part(g, box(0.16, 0.012, 0.26), '#c9ced6', 0, 0.09, 0); bed.rotation.x = -0.35;
+    [-1, 1].forEach((sd) => part(g, box(0.008, 0.04, 0.26), s.color, sd * 0.084, 0.11, 0).rotation.x = -0.35);
+    part(g, box(0.16, 0.1, 0.02), '#8a8f96', 0, 0.05, 0.12);
+    const plate = new Board(0.1, 0.1, 600);
+    plate.draw((ctx, W, H) => { ctx.fillStyle = s.color; roundRect(ctx, 0, 0, W, H, W * 0.2); ctx.fill(); ctx.fillStyle = '#ffffff'; ctx.font = '700 ' + Math.round(H * 0.72) + 'px ' + FONT_DISPLAY; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(s.n), W / 2, H * 0.54); });
+    plate.mesh.position.set(0, 0.05, 0.131); g.add(plate.mesh);
+    return g;
+  },
   // 学校：本だな（たなの 色で 種類）
   bookShelf(s) {
     const g = new THREE.Group(); const W = 0.36; const H = 0.42;
@@ -2209,6 +2249,17 @@ function decorateInterior(b) {
     part(g, box(0.04, 0.04, 1.44), '#8a6a46', SHOP_W / 2 - 0.04, 0.98, 1.6);
   } else if (id === 'it') {
     deskSet(g, -1, 1.7); deskSet(g, 1, 1.7);
+  } else if (id === 'rice') {
+    // 片がわに 軽トラの 荷台（苗箱を つんで いる）、もう 片がわに 田植え機の 苗のせ台
+    part(g, box(0.7, 0.5, 1.7), '#e8ecef', DECO_X - 0.15, 0.25, 1.45);
+    for (let y = 0; y < 3; y++) for (let k = 0; k < 4; k++) {
+      part(g, box(0.32, 0.03, 0.4), '#2f3b4a', DECO_X - 0.15, 0.52 + y * 0.1, 0.84 + k * 0.41);
+      part(g, box(0.3, 0.05, 0.38), '#5fa83a', DECO_X - 0.15, 0.56 + y * 0.1, 0.84 + k * 0.41);
+    }
+    const bed = part(g, box(0.6, 0.04, 1.6), '#c9ced6', -DECO_X + 0.15, 0.8, 1.45); bed.rotation.z = 0.35;
+    [0, 1, 2, 3].forEach((k) => part(g, box(0.5, 0.06, 0.34), k === 1 ? '#6b4f32' : '#5fa83a', -DECO_X + 0.15, 0.85, 0.85 + k * 0.4).rotation.z = 0.35);
+    part(g, box(0.5, 0.6, 1.4), '#d0453a', -DECO_X + 0.1, 0.3, 1.45); // 田植え機の 車体
+    [0.95, 1.95].forEach((z) => part(g, cyl(0.22, 0.22, 0.1, 18), '#2b2f36', -DECO_X + 0.4, 0.22, z).rotation.z = Math.PI / 2);
   } else if (id === 'craft') {
     wallShelf(g, -1, ['のり', 'ハサミ', 'ひも', '#e7d6b8'], '#b0703a');
     tableSet(g, 1, 1.5, '#e8d9bf', '#b0703a');
