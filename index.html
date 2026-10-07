@@ -1416,6 +1416,7 @@ const FURN = { near: [412, 636], W: 5.8, H: 3.4 }; // 中を 歩いて 家具を
 let season = (() => { const m = new Date().getMonth() + 1; return m === 12 || m <= 3 ? 'winter' : 'summer'; })();
 const SEASON_NAME = { summer: '夏', winter: '冬' };
 const isOpen = (job) => !job.season || job.season === season;
+const PLAZA = { c: null, D: 0, table: [0, 0.9] }; // 繁華街の 白い テラス席。table は すわる テーブル（c からの ずれ）
 const seasonal = { snowCap: null, capH: 0, peakH: 0, runs: [], trail: null, parasols: [], trailAt: null, mount: null, treeSnow: [] };
 
 // 山の表（南）の登山口。スキー場は裏にあって見えにくいので、看板で案内し、看板からも行けるようにする。
@@ -1556,6 +1557,7 @@ function tree(x, z, kind) {
   // 繁華街の テラス席（もとの カフェの 場所）：石だたみに パラソルと テーブル、まわりに 植えこみと 木
   (() => {
     const c = toWorld(195, 660); const W = 7.2; const D = 5.0; // 東西 × 南北（m）
+    PLAZA.c = c; PLAZA.D = D; // 余暇で ここにも すわれる（カフェで のんびり）
     const floor = new THREE.Mesh(new THREE.PlaneGeometry(W, D), cmat('#e6dccb')); floor.rotation.x = -Math.PI / 2; floor.position.set(c.x, 0.1, c.z); scene.add(floor);
     block(c.x, c.z, 4.4, 0); // 町の ビルは 建てない（中は 歩ける）
     addBox(c.x, 0.3, c.z - D / 2 + 0.25, W, 0.6, 0.5, '#d9cfbd'); // 北がわの 低い 植えこみ
@@ -2883,6 +2885,7 @@ const LEISURE = [
   { id: 'ski', name: 'スキー', price: 500, label: 'リフト券 500円', ok: () => season === 'winter', go: () => startSki() },
   { id: 'cafe', name: 'カフェで のんびり', label: '300円〜', ok: () => true, go: () => openCafeOrder('in') },
   { id: 'terrace', name: 'カフェの テラス席', label: '300円〜', ok: () => true, go: () => openCafeOrder('out') },
+  { id: 'plaza', name: '町の テラスで のんびり', label: '300円〜', ok: () => true, go: () => openCafeOrder('plaza') },
   { id: 'yatai', name: '屋台で 食べる', label: '150円〜', ok: () => true, go: () => openYataiShop() },
   { id: 'furn', name: '家具屋で 買い物', label: '300円〜', ok: () => true, go: () => goFurniture() },
 ];
@@ -2911,8 +2914,8 @@ function buildLeisureWall() {
   const cols = { free: LEISURE.filter((l) => leisureFree(l) && l.ok()), paid: LEISURE.filter((l) => !leisureFree(l) && l.ok()) };
   Object.entries(cols).forEach(([k, list]) => list.forEach((l, n) => {
     const text = l.name + (l.label ? '（' + l.label + '）' : '');
-    const btn = makeButton(text, k === 'free' ? '#2f7d4f' : '#e0662f', 1.25, 0.15);
-    btn.position.set(X - 0.01, 2.06 - n * 0.19, -0.2 + (k === 'free' ? -0.725 : 0.725)); btn.rotation.y = -Math.PI / 2; btn.userData.leisure = l.id;
+    const btn = makeButton(text, k === 'free' ? '#2f7d4f' : '#e0662f', 1.25, 0.14);
+    btn.position.set(X - 0.01, 2.06 - n * 0.16, -0.2 + (k === 'free' ? -0.725 : 0.725)); btn.rotation.y = -Math.PI / 2; btn.userData.leisure = l.id;
     g.add(btn); home.leisureBtns.push(btn);
   }));
 }
@@ -5415,7 +5418,7 @@ function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 function renderHud() {
   $('btn-home').hidden = !home.group;
   $('place').textContent = state.where === 'plaza' ? '島ぜんたい' : state.where === 'walk' ? '島を 歩いています' : state.where === 'home' ? profile.name + 'さんの 家（' + home.site.name + '）' : state.where === 'opening' ? 'フェリーで 入港中' : state.where === 'play' ? PLAY_NAME[state.play.kind] : state.where === 'furn' ? '家具屋（お店の 中）' : state.booth.job.area + '　' + state.booth.job.name + '・' + state.booth.job.work;
-  $('pad').hidden = !(state.where === 'walk' || state.where === 'furn' || (state.where === 'play' && state.play && !['sun', 'cafe', 'terrace'].includes(state.play.kind)) || (state.where === 'booth' && state.phase === 'work' && state.round && state.round.cover));
+  $('pad').hidden = !(state.where === 'walk' || state.where === 'furn' || (state.where === 'play' && state.play && !['sun', 'cafe', 'terrace', 'plaza'].includes(state.play.kind)) || (state.where === 'booth' && state.phase === 'work' && state.round && state.round.cover));
   $('btn-walk').textContent = state.where === 'walk' ? '見わたす' : '島を歩く';
   chipsEl.querySelectorAll('.chip').forEach((el, i) => el.setAttribute('aria-current', String(i === 0 ? state.where === 'plaza' : state.booth === booths[i - 1])));
   // いまの 場所の チップが 画面の外なら 見える ところまで 送る
@@ -5439,8 +5442,8 @@ function renderHud() {
   }
   if (state.where === 'play') {
     const k = state.play.kind;
-    const how = { ski: '← → で よける・▲を 押すと そのまま（Shift で 速く）。下まで すべると ゴール', climb: '▲で のぼる・▼で おりる。頂上から 島ぜんたいが 見えます', swim: '▲▼で 進む・◀▶で 向きを かえる。岸から 遠くへは 行けません', sun: 'パラソルの 下で ねころんでいます。ドラッグで 見回せます', cafe: '中の 席に すわって います。ドラッグで 見回せます', terrace: '外の テラス席に すわって います。ドラッグで 見回せます' }[k];
-    el.innerHTML = '<span class="tag">あそぶ</span><h2>' + PLAY_NAME[k] + '</h2><div>' + how + '</div><div class="row"><button type="button" class="primary" id="h-endplay">' + (k === 'sun' ? 'おきる' : k === 'swim' ? '岸に あがる' : k === 'cafe' || k === 'terrace' ? 'お店を 出る' : 'おわる') + '</button></div>';
+    const how = { ski: '← → で よける・▲を 押すと そのまま（Shift で 速く）。下まで すべると ゴール', climb: '▲で のぼる・▼で おりる。頂上から 島ぜんたいが 見えます', swim: '▲▼で 進む・◀▶で 向きを かえる。岸から 遠くへは 行けません', sun: 'パラソルの 下で ねころんでいます。ドラッグで 見回せます', cafe: '中の 席に すわって います。ドラッグで 見回せます', terrace: '外の テラス席に すわって います。ドラッグで 見回せます', plaza: '町の テラス席に すわって います。ドラッグで 見回せます' }[k];
+    el.innerHTML = '<span class="tag">あそぶ</span><h2>' + PLAY_NAME[k] + '</h2><div>' + how + '</div><div class="row"><button type="button" class="primary" id="h-endplay">' + (k === 'sun' ? 'おきる' : k === 'swim' ? '岸に あがる' : k === 'cafe' || k === 'terrace' ? 'お店を 出る' : k === 'plaza' ? '席を たつ' : 'おわる') + '</button></div>';
     $('h-endplay').onclick = endPlay;
     return;
   }
@@ -5547,7 +5550,8 @@ const inPoly = (poly, px, py) => { let ins = false; for (let i = 0, j = poly.len
 const onIce = (x, z) => season === 'winter' && LAKE.blk && ((x - LAKE.blk.x) / LAKE.rx) ** 2 + ((z - LAKE.blk.z) / LAKE.rz) ** 2 < 1;
 const onBeach = (x, z) => inPoly(BEACH, ...toMap(x, z));
 const skateV = new THREE.Vector3();
-const PLAY_NAME = { ski: 'スキー', climb: '山登り', swim: '海で 泳ぐ', sun: '日向ぼっこ', cafe: 'カフェで のんびり', terrace: 'カフェの テラス席' };
+const PLAY_NAME = { ski: 'スキー', climb: '山登り', swim: '海で 泳ぐ', sun: '日向ぼっこ', cafe: 'カフェで のんびり', terrace: 'カフェの テラス席', plaza: '町の テラス席' };
+const isCafePlay = (k) => k === 'cafe' || k === 'terrace' || k === 'plaza';
 // 左スティック（VR）
 function xrMove() {
   const xr = renderer.xr.isPresenting && renderer.xr.getSession(); if (!xr) return null;
@@ -5571,7 +5575,7 @@ function leaveForPlay() {
   overviewOnly.forEach((m) => { m.visible = false; }); tween = null; look.yaw = 0;
   Object.keys(walkKeys).forEach((k) => { walkKeys[k] = false; }); syncPad();
 }
-// カフェで のんびり（お客さんとして）：注文して 席に すわる。中の 席 か 外の テラス席
+// カフェで のんびり（お客さんとして）：注文して 席に すわる。中の 席・店の 横の テラス席・町の 白い テラス席（plaza）
 const CAFE_ORDER = { summer: [['アイスコーヒー', 300, 'ice'], ['レモンスカッシュ', 350, 'ice'], ['ケーキセット', 550, 'cake']], winter: [['ホットココア', 300, 'hot'], ['カフェラテ', 350, 'hot'], ['ケーキセット', 550, 'cake']] };
 const cafePlay = { g: null };
 function openCafeOrder(spot) {
@@ -5579,7 +5583,7 @@ function openCafeOrder(spot) {
   if (state.phase === 'work' || state.phase === 'between') { toast('作業が おわってから 行けます'); return; }
   modal.dataset.closable = '1';
   const money = profile.mode === 'money';
-  openModal('<h2>カフェ：' + (spot === 'out' ? '外の テラス席' : '中の 席') + '</h2><p>のみものを えらぶと 席に すわります。' + (money ? 'お金：' + yen(profile.money) : 'バッジのみモードなので、ごちそうに なります') + '</p>' +
+  openModal('<h2>カフェ：' + (spot === 'plaza' ? '町の テラス席' : spot === 'out' ? '外の テラス席' : '中の 席') + '</h2><p>のみものを えらぶと 席に すわります。' + (money ? 'お金：' + yen(profile.money) : 'バッジのみモードなので、ごちそうに なります') + '</p>' +
     '<div class="shop-grid">' + CAFE_ORDER[season].map(([n, price], i) => '<div class="item"><b>' + esc(n) + '</b><span>' + (money ? yen(price) : '') + '</span><button type="button" data-order="' + i + '"' + (money && profile.money < price ? ' disabled>お金が たりない' : ' class="primary">' + (money ? 'たのむ' : 'もらう')) + '</button></div>').join('') +
     '</div><div class="row"><button type="button" id="co-close">やめる</button></div>',
   (card) => {
@@ -5604,7 +5608,8 @@ function cafeDrink(kind) {
 function sitCafe(spot, order) {
   const b = booths.find((x) => x.job.id === 'cafe'); if (!b) return;
   leaveForPlay();
-  if (cafePlay.g) b.group.remove(cafePlay.g);
+  if (cafePlay.g) { cafePlay.g.parent.remove(cafePlay.g); cafePlay.g = null; }
+  if (spot === 'plaza') { sitPlaza(order); return; }
   const g = new THREE.Group(); b.group.add(g); cafePlay.g = g;
   const staff = person('#f4f1ea', '#3d4a54'); part(staff, box(0.1, 0.12, 0.005), '#6b4630', 0, 0.17, 0.064); staff.scale.setScalar(4.6); staff.position.set(0.3, 0.1, 1.55); g.add(staff); // カウンターの 中の 店員さん
   let seat; let yaw; const T = CAFE_SEAT.out;
@@ -5613,6 +5618,17 @@ function sitCafe(spot, order) {
   state.where = 'play'; state.play = { kind: spot === 'out' ? 'terrace' : 'cafe', t: 0, said: 0, order: order[0], door: b.door.clone(), back: b.yaw };
   const w = b.group.localToWorld(seat); rig.position.set(w.x, -0.42, w.z); rig.rotation.y = yaw; look.yaw = 0; look.pitch = 0.3; // すわった 目の 高さ。テーブルの 上が 見える
   toast(order[0] + 'が きました。ごゆっくり どうぞ');
+  renderHud();
+}
+// 町の 白い テラス席：テーブルの 北東の いすに すわって、南（海の 方）を 向く
+function sitPlaza(order) {
+  const c = PLAZA.c; const tx = c.x + PLAZA.table[0]; const tz = c.z + PLAZA.table[1];
+  const g = new THREE.Group(); scene.add(g); cafePlay.g = g;
+  const d = cafeDrink(order[2]); d.position.set(tx + 0.24, 0.4, tz - 0.24); g.add(d);
+  const a = Math.PI * 7 / 4; const sx = tx + Math.cos(a) * 0.72; const sz = tz + Math.sin(a) * 0.72;
+  state.where = 'play'; state.play = { kind: 'plaza', t: 0, said: 0, order: order[0], door: new THREE.Vector3(c.x, 0, c.z + PLAZA.D / 2 + 1.2), back: Math.PI };
+  rig.position.set(sx, -0.9, sz); rig.rotation.y = Math.PI * 0.94; look.yaw = 0; look.pitch = 0.35; // 低い いすなので 目も 低め。海の 方を 向き、右前に テーブル
+  toast(order[0] + 'を もって テラスに すわりました。ごゆっくり どうぞ');
   renderHud();
 }
 function startSki() {
@@ -5659,7 +5675,7 @@ function endPlay() {
   else if (pl.kind === 'climb') startWalk(seasonal.trailAt.clone().add(new THREE.Vector3(1.5, 0, 1.5)), 0);
   else if (pl.kind === 'swim') startWalk(pl.land, rig.rotation.y + Math.PI);
   else if (pl.kind === 'sun') startWalk(new THREE.Vector3(pl.at.x + 1.6, 0, pl.at.z + 0.8), 0);
-  else if (pl.kind === 'cafe' || pl.kind === 'terrace') { if (cafePlay.g) { cafePlay.g.parent.remove(cafePlay.g); cafePlay.g = null; } startWalk(pl.door, pl.back); toast('ごちそうさまでした'); }
+  else if (isCafePlay(pl.kind)) { if (cafePlay.g) { cafePlay.g.parent.remove(cafePlay.g); cafePlay.g = null; } startWalk(pl.door, pl.back); toast('ごちそうさまでした'); }
 }
 function stepPlay(dt, now) {
   const pl = state.play; if (state.where !== 'play' || !pl) return;
@@ -5692,9 +5708,9 @@ function stepPlay(dt, now) {
   } else if (pl.kind === 'sun') {
     pl.t += dt;
     if (pl.t > 6 && !pl.said) { pl.said = true; toast('あたたかくて 気持ちいい…'); }
-  } else if (pl.kind === 'cafe' || pl.kind === 'terrace') {
+  } else if (isCafePlay(pl.kind)) {
     pl.t += dt;
-    const say = [[5, pl.order + '、おいしい…'], [14, pl.kind === 'terrace' ? '風が 気持ちいい。ゆっくり できます' : 'お店の 音楽を 聞きながら、ひとやすみ']].find(([sec], k) => pl.t > sec && pl.said === k);
+    const say = [[5, pl.order + '、おいしい…'], [14, pl.kind !== 'cafe' ? '風が 気持ちいい。ゆっくり できます' : 'お店の 音楽を 聞きながら、ひとやすみ']].find(([sec], k) => pl.t > sec && pl.said === k);
     if (say) { pl.said++; toast(say[1]); }
   }
 }
@@ -5712,9 +5728,10 @@ function nearbyActions() {
   const y = booths.find((b) => b.job.id === 'yatai'); if (y && Math.hypot(y.door.x - p.x, y.door.z - p.z) < 6) out.push(['buy', '屋台で 買う']);
   if (profile && Math.hypot(FURN.door.x - p.x, FURN.door.z - p.z) < 6) out.push(['furn', '家具屋に 入る']);
   const cf = booths.find((b) => b.job.id === 'cafe'); if (profile && cf && Math.hypot(cf.door.x - p.x, cf.door.z - p.z) < 6) { out.push(['cafe', 'カフェで のんびり']); out.push(['terrace', 'テラス席で のんびり']); }
+  if (profile && PLAZA.c && Math.hypot(PLAZA.c.x - p.x, PLAZA.c.z - p.z) < 7) out.push(['plaza', 'テラスで のんびり']);
   return out;
 }
-const PLAY_ACTS = { ski: startSki, climb: startClimb, swim: startSwim, sun: startSun, buy: () => openYataiShop(), furn: () => goFurniture(), cafe: () => openCafeOrder('in'), terrace: () => openCafeOrder('out') };
+const PLAY_ACTS = { ski: startSki, climb: startClimb, swim: startSwim, sun: startSun, buy: () => openYataiShop(), furn: () => goFurniture(), cafe: () => openCafeOrder('in'), terrace: () => openCafeOrder('out'), plaza: () => openCafeOrder('plaza') };
 let lastNearby = '';
 function checkNearby() { const k = nearbyActions().map((a) => a[0]).join(',') + (state.skating ? '|s' : ''); if (k !== lastNearby) { lastNearby = k; renderHud(); } }
 // 屋台で 買う（お客さんとして）
