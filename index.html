@@ -917,6 +917,10 @@ const camera = new THREE.PerspectiveCamera(70, stage.clientWidth / stage.clientH
 camera.position.set(0, 1.6, 0);
 camera.rotation.order = 'YXZ';
 rig.add(camera);
+// 場所を 飛ぶ ときの ホワイトアウト（目の 前を おおう 白い 球。VR でも 見える）
+const whiteout = new THREE.Mesh(new THREE.SphereGeometry(0.2, 16, 12), new THREE.MeshBasicMaterial({ color: '#ffffff', side: THREE.BackSide, transparent: true, opacity: 0, depthTest: false, depthWrite: false, fog: false }));
+whiteout.renderOrder = 9999; whiteout.visible = false; whiteout.frustumCulled = false;
+camera.add(whiteout);
 
 scene.add(new THREE.HemisphereLight('#ffffff', '#8aa07a', 0.62));
 const sun = new THREE.DirectionalLight('#fff4e0', 0.72);
@@ -1204,7 +1208,7 @@ function addCyl(x, y, z, rt, rb, h, color, seg) {
     if (!FIELDS.paddy) {
       const g = new THREE.Group(); g.position.copy(c); g.rotation.y = -a; scene.add(g);
       const work = new THREE.Group(); const planted = new THREE.Group(); g.add(work); g.add(planted);
-      FIELDS.paddy = { g, work, planted, yaw: -a, rows: [-1.3, 0, 1.3] };
+      FIELDS.paddy = { g, work, planted, yaw: -a, rows: [-1.7, -1.1, -0.5] }; // まん中の あぜ（z=0）を よけて 片がわの 田に。奥の 列から 植えて、うしろへ さがる
     }
   });
   // 湖：町の 家や 木は 5.8m よけるが、歩く ときは 季節で かわる（夏は 岸まで、冬は 氷の 上も 歩ける）
@@ -3018,8 +3022,31 @@ function moveRig(pos, yaw, pitch, dur) {
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   // 島は広いので、遠いほど ゆっくり（それでも 2 秒まで）
   const auto = Math.min(2000, 700 + from.p.distanceTo(to.p) * 14);
+  // 遠くへ 飛ぶ ときは 壁を つきぬけて 見えないよう、いったん 白く して から 着いた 先で はじめる
+  if (!dur && from.p.distanceTo(to.p) > WHITEOUT_DIST) {
+    tween = { fade: true, from, to, pitch: pitch || 0, t0: performance.now(), dur: reduce ? 300 : WHITEOUT_MS, snapped: false };
+    return;
+  }
   tween = { from, to, t0: performance.now(), dur: reduce ? 1 : (dur || auto) };
   look.yaw = 0; look.pitch = pitch || 0;
+}
+const WHITEOUT_DIST = 6; // これより 遠い 移動は ホワイトアウト
+const WHITEOUT_MS = 900; // 白く なる → 着く → もどる
+function stepTween(now) {
+  const t = Math.min(1, (now - tween.t0) / tween.dur);
+  if (tween.fade) {
+    const IN = 0.35; const HOLD = 0.5;
+    if (t >= IN && !tween.snapped) {
+      tween.snapped = true;
+      rig.position.copy(tween.to.p); rig.rotation.y = tween.to.yaw; look.yaw = 0; look.pitch = tween.pitch;
+    }
+    whiteout.material.opacity = t < IN ? t / IN : t < HOLD ? 1 : 1 - (t - HOLD) / (1 - HOLD);
+    whiteout.visible = t < 1;
+  } else {
+    const e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    rig.position.lerpVectors(tween.from.p, tween.to.p, e); rig.rotation.y = tween.from.yaw + (tween.to.yaw - tween.from.yaw) * e;
+  }
+  if (t >= 1) tween = null;
 }
 
 function goHome(instant) {
@@ -3408,7 +3435,7 @@ function startPaddy(b, def) {
       for (let k = 0; k < 6; k++) { const sm = seedlingMesh(spec.seedling === 'wilt'); sm.position.set(-0.12 + (k % 3) * 0.12, 0.05, k < 3 ? -0.06 : 0.06); mesh.add(sm); }
       const sp = labelSprite(actionText(b.job, spec)); sp.position.y = 0.45; holder.add(sp);
     } else { // 植える ところ（ひもの 印と、印の ない ところ）
-      const x = spec.spot === 'line' ? -0.9 + spec.k * 0.6 : -0.6 + spec.k * 1.2; const z = spec.spot === 'line' ? zr : zr + (spec.k ? -0.4 : 0.38);
+      const x = spec.spot === 'line' ? -0.9 + spec.k * 0.6 : -0.6 + spec.k * 1.2; const z = spec.spot === 'line' ? zr : zr + (spec.k ? -0.3 : 0.3);
       holder.position.set(x, 0.08, z);
       mesh = new THREE.Group(); part(mesh, cyl(0.11, 0.11, 0.015, 16), '#7d6646', 0, 0.01, 0, { transparent: true, opacity: 0.55 });
       if (spec.spot === 'line') part(mesh, box(0.03, 0.02, 0.03), '#d0453a', 0, 0.025, 0); // ひもの 赤い 印
@@ -5924,11 +5951,8 @@ const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').match
 let lastFrame = performance.now();
 renderer.setAnimationLoop((now) => {
   const dt = Math.min(0.1, (now - lastFrame) / 1000); lastFrame = now;
-  if (tween) {
-    const t = Math.min(1, (now - tween.t0) / tween.dur); const e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-    rig.position.lerpVectors(tween.from.p, tween.to.p, e); rig.rotation.y = tween.from.yaw + (tween.to.yaw - tween.from.yaw) * e;
-    if (t >= 1) tween = null;
-  }
+  if (tween) stepTween(now);
+  else if (whiteout.visible) whiteout.visible = false;
   if (!renderer.xr.isPresenting) { camera.rotation.y = look.yaw; camera.rotation.x = -look.pitch; }
   walkStep(dt);
   stepFurn(dt);
