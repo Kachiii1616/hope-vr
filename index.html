@@ -882,6 +882,23 @@ const APPLE_PICK = {
     return { title: '赤い りんごを ぜんぶ もいで かごへ（' + n + 'こ）', shortTitle: '赤い りんごを もぐ', items: shuffle(items), need: items.filter((i) => i.id.startsWith('red')).map((i) => i.id), ordered: false, layout: 'orchard' };
   },
 };
+//   データ入力（事務所）：右の 紙の「名簿一覧」を 見て、パソコンの「名簿」の 同じ 番号の 行に 入力する。ぜんぶ 入れたら「完了」
+//   名簿一覧は 上から 順に 読む（番号は ばらばら）。パソコンの 名簿は 番号順で、1 人は もう 入っている
+const MEIBO_PEOPLE = [['田中 ゆうき', 'たなか ゆうき'], ['佐藤 はな', 'さとう はな'], ['鈴木 りく', 'すずき りく'], ['高橋 さくら', 'たかはし さくら'], ['伊藤 そうた', 'いとう そうた'], ['渡辺 めい', 'わたなべ めい'], ['山本 けんた', 'やまもと けんた'], ['中村 あおい', 'なかむら あおい']];
+const DATA_ENTRY = {
+  work: 'データ入力', short: '入力', rounds: 3,
+  intro: '右の 紙の「名簿一覧」を 上から 順に 見て、パソコンの「名簿」の 同じ 番号の 行に 入力します。ぜんぶ 入れたら「完了」を おします。',
+  defect: 'ちがう 番号の 行に 入力する・入力して いない まま 完了',
+  round() {
+    const people = sample(MEIBO_PEOPLE, 4).map(([name, kana], i) => ({ no: i + 1, name, kana, tel: '090-' + (1000 + Math.floor(Math.random() * 9000)) + '-' + (1000 + Math.floor(Math.random() * 9000)) }));
+    const pre = pick([0, 1, 2, 3]); // もう 入っている 人
+    const list = shuffle(people.filter((_, i) => i !== pre)); // 紙の 名簿一覧（番号は ばらばら）
+    const items = list.map((pp, k) => ({ label: '', id: 'p' + k, name: '名簿一覧の ' + (k + 1) + ' 行めを 見る' }))
+      .concat(people.map((pp) => ({ label: '', id: 'r' + pp.no, name: '番号 ' + pp.no + ' の 行に 入力' })), [{ label: '', id: 'done', name: '完了を おす' }]);
+    const need = []; list.forEach((pp, k) => need.push('p' + k, 'r' + pp.no)); need.push('done');
+    return { title: '名簿一覧を 上から 順に、パソコンの 名簿の 同じ 番号の 行へ 入力して「完了」', shortTitle: '名簿を 入力する', items, need, ordered: true, layout: 'dataentry', people, pre, list };
+  },
+};
 //   漁船で 釣り：リアス式海岸（入り江の 多い 岩の 海）の 沖で、竿で 根魚を 釣る。あたりを まって 竿を 上げ、きまりを 見て いけすか 海へ
 //   夏：アイナメ・クロソイ・メバル、冬：マダラ・ドンコ・マコガレイ。フグと 15cm より 小さい 魚は 海に 返す
 const FISH_RULE = 'フグと 15cm より 小さい 魚は 海に 返す';
@@ -902,6 +919,7 @@ const FISHING = {
 };
 EXTRA_ACTS.fish = { '竿': '竿を 上げる', 'いけす': 'いけすに 入れる', '海に 返す': '海に 返す' };
 JOBS.forEach((job) => {
+  if (job.id === 'office') { job.variants.summer[0].short = '仕分け'; job.variants.winter[0].short = '年賀状'; job.variants.summer.push(DATA_ENTRY); job.variants.winter.push(DATA_ENTRY); }
   if (job.id === 'fish') { job.variants.summer[0].short = '仕分け'; job.variants.winter[0].short = '仕分け'; job.variants.summer.push(FISHING); job.variants.winter.push(FISHING); }
   if (job.id === 'rice') {
     const base = { work: job.work, short: '苗受け', intro: job.intro, defect: job.defect, round: job.round };
@@ -4287,6 +4305,7 @@ function nextRound() {
   const labels = [];
   if (def.layout === 'picking') return startPicking(b, def);
   if (def.layout === 'laptop') return startLaptop(b, def);
+  if (def.layout === 'dataentry') return startDataEntry(b, def);
   if (def.layout === 'wallShelf') return startWallShelf(b, def);
   if (def.layout === 'register') return startRegister(b, def);
   if (def.layout === 'stock') return startStock(b, def);
@@ -4613,6 +4632,102 @@ function startPicking(b, def) {
 }
 
 // ---- IT企業：台の 上の ノートパソコン。画面の 左に 伝票、右に 表。右の 行の □ か 数を えらぶ。
+// データ入力（事務所）：台の 左に ノートパソコン（名簿の 表）、右に 紙の 名簿一覧、右手前に「完了」（スケッチの とおり）
+function startDataEntry(b, def) {
+  const W = b.workArea; const slots = [];
+  b.counter.material.color.set('#e6e1d6');
+  const idxOf = (id) => def.items.findIndex((it) => it.id === id);
+  const addSlot = (id, mesh, holder, ring) => { const i = idxOf(id); mesh.userData.slotIndex = i; slots[i] = { spec: def.items[i], key: id, mesh, ring, holder, done: false }; };
+  // ノートパソコン
+  const lap = new THREE.Group(); lap.position.set(0.32, 0.9, 2.12); W.add(lap);
+  part(lap, box(1.0, 0.03, 0.62), '#3d444b', 0, 0.015, 0); part(lap, box(0.86, 0.004, 0.3), '#2a2f34', 0, 0.032, 0.02); part(lap, box(0.3, 0.004, 0.16), '#4a525a', 0, 0.032, -0.22);
+  const lid = new THREE.Group(); lid.position.set(0, 0.03, 0.3); lid.rotation.x = 0.22; lap.add(lid);
+  const SW = 0.96; const SH = 0.62;
+  part(lid, box(SW + 0.04, SH + 0.04, 0.02), '#3d444b', 0, SH / 2 + 0.02, 0.01);
+  const disp = new THREE.Group(); disp.position.set(0, SH / 2 + 0.02, -0.002); disp.rotation.y = Math.PI; lid.add(disp);
+  const screen = new Board(SW, SH, 1000); disp.add(screen.mesh);
+  const CW = Math.round(SW * 1000); const CH = Math.round(SH * 1000);
+  const COLS = [['番号', 110], ['名前', 250], ['ふりがな', 270], ['電話', 250]]; const TX = 40; const rowY = (i) => 160 + i * 72; // 行の 上の はし
+  const entered = {}; def.people.forEach((pp, i) => { if (i === def.pre) entered[pp.no] = pp; });
+  let flash = -1; let reading = -1;
+  const paintScreen = () => screen.draw((c, w, h) => {
+    c.fillStyle = '#dfe6ec'; c.fillRect(0, 0, w, h); c.fillStyle = '#ffffff'; c.fillRect(24, 24, w - 48, h - 150);
+    c.fillStyle = '#1f2a33'; c.font = '700 46px ' + FONT_BODY; c.textAlign = 'left'; c.textBaseline = 'middle'; c.fillText('名簿', TX, 64);
+    let x = TX; c.fillStyle = '#e8eef4'; c.fillRect(TX, 100, 880, 60);
+    COLS.forEach(([t, cw]) => { c.fillStyle = '#33404a'; c.font = '700 34px ' + FONT_BODY; c.fillText(t, x + 14, 130); x += cw; });
+    def.people.forEach((pp, i) => {
+      const y = rowY(i); if (flash === pp.no) { c.fillStyle = 'rgba(208,69,58,0.2)'; c.fillRect(TX, y, 880, 72); }
+      const e = entered[pp.no]; let cx = TX; c.font = '700 36px ' + FONT_BODY;
+      [String(pp.no), e ? e.name : '', e ? e.kana : '', e ? e.tel : ''].forEach((t, k) => { c.fillStyle = k ? '#1f2a33' : '#55626d'; c.font = (k === 2 || k === 3 ? '400 30px ' : '700 36px ') + FONT_BODY; c.fillText(t, cx + 14, y + 36); cx += COLS[k][1]; });
+    });
+    c.strokeStyle = '#9aa4ab'; c.lineWidth = 3; // 表の 線
+    for (let i = 0; i <= def.people.length; i++) { c.beginPath(); c.moveTo(TX, rowY(i)); c.lineTo(TX + 880, rowY(i)); c.stroke(); }
+    let lx = TX; [0].concat(COLS.map((cc) => cc[1])).forEach((cw) => { lx += cw; c.beginPath(); c.moveTo(lx - (cw ? 0 : 0), 100); c.lineTo(lx, rowY(def.people.length)); c.stroke(); });
+    c.beginPath(); c.moveTo(TX, 100); c.lineTo(TX, rowY(def.people.length)); c.stroke();
+    c.fillStyle = '#5a5f9e'; roundRect(c, 16, h - 104, w - 32, 92, 20); c.fill();
+    c.fillStyle = '#ffffff'; c.font = '700 48px ' + FONT_DISPLAY; c.textAlign = 'center';
+    c.fillText(reading >= 0 ? '番号 ' + def.list[reading].no + ' の 行を えらぶ' : '名簿一覧を 上から 見て 入力', w / 2, h - 56);
+  });
+  paintScreen();
+  const toLocal = (cx, cy) => [(cx / CW - 0.5) * SW, (0.5 - cy / CH) * SH];
+  def.people.forEach((pp, i) => {
+    const [lx, ly] = toLocal(TX + 440, rowY(i) + 36);
+    const holder = new THREE.Group(); holder.position.set(lx, ly, 0.004); disp.add(holder);
+    const hit = new THREE.Mesh(new THREE.PlaneGeometry(0.88, 0.07), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.001, depthWrite: false })); holder.add(hit);
+    const ringG = new THREE.Group(); ringG.scale.set(0.88 / 0.28, 0.09 / 0.28, 1); holder.add(ringG);
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.12, 0.14, 40), new THREE.MeshBasicMaterial({ color: '#ffd23f', transparent: true, opacity: 0.95, depthTest: false })); ring.renderOrder = 9; ring.visible = false; ringG.add(ring);
+    addSlot('r' + pp.no, hit, holder, ring);
+  });
+  // 紙の 名簿一覧（台に 立てる。店員に 向けて ななめ）
+  const PW = 0.58; const PH = 0.66; const paper = new Board(PW, PH, 900); const PCW = Math.round(PW * 900); const PCH = Math.round(PH * 900);
+  const rowH = 150; const pTop = 110;
+  const paintPaper = () => paper.draw((c, w, h) => {
+    c.fillStyle = '#fffef8'; c.fillRect(0, 0, w, h); c.strokeStyle = '#5a5f9e'; c.lineWidth = 8; c.strokeRect(4, 4, w - 8, h - 8);
+    c.fillStyle = '#1f2a33'; c.font = '700 50px ' + FONT_DISPLAY; c.textAlign = 'left'; c.textBaseline = 'middle'; c.fillText('名簿一覧', 28, 60);
+    def.list.forEach((pp, k) => {
+      const y = pTop + k * rowH; const done = slots[idxOf('p' + k)] && slots[idxOf('p' + k)].done && reading !== k;
+      if (reading === k) { c.fillStyle = 'rgba(255,214,90,0.55)'; c.fillRect(14, y, w - 28, rowH - 8); }
+      c.fillStyle = done ? '#9aa4ab' : '#5a5f9e'; c.font = '700 38px ' + FONT_BODY; c.fillText('番号 ' + pp.no, 28, y + 34);
+      c.fillStyle = done ? '#9aa4ab' : '#1f2a33'; c.font = '700 38px ' + FONT_BODY; c.fillText(pp.name, 180, y + 34);
+      c.font = '400 27px ' + FONT_BODY; c.fillText(pp.kana + '　' + pp.tel, 40, y + 92);
+      c.strokeStyle = '#d5ddd3'; c.lineWidth = 3; c.beginPath(); c.moveTo(14, y + rowH - 4); c.lineTo(w - 14, y + rowH - 4); c.stroke();
+      if (done) { c.strokeStyle = '#2e9d57'; c.lineWidth = 8; c.beginPath(); c.moveTo(w - 70, y + 50); c.lineTo(w - 54, y + 68); c.lineTo(w - 26, y + 26); c.stroke(); }
+    });
+  });
+  const stand = new THREE.Group(); stand.position.set(-0.66, 0.9, 2.3); stand.rotation.y = Math.PI; W.add(stand);
+  const tilt = new THREE.Group(); tilt.rotation.x = -0.22; stand.add(tilt);
+  paper.mesh.position.set(0, PH / 2 + 0.02, 0.012); tilt.add(paper.mesh);
+  part(tilt, box(PW + 0.06, PH + 0.06, 0.02), '#7a5a3a', 0, PH / 2 + 0.02, -0.004); part(tilt, box(0.16, 0.04, 0.04), '#b9bcb8', 0, PH + 0.04, 0.02);
+  def.list.forEach((pp, k) => {
+    const cy = pTop + k * rowH + (rowH - 8) / 2; const ly = (0.5 - cy / PCH) * PH;
+    const holder = new THREE.Group(); holder.position.set(0, PH / 2 + 0.02 + ly, 0.016); tilt.add(holder);
+    const hit = new THREE.Mesh(new THREE.PlaneGeometry(PW - 0.03, (rowH - 8) / 900), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.001, depthWrite: false })); holder.add(hit);
+    const ringG = new THREE.Group(); ringG.scale.set((PW - 0.03) / 0.28, 0.17 / 0.28, 1); holder.add(ringG);
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.12, 0.14, 40), new THREE.MeshBasicMaterial({ color: '#ffd23f', transparent: true, opacity: 0.95, depthTest: false })); ring.renderOrder = 9; ring.visible = false; ringG.add(ring);
+    addSlot('p' + k, hit, holder, ring);
+  });
+  paintPaper();
+  // 完了 ボタン（名簿一覧の 手前）
+  const dh = new THREE.Group(); dh.position.set(-0.66, 0.9, 1.92); W.add(dh);
+  const dt = new THREE.Group(); dt.rotation.y = Math.PI; dh.add(dt);
+  const btn = textPlate('完了', 0.26, 0.11, '#2f7d4f', '#ffffff'); btn.rotation.x = -1.0; btn.position.y = 0.05; dt.add(btn); part(dt, box(0.28, 0.04, 0.14), '#3d444b', 0, 0.02, 0);
+  const dring = makeGlowRing(); dring.scale.setScalar(1.4); dring.position.y = 0.01; dh.add(dring);
+  addSlot('done', btn, dh, dring);
+  state.round = { def, slots, pos: 0, lastActionAt: performance.now(), hintShown: false, mistakeThisRound: false,
+    onPick(slot, ok) {
+      const id = slot.key;
+      if (id.startsWith('r')) {
+        if (!ok) { flash = Number(id.slice(1)); setTimeout(() => { flash = -1; paintScreen(); }, 450); paintScreen(); return; }
+        const pp = def.list[reading]; entered[pp.no] = pp; reading = -1; paintScreen(); paintPaper(); return;
+      }
+      if (id.startsWith('p')) { if (!ok) return; reading = Number(id.slice(1)); paintPaper(); paintScreen(); return; }
+      if (!ok) flashWrong(slot);
+    } };
+  moveRig(b.group.localToWorld(new THREE.Vector3(0, 0, STAFF_Z + 0.2)), b.yaw + Math.PI, 0.34, state.session.roundIndex ? 500 : undefined); // パソコンと 名簿一覧が 見える ように 少し 下を 向く
+  state.feedback = { text: '', kind: '' };
+  drawWorkBoard(); renderHud();
+  if (state.withSupport) speak(def.title + '。最初は、' + stepLabel(def.need[0]) + '。');
+}
 function startLaptop(b, def) {
   const W = b.workArea; const slots = [];
   const lap = new THREE.Group(); lap.position.set(0, 0.9, 2.15); W.add(lap);
