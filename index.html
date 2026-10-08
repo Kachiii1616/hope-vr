@@ -3442,6 +3442,7 @@ function pickVariant(i) {
 }
 // 作業に 合わせて 部屋の ようすを きりかえる（学校：図書の整理＝図書室、書き初め＝教室）
 function applyRoomMode(b) {
+  if (b && b.job.id === 'store' && b.guests) b.guests.forEach((p) => { p.visible = b.job.work !== '品出し'; }); // コンビニの 品出しは 開店前の 売り場（お客さんは いない）
   if (!b || !b.rooms) return;
   if (b.rooms.back) { const bk = b.job.work === '倉庫整理'; b.rooms.back.visible = bk; b.rooms.sales.visible = !bk; b.counter.visible = !bk; if (b.guests) b.guests.forEach((p) => { p.visible = !bk; }); return; } // スーパー：倉庫整理＝バックヤード
   if (b.rooms.home) { const h = b.job.work === '台ふき'; b.rooms.home.visible = h; b.rooms.guest.visible = !h; return; } // 清掃：台ふき＝人の 家、モップ＝客室
@@ -4353,6 +4354,7 @@ const AISLE = { z: 0.45, pitch: 0.1, shelfGap: 1.35, shelfPitch: 0.42 };
 function startWallShelf(b, def) {
   const W = b.workArea; const slots = []; const toW = (x, z) => b.group.localToWorld(new THREE.Vector3(x, 0, z));
   b.counter.visible = false; b.away = true; // レジ台は かくして 売り場だけに
+  if (b.guests) b.guests.forEach((p) => { p.visible = false; }); // 品出しの 間は お客さんを 出さない
   let gapSlot = null;
   def.items.forEach((spec, idx) => {
     if (spec.label === 'すきま') {
