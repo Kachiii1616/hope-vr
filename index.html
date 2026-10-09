@@ -4102,13 +4102,13 @@ const STAGES = {
   // ---- 事務所：つくえ（パソコン・ペン立て）。奥に 書類トレーが 4 つ。手に 書類を 持って いる
   '書類の仕分け': {
     counter: '#e6e1d6', stand: [0, 1.15], pitch: 0.48,
-    decor(W, def) { officeDesk(W); heldPaper(W, def.carry || '', 1.15); },
+    decor(W, def) { officeDesk(W); heldPaper(W, def.carry || ''); }, noCarry: true, onPick: flyPaper,
     spots: { '請求書': [0.78, 0.906, 2.42, { s: 1.25, ry: 0.15 }], '納品書': [0.26, 0.906, 2.42, { s: 1.25, ry: 0.05 }], '申込書': [-0.26, 0.906, 2.42, { s: 1.25, ry: -0.05 }], '見積書': [-0.78, 0.906, 2.42, { s: 1.25, ry: -0.15 }] },
   },
   // ---- 事務所（冬）：つくえの 上の 年賀状の 区分棚（2 だん × 2）。手に 年賀状を 持って いる
   '年賀状の仕分け': {
     counter: '#e6e1d6', stand: [0, 1.15], pitch: 0.38,
-    decor(W, def) { officeDesk(W); part(W, box(0.66, 0.02, 0.32), '#c9a27a', 0, 0.91, 2.42); heldPaper(W, (def.carryText || '').replace('年賀状：', ''), 1.15, '年賀状'); },
+    decor(W, def) { officeDesk(W); part(W, box(0.66, 0.02, 0.32), '#c9a27a', 0, 0.91, 2.42); heldPaper(W, (def.carryText || '').replace('年賀状：', '').replace(' あて', ''), '年賀状'); }, noCarry: true, onPick: flyPaper,
     spots: { '首都': [0.16, 0.92, 2.42, { model: (sp) => SM.slotBox(sp), lx: 0.55, ly: -0.25 }], '繁華街': [-0.16, 0.92, 2.42, { model: (sp) => SM.slotBox(sp), lx: -0.55, ly: -0.25 }],
       '漁村': [0.16, 1.19, 2.42, { model: (sp) => SM.slotBox(sp), lx: 0.55, ly: -0.25 }], '農村': [-0.16, 1.19, 2.42, { model: (sp) => SM.slotBox(sp), lx: -0.55, ly: -0.25 }] },
   },
@@ -4244,12 +4244,49 @@ function officeDesk(W) {
   part(W, box(0.42, 0.015, 0.14), '#d0d3d8', -1.0, 0.91, 2.05); part(W, cyl(0.04, 0.04, 0.1, 12), '#3c7fc4', 1.15, 0.95, 2.4);
   [[-0.01, '#d0453a'], [0.012, '#1f2a33'], [0, '#4f9a45']].forEach(([dx, c], k) => part(W, cyl(0.004, 0.004, 0.14, 6), c, 1.15 + dx, 1.03, 2.4 + (k - 1) * 0.01));
 }
-// 手に 持った 紙（書類・年賀状）
-function heldPaper(W, text, standZ, kind) {
-  const h = new THREE.Group(); h.position.set(-0.3, 1.12, standZ + 0.45); h.rotation.x = -0.75; W.add(h);
-  const paper = new Board(kind ? 0.1 : 0.21, kind ? 0.15 : 0.28, 900);
-  paper.draw((c, w, hh) => { c.fillStyle = '#ffffff'; c.fillRect(0, 0, w, hh); c.fillStyle = kind ? '#c8463d' : '#1f2a33'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.font = '700 ' + Math.round(w * (kind ? 0.2 : 0.16)) + 'px ' + FONT_BODY; c.fillText(kind || text, w / 2, hh * 0.2); if (kind) { c.fillStyle = '#1f2a33'; c.font = '700 ' + Math.round(w * 0.15) + 'px ' + FONT_BODY; c.fillText(text, w / 2, hh * 0.55); } else { c.fillStyle = '#b9c0c6'; for (let i = 0; i < 6; i++) c.fillRect(w * 0.12, hh * (0.38 + i * 0.09), w * 0.76, 6); } });
+// 手に 持った 紙（書類・年賀状）。目の 前に 題名が 見えるように 持つ。正しい トレーを えらぶと そこへ 入る（flyPaper）
+const PAPER_FORMS = {
+  '請求書': [['あて先', '〇〇商店 様'], ['ご請求金額', '12,800 円'], ['お支払い期限', '月末まで']],
+  '納品書': [['品名', 'コピー用紙'], ['数量', '5 箱'], ['納品日', '本日']],
+  '申込書': [['お名前', ''], ['ご住所', ''], ['電話番号', '']],
+  '見積書': [['あて先', '〇〇商店 様'], ['お見積金額', '8,500 円'], ['有効期限', '2 週間']],
+};
+function heldPaper(W, text, kind) {
+  const h = new THREE.Group(); h.position.set(0, 1.0, 1.72); h.rotation.x = 0.85; W.add(h);
+  const pw = kind ? 0.2 : 0.26; const ph = kind ? 0.3 : 0.36;
+  const paper = new Board(pw, ph, 1400);
+  paper.draw((c, w, hh) => {
+    c.fillStyle = '#ffffff'; c.fillRect(0, 0, w, hh); c.strokeStyle = '#c9ced3'; c.lineWidth = 4; c.strokeRect(2, 2, w - 4, hh - 4);
+    c.textAlign = 'center'; c.textBaseline = 'middle';
+    if (kind) { // 年賀はがき：上に「年賀」、まんなかに あて先の 地域
+      c.fillStyle = '#c8463d'; c.font = '700 ' + Math.round(w * 0.16) + 'px ' + FONT_DISPLAY; c.fillText('年賀状', w / 2, hh * 0.13);
+      c.strokeStyle = '#c8463d'; c.lineWidth = 3; for (let i = 0; i < 7; i++) c.strokeRect(w * 0.12 + i * w * 0.11, hh * 0.24, w * 0.09, hh * 0.07);
+      c.fillStyle = '#55626d'; c.font = '400 ' + Math.round(w * 0.08) + 'px ' + FONT_BODY; c.fillText('あて先', w / 2, hh * 0.42);
+      c.fillStyle = '#1f2a33'; c.font = '700 ' + Math.round(w * 0.2) + 'px ' + FONT_BODY; c.fillText(text, w / 2, hh * 0.58);
+      c.fillStyle = '#55626d'; c.font = '400 ' + Math.round(w * 0.09) + 'px ' + FONT_BODY; c.fillText('〇〇 様', w / 2, hh * 0.78);
+      return;
+    }
+    c.fillStyle = '#1f2a33'; c.font = '700 ' + Math.round(w * 0.15) + 'px ' + FONT_DISPLAY; c.fillText(text, w / 2, hh * 0.12);
+    c.fillRect(w * 0.25, hh * 0.19, w * 0.5, 4);
+    (PAPER_FORMS[text] || []).forEach(([k, v], i) => {
+      const y = hh * (0.3 + i * 0.16); c.strokeStyle = '#9aa4ab'; c.lineWidth = 3; c.strokeRect(w * 0.08, y, w * 0.84, hh * 0.13);
+      c.beginPath(); c.moveTo(w * 0.4, y); c.lineTo(w * 0.4, y + hh * 0.13); c.stroke();
+      c.fillStyle = '#55626d'; c.font = '700 ' + Math.round(w * 0.055) + 'px ' + FONT_BODY; c.fillText(k, w * 0.24, y + hh * 0.065);
+      c.fillStyle = '#1f2a33'; c.font = '400 ' + Math.round(w * 0.06) + 'px ' + FONT_BODY; c.fillText(v, w * 0.66, y + hh * 0.065);
+    });
+    c.fillStyle = '#b9c0c6'; for (let i = 0; i < 2; i++) c.fillRect(w * 0.1, hh * (0.84 + i * 0.06), w * 0.8, 4);
+  });
   paper.mesh.rotation.y = Math.PI; h.add(paper.mesh);
+  h.userData.card = !!kind; W.userData.held = h;
+}
+// 持っている 紙を えらんだ トレー（区分棚）へ 入れる。まちがいは トレーが 赤く 光るだけで、紙は 手もとに のこる
+function flyPaper(slot, ok, W) {
+  if (!ok) { flashWrong(slot); return; }
+  const h = W.userData.held; if (!h) return;
+  const tray = !h.userData.card; // 年賀状の 区分棚は 中の はがきの 上に、少し 奥へ
+  const to = slot.holder.position.clone().add(new THREE.Vector3(0, tray ? 0.03 : 0.05, tray ? 0 : 0.03));
+  anims.push({ kind: 'paper', obj: h, from: h.position.clone(), to, rx0: h.rotation.x, rx1: Math.PI / 2, s0: 1, s1: tray ? 0.8 : 0.7, t0: performance.now() });
+  state.round.slowFinish = true;
 }
 // 場面つきで 1 回分を 作る
 function startStage(b, def, st) {
@@ -4274,12 +4311,13 @@ function startStage(b, def, st) {
     W.add(holder);
     slots.push({ spec, key: itemKey(spec), mesh, ring, holder, done: false });
   });
-  if (def.carryText || def.carry) { // 票は 手もとの 上に（掲示板にも 出る）
+  if ((def.carryText || def.carry) && !st.noCarry) { // 票は 手もとの 上に（掲示板にも 出る）
     const carry = labelSprite(def.carryText || 'もっている：' + def.carry, { bg: 'rgba(255,240,200,0.95)', h: 0.1 });
     carry.position.set(-0.35, 1.3, st.stand[1] + 0.7); W.add(carry);
   }
   let placed = 0;
   state.round = { def, slots, pos: 0, lastActionAt: performance.now(), hintShown: false, mistakeThisRound: false };
+  if (st.onPick) state.round.onPick = (slot, ok) => st.onPick(slot, ok, W);
   if (st.placeTo) state.round.onPick = (slot, ok) => { // えらんだ ものを 決まった ところへ（袋の 中・机の 上）
     if (!ok) { flashWrong(slot); return; }
     const to = st.placeTo(slot.spec, placed++); slot.ring.visible = false;
@@ -5333,7 +5371,7 @@ function finishRound() {
   if (state.withSupport) speak('できました。');
   state.phase = 'between';
   const lay = state.round && state.round.def.layout;
-  const wait = lay === 'wallShelf' || lay === 'cafe' || lay === 'care' || lay === 'library' ? 1400 : 900; // たなに 入る ところ・お客さまに わたす ところを 見せる
+  const wait = lay === 'wallShelf' || lay === 'cafe' || lay === 'care' || lay === 'library' ? 1400 : state.round && state.round.slowFinish ? 1200 : 900; // たなに 入る ところ・お客さまに わたす ところを 見せる
   setTimeout(() => {
     if (!state.session || state.session !== s) return;
     if (s.roundIndex >= s.target) showResult(); else nextRound();
@@ -5450,6 +5488,11 @@ function stepAnims(now) {
     } else if (a.kind === 'box') {
       const u = Math.min(1, t / 0.55); const e = u * u * (3 - 2 * u);
       a.obj.position.lerpVectors(a.from, a.to, e); a.obj.position.y += Math.sin(u * Math.PI) * 0.35;
+      if (u >= 1) anims.splice(i, 1);
+    } else if (a.kind === 'paper') { // 紙が ふわっと 上がって トレーに ねかせて 入る
+      const u = Math.min(1, t / (reduceMotion ? 0.01 : 0.75)); const e = u * u * (3 - 2 * u);
+      a.obj.position.lerpVectors(a.from, a.to, e); a.obj.position.y += Math.sin(Math.PI * e) * 0.18;
+      a.obj.rotation.x = a.rx0 + (a.rx1 - a.rx0) * e; a.obj.scale.setScalar(a.s0 + (a.s1 - a.s0) * e);
       if (u >= 1) anims.splice(i, 1);
     } else if (a.kind === 'shelve') {
       const u = Math.min(1, t / (reduceMotion ? 0.01 : 0.8)); const e = u * u * (3 - 2 * u);
