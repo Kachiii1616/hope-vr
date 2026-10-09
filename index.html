@@ -4647,7 +4647,7 @@ function startDataEntry(b, def) {
   const disp = new THREE.Group(); disp.position.set(0, SH / 2 + 0.02, -0.002); disp.rotation.y = Math.PI; lid.add(disp);
   const screen = new Board(SW, SH, 1000); disp.add(screen.mesh);
   const CW = Math.round(SW * 1000); const CH = Math.round(SH * 1000);
-  const COLS = [['番号', 110], ['名前', 250], ['ふりがな', 270], ['電話', 250]]; const TX = 40; const rowY = (i) => 160 + i * 72; // 行の 上の はし
+  const COLS = [['番号', 100], ['名前', 240], ['ふりがな', 260], ['電話', 280]]; const TX = 40; const rowY = (i) => 160 + i * 72; // 行の 上の はし
   const entered = {}; def.people.forEach((pp, i) => { if (i === def.pre) entered[pp.no] = pp; });
   let flash = -1; let reading = -1;
   const paintScreen = () => screen.draw((c, w, h) => {
@@ -4658,7 +4658,7 @@ function startDataEntry(b, def) {
     def.people.forEach((pp, i) => {
       const y = rowY(i); if (flash === pp.no) { c.fillStyle = 'rgba(208,69,58,0.2)'; c.fillRect(TX, y, 880, 72); }
       const e = entered[pp.no]; let cx = TX; c.font = '700 36px ' + FONT_BODY;
-      [String(pp.no), e ? e.name : '', e ? e.kana : '', e ? e.tel : ''].forEach((t, k) => { c.fillStyle = k ? '#1f2a33' : '#55626d'; c.font = (k === 2 || k === 3 ? '400 30px ' : '700 36px ') + FONT_BODY; c.fillText(t, cx + 14, y + 36); cx += COLS[k][1]; });
+      [String(pp.no), e ? e.name : '', e ? e.kana : '', e ? e.tel : ''].forEach((t, k) => { c.fillStyle = k ? '#1f2a33' : '#55626d'; c.font = (k === 2 || k === 3 ? '400 28px ' : '700 36px ') + FONT_BODY; c.fillText(t, cx + 14, y + 36); cx += COLS[k][1]; });
     });
     c.strokeStyle = '#9aa4ab'; c.lineWidth = 3; // 表の 線
     for (let i = 0; i <= def.people.length; i++) { c.beginPath(); c.moveTo(TX, rowY(i)); c.lineTo(TX + 880, rowY(i)); c.stroke(); }
