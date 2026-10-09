@@ -354,17 +354,8 @@ const JOBS = [
     },
   },
   {
-    id: 'craft', area: '学校エリア', name: '作業所', work: 'お守りづくり', color: '#b0703a', category: '実務',
-    intro: 'お守りを 手順どおりに つくって、検品かごに 入れます。',
-    defect: '手順ちがい（ひもの前に 中紙 など）',
-    round() {
-      const items = [
-        { label: 'ふくろ', shape: 'pouch', color: '#c8463d' }, { label: '中紙', shape: 'card', color: '#fbf6e6' },
-        { label: 'ひも', shape: 'stick', color: '#e3b23c' }, { label: '検品かご', shape: 'basket', color: '#a8865a' },
-        { label: 'ハサミ', shape: 'stick', color: '#8a8f96' }, { label: 'のり', shape: 'cyl', color: '#f1e9a8' },
-      ];
-      return { title: 'お守りを 1こ つくる', shortTitle: 'お守りを つくる', items: shuffle(items), need: ['ふくろ', '中紙', 'ひも', '検品かご'], ordered: true };
-    },
+    id: 'craft', area: '学校エリア', name: '作業所', work: 'お守り作成', color: '#b0703a', category: '実務',
+    intro: '', defect: '', round() { return null; }, // hope-work の お守り作成の 3 工程（OMA_PROCS）から えらぶ（selectVariant）
   },
   {
     id: 'fish', area: '漁村', name: '漁協', work: '魚の仕分け', color: '#2d7fa3', category: '実務',
@@ -899,6 +890,59 @@ const DATA_ENTRY = {
     return { title: '名簿一覧を 上から 順に、パソコンの 名簿の 同じ 番号の 行へ 入力して「完了」', shortTitle: '名簿を 入力する', items, need, ordered: true, layout: 'dataentry', people, pre, list };
   },
 };
+//   お守り作成（作業所）：hope-work の 作業マスタ「お守り作成」（お守り作成業務マニュアル v1）の 3 工程。写真も マニュアルの もの（omamori/）
+//   台の 左に 完成品の トレー（完成 ○こ）、手前に 部材と つくりかけの お守り、右奥に 手順書（写真と 説明）。手順どおりに えらぶ（スケッチの とおり）
+//   steps：[id, 動作, 手順書の 説明, 写真, 注意, えらぶ もの（なければ id と 同じ）]。decoys は えらぶと ミスに なる もの（上下 さかさ）
+const OMA_PROCS = [
+  { work: 'お守り作成①お札', short: '①お札', goal: 'お札を 1こ つくる', kind: 'card', done: 'p10-1.jpg',
+    intro: '金色の シールの 裏に スポンジ・文字の 紙・台紙を 重ねて、シールで つつみ、お札（チョコレート）を つくります。',
+    defect: '手順ちがい・文字の 紙の 上下 まちがい',
+    steps: [
+      ['seal', 'シールを はがす', '金色の シールを はがす。シールに 傷が つかないように 気を つける。', 'p04-2.jpg', true],
+      ['sponge', 'スポンジを まん中に はる', 'シールの 裏の まん中に スポンジを はる。よはくが 同じに なるように。', 'p05-2.jpg', true],
+      ['paper', '文字の 紙を のせる', '文字が 書かれた 紙を のせる。上下を まちがえない。', 'p07-1.jpg', true],
+      ['base', '台紙を のせる', '台紙を 白い 面を 上に して、文字の 紙の 上に のせる。', 'p07-2.jpg'],
+      ['short', '短い 辺を はる', '短い 辺の 方から シールを、指の はらを つかって はる。', 'p08-1.jpg', false, 'pieceS'],
+      ['long', '長い 辺を はる', '長い 辺の 方も 同じように、指の はらを つかって はる。', 'p09-1.jpg', false, 'pieceL'],
+      ['tray', '完成品を トレーに ならべる', '完成。中心の 文字が 左右に ずれて いないか、へこみ・傷が ないか 見て ならべる。', 'p10-1.jpg', true],
+    ],
+    decoys: [['paperRev', '文字の 紙（さかさ）', '文字の 上下を たしかめよう']],
+  },
+  { work: 'お守り作成②布折り', short: '②布折り', goal: '布を 1まい 折る', kind: 'fold', done: 'p18-1.jpg',
+    intro: '黄色い 折り布に 両面テープを はり、テンプレートの 台紙の 線に そって 4 か所 折ります。',
+    defect: '手順ちがい（テープの 前に 折る など）',
+    steps: [
+      ['cloth', '折り布を 置く', '必要な 部材を そろえて、折り布を 置く。', 'p11-1.jpg'],
+      ['tape', '長い 辺に 両面テープを はる', '折り布の 長い 辺に 両面テープを はる。はしから 1〜2mm 以内に。', 'p11-2.jpg', true],
+      ['jig', 'テンプレートの 台紙に のせる', 'テンプレートの 台紙に のせる。', 'p12-2.jpg'],
+      ['long', '長い 辺を 線に そって 折る', 'シールは はがさずに 線に そって 折り目を つけてから、はがして はる。', 'p13-2.jpg', false, 'pieceL'],
+      ['tape2', '短い 辺に 両面テープを はる', '両辺とも 折ったら、短い 辺に 両面テープを はる。', 'p14-2.jpg', false, 'tape'],
+      ['short', '短い 辺を 線に そって 折る', '台紙の 線に そって 折り目を つけてから、はがして はる。線から はみ出さない。', 'p17-2.jpg', true, 'pieceS'],
+      ['tray', '完成品を トレーに ならべる', '治具に あてて 1mm 以上の 長短が ないか 見て ならべる。', 'p18-1.jpg', true],
+    ],
+    decoys: [],
+  },
+  { work: 'お守り作成③ケース', short: '③ケース', goal: 'お守りを 1こ ケースに 入れる', kind: 'case', done: 'p22-2.jpg',
+    intro: 'お札（チョコレート）を 折った 布で おおい、鈴の 面を 上に して ケースに 入れます。',
+    defect: '手順ちがい・お札の 上下 まちがい',
+    steps: [
+      ['cloth', '折った 布を 置く', '必要な 部材を そろえて、折った 布を 置く。', 'p19-1.jpg'],
+      ['card', 'お札を 布で おおう', '上下を まちがえないように、お札を 布で おおう。文字を よく 見て 上下を たしかめる。', 'p19-2.jpg', true],
+      ['center', '文字を まん中に そろえる', '文字が かくれず まん中に くるように 置く。上下は お札から 布が わずかに はみ出すくらい。', 'p20-1.jpg', true, 'piece'],
+      ['case', 'ケースに 入れる', '鈴の 面が 上に なるように ケースに 入れる。', 'p21-2.jpg', true],
+      ['push', '下まで しっかり 入れる', 'しっかりと 下の 方まで 入れる。力を 入れすぎない。', 'p22-1.jpg', false, 'piece'],
+      ['check', '仕上がりを たしかめる', 'お札の 字が かくれて いないか、お札が 布から はみ出して いないか たしかめる。', 'p22-2.jpg', true, 'piece'],
+      ['tray', '完成品を トレーに ならべる', '完成。トレーに ならべる。', 'p22-2.jpg'],
+    ],
+    decoys: [['cardRev', 'お札（さかさ）', '文字の 上下を たしかめよう']],
+  },
+].map((p) => Object.assign(p, {
+  rounds: 3,
+  round() {
+    const items = p.steps.map(([id, name]) => ({ label: '', id, name })).concat(p.decoys.map(([id, name]) => ({ label: '', id, name })));
+    return { title: '右の 手順書を 見ながら、手順どおりに ' + p.goal, shortTitle: p.goal, items, need: p.steps.map((s) => s[0]), ordered: true, layout: 'omamori', proc: p };
+  },
+}));
 //   漁船で 釣り：リアス式海岸（入り江の 多い 岩の 海）の 沖で、竿で 根魚を 釣る。あたりを まって 竿を 上げ、きまりを 見て いけすか 海へ
 //   夏：アイナメ・クロソイ・メバル、冬：マダラ・ドンコ・マコガレイ。フグと 15cm より 小さい 魚は 海に 返す
 const FISH_RULE = 'フグと 15cm より 小さい 魚は 海に 返す';
@@ -919,6 +963,7 @@ const FISHING = {
 };
 EXTRA_ACTS.fish = { '竿': '竿を 上げる', 'いけす': 'いけすに 入れる', '海に 返す': '海に 返す' };
 JOBS.forEach((job) => {
+  if (job.id === 'craft') { job.variants.summer = OMA_PROCS.slice(); job.variants.winter = [Object.assign(job.variants.winter[0], { short: 'しめ飾り' })].concat(OMA_PROCS); }
   if (job.id === 'office') { job.variants.summer[0].short = '仕分け'; job.variants.winter[0].short = '年賀状'; job.variants.summer.push(DATA_ENTRY); job.variants.winter.push(DATA_ENTRY); }
   if (job.id === 'fish') { job.variants.summer[0].short = '仕分け'; job.variants.winter[0].short = '仕分け'; job.variants.summer.push(FISHING); job.variants.winter.push(FISHING); }
   if (job.id === 'rice') {
@@ -1414,13 +1459,13 @@ JOBS.forEach((job, i) => {
     exit: makeButton('外に出る', '#2f7d4f', 0.56, 0.14),
   };
   // しごとを えらぶ ボタン（季節で しごとが かわる お店だけ。冬の しごとの 数だけ）
-  if (job.variants) job.variants.winter.forEach((v, k) => { btns['v' + k] = makeButton(v.work, job.color, 0.78, 0.16); });
+  if (job.variants) (job.variants.winter.length >= job.variants.summer.length ? job.variants.winter : job.variants.summer).forEach((v, k) => { btns['v' + k] = makeButton(v.work, job.color, 0.78, 0.16); });
   // 掲示板の左右に並べる（VR でも 目線を 大きく 下げずに 押せる高さ）
   //（モニターの 左右。店員から 見て 左が はじめる・ヒント、右が もどる）
   const bx = 0.84 * 2.4 * PANEL_SCALE / 2 + 0.06;
   btns.with.position.set(-bx - 0.32, PANEL_Y + 0.17, 0.01); btns.without.position.set(-bx - 0.32, PANEL_Y - 0.03, 0.01);
   btns.hint.position.set(-bx - 0.32, PANEL_Y - 0.03, 0.01); btns.again.position.set(bx + 0.32, PANEL_Y + 0.17, 0.01); btns.back.position.set(bx + 0.32, PANEL_Y - 0.03, 0.01); btns.exit.position.set(bx + 0.32, PANEL_Y - 0.23, 0.01); btns.quit.position.set(-bx - 0.32, PANEL_Y - 0.23, 0.01);
-  ['v0', 'v1', 'v2'].forEach((k, n) => { if (btns[k]) btns[k].position.set(-bx - 0.32, PANEL_Y + 0.17 - n * 0.2, 0.01); });
+  ['v0', 'v1', 'v2', 'v3'].forEach((k, n) => { if (btns[k]) btns[k].position.set(-bx - 0.32, PANEL_Y + 0.17 - n * 0.2, 0.01); });
   Object.values(btns).forEach((m) => { m.scale.setScalar(0.85); panel.add(m); m.visible = false; });
 
   booths.push({ job, group: g, yaw, front, door, board, workArea, btns, pin, paintSign, counter, panel });
@@ -3494,9 +3539,10 @@ function showChoose() {
       paintBoardBase(ctx, W, H, Object.assign({}, job, { work: SEASON_NAME[season] + 'の しごと' }));
       ctx.fillStyle = '#1f2a33'; ctx.font = '700 60px ' + FONT_DISPLAY; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
       ctx.fillText('どの しごとを しますか', 48, 116);
+      const gap = vs.length > 3 ? 88 : 104; // 4 つ（冬の 作業所）は つめる
       vs.forEach((v, k) => {
-        ctx.font = '700 40px ' + FONT_BODY; ctx.fillStyle = job.color; ctx.fillText((k + 1) + '. ' + v.work, 48, 206 + k * 104);
-        ctx.font = '400 30px ' + FONT_BODY; ctx.fillStyle = '#55626d'; ctx.fillText(wrapLines(ctx, v.intro, W - 140)[0], 92, 254 + k * 104);
+        ctx.font = '700 40px ' + FONT_BODY; ctx.fillStyle = job.color; ctx.fillText((k + 1) + '. ' + v.work, 48, 206 + k * gap);
+        ctx.font = '400 30px ' + FONT_BODY; ctx.fillStyle = '#55626d'; ctx.fillText(wrapLines(ctx, v.intro, W - 140)[0], 92, 254 + k * gap);
       });
     });
     return;
@@ -4344,6 +4390,7 @@ function nextRound() {
   if (def.layout === 'picking') return startPicking(b, def);
   if (def.layout === 'laptop') return startLaptop(b, def);
   if (def.layout === 'dataentry') return startDataEntry(b, def);
+  if (def.layout === 'omamori') return startOmamori(b, def);
   if (def.layout === 'wallShelf') return startWallShelf(b, def);
   if (def.layout === 'register') return startRegister(b, def);
   if (def.layout === 'stock') return startStock(b, def);
@@ -4762,6 +4809,192 @@ function startDataEntry(b, def) {
       if (!ok) flashWrong(slot);
     } };
   moveRig(b.group.localToWorld(new THREE.Vector3(0, 0, STAFF_Z + 0.2)), b.yaw + Math.PI, 0.34, state.session.roundIndex ? 500 : undefined); // パソコンと 名簿一覧が 見える ように 少し 下を 向く
+  state.feedback = { text: '', kind: '' };
+  drawWorkBoard(); renderHud();
+  if (state.withSupport) speak(def.title + '。最初は、' + stepLabel(def.need[0]) + '。');
+}
+// お守り作成（作業所）：台の 左に 完成品の トレー（奥へ ななめに ならべる・完成 ○こ）、まん中の 切りマットに つくりかけの お守り、
+//   右に 部材、右奥に 手順書（写真と 説明）、奥の 左に「お守りづくり」の 札（スケッチの とおり）
+//   配慮ありは 手順書が いまの 手順の 写真と 説明に なる。配慮なしは 完成見本の 写真だけ
+const OMA_IMGS = {};
+function omaImg(file, onload) {
+  let im = OMA_IMGS[file];
+  if (!im) { im = new Image(); im.src = 'omamori/' + file; OMA_IMGS[file] = im; }
+  if (!(im.complete && im.naturalWidth) && onload) im.addEventListener('load', onload, { once: true });
+  return im;
+}
+// 台に 平らに 置いた 字（上を 奥へ。rev は さかさ＝上が 手前）
+function omaText(g, text, w, h, bg, fg, x, y, z, rev) {
+  const t = textPlate(text, w, h, bg, fg); t.rotation.set(-Math.PI / 2, 0, rev ? 0 : Math.PI); t.position.set(x, y, z); g.add(t); return t;
+}
+const OMA_GOLD = { metalness: 0.55, roughness: 0.35 };
+// できあがり（トレーに ならべる もの）
+function omaDone(kind) {
+  const g = new THREE.Group();
+  if (kind === 'card') { part(g, box(0.09, 0.008, 0.13), '#d9ae2c', 0, 0.004, 0, OMA_GOLD); omaText(g, '御守', 0.05, 0.1, '#e4bb3a', '#a3322a', 0, 0.0085, 0); }
+  else if (kind === 'fold') { part(g, box(0.15, 0.008, 0.11), '#e6b520', 0, 0.004, 0); part(g, box(0.07, 0.009, 0.11), '#9a5a2a', 0, 0.0045, 0); [-1, 1].forEach((sd) => part(g, box(0.15, 0.0095, 0.008), '#c99a18', 0, 0.005, sd * 0.05)); }
+  else {
+    part(g, box(0.12, 0.024, 0.18), '#eef6f8', 0, 0.012, 0, { transparent: true, opacity: 0.45, roughness: 0.1 });
+    part(g, box(0.1, 0.012, 0.15), '#e6b520', 0, 0.01, 0); part(g, box(0.05, 0.014, 0.1), '#d9ae2c', 0, 0.012, 0, OMA_GOLD);
+    omaText(g, '御守', 0.035, 0.08, '#e4bb3a', '#a3322a', 0, 0.0195, 0);
+    const loop = part(g, new THREE.TorusGeometry(0.035, 0.003, 6, 20), '#c9a046', 0, 0.006, 0.12, OMA_GOLD); loop.rotation.x = Math.PI / 2; loop.scale.set(0.6, 1, 1);
+    part(g, ball(0.012, 12, 8), '#e2c25a', 0.012, 0.014, 0.1, OMA_GOLD);
+  }
+  return g;
+}
+function startOmamori(b, def) {
+  const W = b.workArea; const p = def.proc; const ses = state.session; const kind = p.kind; const slots = [];
+  b.counter.material.color.set('#b98a5a');
+  const PX = 0.06; const PZ = 1.98; const Y = 0.906; // 切りマットの 上の つくりかけ
+  part(W, box(0.8, 0.006, 0.48), '#4f8a6a', PX, 0.903, PZ + 0.03);
+  for (let i = -3; i <= 3; i++) part(W, box(0.003, 0.002, 0.46), '#8fc3a6', PX + i * 0.11, 0.907, PZ + 0.03);
+  for (let j = -2; j <= 2; j++) part(W, box(0.78, 0.002, 0.003), '#8fc3a6', PX, 0.907, PZ + 0.03 + j * 0.1);
+  // 完成品の トレー（左。手前から 奥へ ななめに）と「完成 ○こ」
+  const trayAt = (k) => new THREE.Vector3(0.74 - k * 0.08, Y, 1.9 + k * 0.22);
+  const N = ses.target;
+  for (let k = 0; k < N; k++) {
+    const c = trayAt(k); part(W, box(0.2, 0.008, 0.2), '#efe9dc', c.x, c.y, c.z);
+    [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([sx, sz]) => { part(W, box(0.05, 0.004, 0.008), '#8a6a46', c.x + sx * 0.075, c.y + 0.005, c.z + sz * 0.096); part(W, box(0.008, 0.004, 0.05), '#8a6a46', c.x + sx * 0.096, c.y + 0.005, c.z + sz * 0.075); });
+    if (k < ses.completed) { const d = omaDone(kind); d.scale.setScalar(1.3); d.position.copy(c).add(new THREE.Vector3(0, 0.005, 0)); W.add(d); }
+  }
+  const countTag = new Board(0.4, 0.12, 600); const paintCount = (n) => countTag.draw((c, w, h) => { c.fillStyle = '#fffdf8'; roundRect(c, 2, 2, w - 4, h - 4, 24); c.fill(); c.strokeStyle = '#b0703a'; c.lineWidth = 6; c.stroke();
+    c.fillStyle = '#1f2a33'; c.font = '700 40px ' + FONT_DISPLAY; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('完成 ' + n + ' / ' + N + ' こ', w / 2, h / 2 + 2); });
+  paintCount(ses.completed);
+  const end = trayAt(N); countTag.mesh.position.set(end.x, 1.06, end.z); countTag.mesh.rotation.y = Math.PI; W.add(countTag.mesh); // ならべる 列の 先に
+  part(W, box(0.012, 0.15, 0.012), '#8a6a46', end.x, 0.97, end.z + 0.01);
+  // 奥の 左の 札
+  const title = textPlate('お守りづくり', 0.6, 0.18, '#b0703a', '#ffffff'); title.position.set(1.5, 1.62, 3.25); title.rotation.y = Math.PI; W.add(title);
+  // 手順書（右奥に 立てる）
+  const MW = 0.82; const MH = 0.7; const manual = new Board(MW, MH, 800);
+  const paintManual = () => manual.draw((c, w, h) => {
+    const r = state.round; const n = r ? Math.min(r.pos, p.steps.length - 1) : 0; const sup = state.withSupport; const st = p.steps[n];
+    c.fillStyle = '#fffdf8'; roundRect(c, 0, 0, w, h, 24); c.fill();
+    c.fillStyle = '#b0703a'; roundRect(c, 0, 0, w, 70, 24); c.fill(); c.fillRect(0, 40, w, 30);
+    c.fillStyle = '#ffffff'; c.font = '700 38px ' + FONT_DISPLAY; c.textAlign = 'left'; c.textBaseline = 'middle'; c.fillText('手順書　' + p.work.replace('お守り作成', ''), 24, 37);
+    c.textAlign = 'right'; c.font = '700 32px ' + FONT_BODY; c.fillText(sup ? '手順 ' + (n + 1) + ' / ' + p.steps.length : '完成 見本', w - 24, 37);
+    const file = sup ? st[3] : p.done; const im = omaImg(file, paintManual);
+    const ph = 300; const pw = 400; const px = (w - pw) / 2; const py = 86;
+    if (im.complete && im.naturalWidth) c.drawImage(im, px, py, pw, ph); else { c.fillStyle = '#e8e2d6'; c.fillRect(px, py, pw, ph); c.fillStyle = '#9aa4ab'; c.font = '400 28px ' + FONT_BODY; c.textAlign = 'center'; c.fillText('写真', w / 2, py + ph / 2); }
+    c.strokeStyle = '#33404a'; c.lineWidth = 3; c.strokeRect(px, py, pw, ph);
+    c.textAlign = 'left'; c.textBaseline = 'top'; let y = py + ph + 14;
+    if (sup) {
+      c.fillStyle = st[4] ? '#b93a32' : '#1f2a33'; c.font = '700 34px ' + FONT_BODY; c.fillText((st[4] ? '⚠ ' : '') + st[1], 24, y); y += 46;
+      c.fillStyle = '#33404a'; c.font = '400 28px ' + FONT_BODY; wrapLines(c, st[2], w - 48).slice(0, 2).forEach((l) => { c.fillText(l, 24, y); y += 36; });
+    } else { c.fillStyle = '#33404a'; c.font = '400 30px ' + FONT_BODY; wrapLines(c, '見本と 同じに なるように、手順どおりに つくります。', w - 48).forEach((l) => { c.fillText(l, 24, y); y += 40; }); }
+  });
+  const stand = new THREE.Group(); stand.position.set(-0.8, 0.9, 2.52); stand.rotation.y = Math.PI; W.add(stand);
+  const tilt = new THREE.Group(); tilt.rotation.x = -0.14; stand.add(tilt);
+  manual.mesh.position.set(0, MH / 2 + 0.03, 0.012); tilt.add(manual.mesh);
+  part(tilt, box(MW + 0.04, MH + 0.04, 0.02), '#7a5a3a', 0, MH / 2 + 0.03, -0.002); part(stand, box(0.3, 0.03, 0.16), '#7a5a3a', 0, 0.015, -0.04);
+  // つくりかけ（手順が 進むと 形が かわる）
+  const piece = new THREE.Group(); piece.position.set(PX, Y, PZ); W.add(piece);
+  const rebuild = (n) => {
+    while (piece.children.length) piece.remove(piece.children[0]);
+    const g = piece;
+    if (kind === 'card') {
+      if (n >= 1) { // 金色の シール（十字の 形。裏を 上に）
+        part(g, box(0.16, 0.003, 0.11), '#d9ae2c', 0, 0.002, 0, OMA_GOLD);
+        if (n < 5) [-1, 1].forEach((sd) => part(g, box(0.06, 0.003, 0.08), '#d9ae2c', sd * 0.11, 0.002, 0, OMA_GOLD));
+        if (n < 6) [-1, 1].forEach((sd) => part(g, box(0.12, 0.003, 0.05), '#d9ae2c', 0, 0.002, sd * 0.08, OMA_GOLD));
+        if (n < 2) part(g, box(0.14, 0.0035, 0.09), '#f1e3b0', 0, 0.002, 0); // 裏の のり
+      }
+      if (n >= 2 && n < 4) part(g, box(0.1, 0.008, 0.07), '#9aa1a6', 0, 0.007, 0); // スポンジ
+      if (n >= 3 && n < 4) omaText(g, '御守', 0.035, 0.075, '#ffffff', '#a3322a', 0, 0.0115, 0);
+      if (n >= 4) part(g, box(0.15, 0.01, 0.1), '#fbfaf6', 0, 0.008, 0); // 台紙
+      if (n >= 5) [-1, 1].forEach((sd) => part(g, box(0.035, 0.004, 0.08), '#d9ae2c', sd * 0.06, 0.015, 0, OMA_GOLD));
+      if (n >= 6) [-1, 1].forEach((sd) => part(g, box(0.12, 0.005, 0.03), '#d9ae2c', 0, 0.016, sd * 0.04, OMA_GOLD));
+    } else if (kind === 'fold') {
+      if (n >= 3) { part(g, box(0.36, 0.006, 0.3), '#c9ccd0', 0, 0.003, 0); [-0.08, 0.08].forEach((z) => part(g, box(0.34, 0.002, 0.003), '#55626d', 0, 0.0065, z)); [-0.115, 0.115].forEach((x) => part(g, box(0.003, 0.002, 0.28), '#55626d', x, 0.0065, 0));
+        [[-0.15, -0.12], [0.15, 0.12]].forEach(([x, z]) => part(g, box(0.08, 0.002, 0.04), '#f2c230', x, 0.007, z)); part(g, box(0.06, 0.03, 0.2), '#b8aa98', 0.2, 0.015, 0); }
+      const y0 = n >= 3 ? 0.008 : 0.002; const fw = n >= 6 ? 0.23 : 0.3; const fd = n >= 4 ? 0.16 : 0.24;
+      if (n >= 1) { part(g, box(fw, 0.004, fd), '#e6b520', 0, y0 + 0.002, 0); part(g, box(0.11, 0.0045, fd), '#9a5a2a', 0, y0 + 0.0025, 0); }
+      if (n >= 2 && n < 4) [-1, 1].forEach((sd) => part(g, box(fw, 0.005, 0.016), '#fbfaf6', 0, y0 + 0.004, sd * (fd / 2 - 0.012)));
+      if (n >= 4) [-1, 1].forEach((sd) => part(g, box(fw, 0.006, 0.012), '#c99a18', 0, y0 + 0.004, sd * (fd / 2 - 0.006)));
+      if (n === 5) [-1, 1].forEach((sd) => part(g, box(0.016, 0.006, fd - 0.03), '#fbfaf6', sd * (fw / 2 - 0.012), y0 + 0.005, 0));
+      if (n >= 6) [-1, 1].forEach((sd) => part(g, box(0.012, 0.007, fd), '#c99a18', sd * (fw / 2 - 0.006), y0 + 0.005, 0));
+    } else {
+      if (n >= 1) { part(g, box(0.2, 0.008, 0.15), '#e6b520', 0, 0.004 + (n >= 5 ? 0.012 : 0), 0); part(g, box(0.09, 0.0085, 0.15), '#9a5a2a', 0, 0.0045 + (n >= 5 ? 0.012 : 0), 0); }
+      if (n >= 2) { const off = n >= 3 ? 0 : 0.025; const y = 0.012 + (n >= 5 ? 0.012 : 0);
+        part(g, box(0.07, 0.006, 0.13), '#d9ae2c', off, y, 0, OMA_GOLD); omaText(g, '御守', 0.035, 0.09, '#e4bb3a', '#a3322a', off, y + 0.0035, 0);
+        [-1, 1].forEach((sd) => part(g, box(0.03, 0.007, 0.15), '#e6b520', off + sd * 0.045, y + 0.001, 0)); }
+      if (n >= 4) { part(g, box(0.15, 0.04, 0.22), '#eef6f8', 0, 0.02, 0.03 - (n >= 5 ? 0.03 : 0), { transparent: true, opacity: 0.4, roughness: 0.1 });
+        const loop = part(g, new THREE.TorusGeometry(0.05, 0.004, 6, 20), '#c9a046', 0, 0.008, 0.17 - (n >= 5 ? 0.03 : 0), OMA_GOLD); loop.rotation.x = Math.PI / 2; loop.scale.set(0.6, 1, 1);
+        part(g, ball(0.016, 12, 8), '#e2c25a', 0.015, 0.042, 0.13 - (n >= 5 ? 0.03 : 0), OMA_GOLD); }
+      if (n >= 6) { const ok = labelSprite('✓ OK', { h: 0.07, bg: 'rgba(46,157,87,0.92)', fg: '#ffffff' }); ok.position.set(0, 0.12, 0); g.add(ok); }
+    }
+  };
+  rebuild(0);
+  // えらぶ もの（部材・つくりかけの 辺・トレー）。1 つの ものを 2 回 つかう 手順（テープ・つくりかけ）が あるので、えらぶ ものと 手順を 分けて 持つ
+  const targets = {};
+  const invis = () => new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.001, depthWrite: false });
+  const material = (id, x, z, label, build) => {
+    const holder = new THREE.Group(); holder.position.set(x, Y, z); W.add(holder);
+    const m = new THREE.Group(); build(m); const top = new THREE.Box3().setFromObject(m).max.y; holder.add(m); // 親に つける 前に はかる（台からの 高さ）
+    const ring = makeGlowRing(); ring.position.y = 0.005; holder.add(ring);
+    const tag = labelSprite(label, { h: 0.07 }); tag.position.y = top + 0.08; holder.add(tag);
+    targets[id] = { holder, hit: m, ring };
+  };
+  const edges = (id, sx, sz, list) => { // つくりかけの 辺（2 本。ヒントで 黄色く 光る）
+    const holder = new THREE.Group(); holder.position.set(PX, Y, PZ); W.add(holder);
+    const hit = new THREE.Group(); holder.add(hit); const ring = new THREE.Group(); ring.visible = false; holder.add(ring);
+    list.forEach(([x, z]) => { const h = new THREE.Mesh(box(sx, 0.03, sz), invis()); h.position.set(x, 0.02, z); hit.add(h);
+      const gl = new THREE.Mesh(box(sx, 0.004, sz), new THREE.MeshBasicMaterial({ color: '#ffd23f', transparent: true, opacity: 0.85, depthTest: false })); gl.position.set(x, 0.03, z); gl.renderOrder = 9; ring.add(gl); });
+    targets[id] = { holder, hit, ring };
+  };
+  const sw = (a, c) => (Math.random() < 0.5 ? [a, c] : [c, a]); // 正しい 向きと さかさの 置き場を 入れかえる
+  if (kind === 'card') {
+    material('seal', -0.36, 2.18, 'シール', (m) => { part(m, box(0.2, 0.004, 0.26), '#8fd3d6', 0, 0.002, 0); [[-0.05, -0.07], [0.05, -0.07], [-0.05, 0.05], [0.05, 0.05]].forEach(([x, z]) => { part(m, box(0.07, 0.004, 0.05), '#d9ae2c', x, 0.005, z, OMA_GOLD); part(m, box(0.04, 0.004, 0.09), '#d9ae2c', x, 0.005, z, OMA_GOLD); }); });
+    material('sponge', -0.3, 1.86, 'スポンジ', (m) => { for (let i = 0; i < 3; i++) part(m, box(0.1, 0.008, 0.07), '#9aa1a6', i * 0.008, 0.004 + i * 0.009, 0); });
+    const [pa, pb] = sw([-0.52, 1.86], [-0.72, 1.86]);
+    material('paper', pa[0], pa[1], '文字の 紙', (m) => { part(m, box(0.08, 0.004, 0.15), '#ffffff', 0, 0.002, 0); omaText(m, '御守', 0.065, 0.135, '#ffffff', '#a3322a', 0, 0.0045, 0); });
+    material('paperRev', pb[0], pb[1], '文字の 紙', (m) => { part(m, box(0.08, 0.004, 0.15), '#ffffff', 0, 0.002, 0); omaText(m, '御守', 0.065, 0.135, '#ffffff', '#a3322a', 0, 0.0045, 0, true); });
+    material('base', -0.62, 2.2, '台紙', (m) => { for (let i = 0; i < 4; i++) part(m, box(0.15, 0.004, 0.1), i % 2 ? '#fbfaf6' : '#efece4', 0, 0.002 + i * 0.005, 0); });
+    edges('pieceS', 0.05, 0.12, [[-0.075, 0], [0.075, 0]]); edges('pieceL', 0.16, 0.04, [[0, -0.065], [0, 0.065]]);
+  } else if (kind === 'fold') {
+    material('cloth', -0.38, 1.88, '折り布', (m) => { for (let i = 0; i < 3; i++) { part(m, box(0.2, 0.004, 0.16), '#e6b520', 0, 0.002 + i * 0.005, 0); part(m, box(0.07, 0.0045, 0.16), '#9a5a2a', 0, 0.0025 + i * 0.005, 0); } });
+    material('tape', -0.66, 1.9, '両面テープ', (m) => { [-0.035, 0.035].forEach((x) => { part(m, box(0.05, 0.004, 0.26), '#fbfaf6', x, 0.002, 0); for (let k = 0; k < 6; k++) part(m, box(0.05, 0.001, 0.002), '#c9ccd0', x, 0.0045, -0.11 + k * 0.044); }); });
+    material('jig', -0.5, 2.24, 'テンプレートの 台紙', (m) => { part(m, box(0.3, 0.006, 0.22), '#c9ccd0', 0, 0.003, 0); [-0.06, 0.06].forEach((z) => part(m, box(0.28, 0.002, 0.003), '#55626d', 0, 0.007, z)); part(m, box(0.06, 0.03, 0.16), '#b8aa98', 0.12, 0.015, 0); });
+    edges('pieceL', 0.3, 0.05, [[0, -0.1], [0, 0.1]]); edges('pieceS', 0.05, 0.16, [[-0.13, 0], [0.13, 0]]);
+  } else {
+    material('cloth', -0.32, 1.86, '折った 布', (m) => { for (let i = 0; i < 3; i++) { part(m, box(0.15, 0.006, 0.11), '#e6b520', 0, 0.003 + i * 0.007, 0); part(m, box(0.07, 0.0065, 0.11), '#9a5a2a', 0, 0.0035 + i * 0.007, 0); } });
+    const [ca, cb] = sw([-0.52, 1.86], [-0.72, 1.86]);
+    material('card', ca[0], ca[1], 'お札', (m) => { part(m, box(0.08, 0.006, 0.15), '#d9ae2c', 0, 0.003, 0, OMA_GOLD); omaText(m, '御守', 0.065, 0.135, '#e4bb3a', '#a3322a', 0, 0.0065, 0); });
+    material('cardRev', cb[0], cb[1], 'お札', (m) => { part(m, box(0.08, 0.006, 0.15), '#d9ae2c', 0, 0.003, 0, OMA_GOLD); omaText(m, '御守', 0.065, 0.135, '#e4bb3a', '#a3322a', 0, 0.0065, 0, true); });
+    material('case', -0.58, 2.2, 'ケース（鈴の 面）', (m) => { part(m, box(0.12, 0.024, 0.18), '#eef6f8', 0, 0.012, 0, { transparent: true, opacity: 0.5, roughness: 0.1 });
+      const loop = part(m, new THREE.TorusGeometry(0.04, 0.003, 6, 20), '#c9a046', 0, 0.006, 0.13, OMA_GOLD); loop.rotation.x = Math.PI / 2; loop.scale.set(0.6, 1, 1); part(m, ball(0.014, 12, 8), '#e2c25a', 0.012, 0.03, 0.08, OMA_GOLD); });
+    const holder = new THREE.Group(); holder.position.set(PX, Y, PZ); W.add(holder);
+    const hit = new THREE.Mesh(box(0.24, 0.06, 0.26), invis()); hit.position.y = 0.03; holder.add(hit);
+    const ring = makeGlowRing(); ring.scale.setScalar(1.1); ring.position.y = 0.006; holder.add(ring);
+    targets.piece = { holder, hit, ring };
+  }
+  { // トレーの つぎの ところ
+    const c = trayAt(ses.completed); const holder = new THREE.Group(); holder.position.copy(c); W.add(holder);
+    const hit = new THREE.Mesh(box(0.2, 0.04, 0.2), invis()); hit.position.y = 0.02; holder.add(hit);
+    const ring = makeGlowRing(); ring.position.y = 0.012; holder.add(ring);
+    targets.tray = { holder, hit, ring };
+  }
+  const tgtOf = (id) => { const st = p.steps.find((x) => x[0] === id); return st ? st[5] || id : id; };
+  def.items.forEach((it, i) => { const t = targets[tgtOf(it.id)]; slots[i] = { spec: it, key: it.id, mesh: t.hit, ring: t.ring, holder: t.holder, done: false, tgt: tgtOf(it.id) }; });
+  const bind = () => Object.keys(targets).forEach((tid) => { const i = slots.findIndex((sl) => sl.tgt === tid && !sl.done); targets[tid].hit.traverse((m) => { m.userData.slotIndex = i; }); });
+  bind();
+  const decoyText = {}; p.decoys.forEach(([id, , ng]) => { decoyText[id] = ng; });
+  state.round = { def, slots, pos: 0, lastActionAt: performance.now(), hintShown: false, mistakeThisRound: false,
+    ngText: (slot) => decoyText[slot.key],
+    onPick(slot, ok) {
+      if (!ok) { flashWrong(slot); paintManual(); return; }
+      const id = slot.key;
+      if (id === 'tray') { // できあがりを トレーへ
+        rebuild(-1); const d = omaDone(kind); d.scale.setScalar(1.3); piece.add(d); targets.tray.holder.visible = false;
+        anims.push({ kind: 'box', obj: piece, from: piece.position.clone(), to: trayAt(ses.completed).add(new THREE.Vector3(0, 0.005, 0)), t0: performance.now() });
+        paintCount(ses.completed + 1); return;
+      }
+      rebuild(state.round.pos);
+      if (!slots.some((sl) => sl.tgt === slot.tgt && !sl.done)) slot.holder.visible = false; // つかいおわった 部材は 台から なくなる
+      const rev = targets[id + 'Rev']; if (rev) rev.holder.visible = false; // さかさの ほうも かたづける
+      bind(); paintManual();
+    } };
+  paintManual();
+  moveRig(b.group.localToWorld(new THREE.Vector3(0, 0, STAFF_Z + 0.15)), b.yaw + Math.PI, 0.36, ses.roundIndex ? 500 : undefined); // 手もとと 手順書が 見える ように 下を 向く
   state.feedback = { text: '', kind: '' };
   drawWorkBoard(); renderHud();
   if (state.withSupport) speak(def.title + '。最初は、' + stepLabel(def.need[0]) + '。');
@@ -5356,7 +5589,7 @@ function onSelectItem(slotIndex) {
   } else {
     state.session.defects++; r.mistakeThisRound = true;
     if (r.onPick) r.onPick(slot, false); else flashWrong(slot);
-    const ngText = r.def.layout === 'library' ? (slot.key.startsWith('gap') ? 'あいうえお順を たしかめよう' : LIB.genres[slot.key] ? 'ジャンルの 札を たしかめよう' : 'じゅんばんを たしかめよう') : r.def.layout === 'laptop' ? (slot.key === 'done' ? 'まだ まちがいが のこっています' : 'その 行は 合っています') : r.def.ordered ? 'じゅんばんを たしかめよう' : 'それでは ないかも';
+    const ngText = r.ngText && r.ngText(slot) ? r.ngText(slot) : r.def.layout === 'library' ? (slot.key.startsWith('gap') ? 'あいうえお順を たしかめよう' : LIB.genres[slot.key] ? 'ジャンルの 札を たしかめよう' : 'じゅんばんを たしかめよう') : r.def.layout === 'laptop' ? (slot.key === 'done' ? 'まだ まちがいが のこっています' : 'その 行は 合っています') : r.def.ordered ? 'じゅんばんを たしかめよう' : 'それでは ないかも';
     state.feedback = { text: ngText, kind: 'ng' };
     if (state.withSupport) speak(state.feedback.text);
   }
