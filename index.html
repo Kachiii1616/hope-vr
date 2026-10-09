@@ -264,6 +264,28 @@ const sample = (arr, n) => shuffle(arr).slice(0, n);
 
 const ROUNDS_PER_SESSION = 5;
 
+// 漁協の 仕分け：リアス式海岸（三陸の 岩の 多い 入り江）で とれる 魚。① 種類を 見分ける → ② ものさしで 大きさ → ③ A・B の 大・小の 箱へ
+//   line は 大・小の さかい（cm）。feats は 種類の カードに 書く 見分けかた
+const FISH_SORT_INTRO = 'リアス式海岸の 入り江で とれた 魚を 仕分けます。① カードを 見て 魚の 種類を えらぶ → ② ものさしで 大きさを きめる → ③ A・B の 大・小の 箱に 入れる。';
+const SORT_FISH = {
+  summer: [
+    { name: 'アイナメ', shape: 'long', color: '#8a6a3a', line: 30, small: [20, 26], big: [33, 40], feats: ['体が 細長い', '茶色で まだら もよう', '背びれが 長く つづく'] },
+    { name: 'メバル', shape: 'tall', color: '#5a4a4f', line: 20, small: [13, 17], big: [22, 27], feats: ['目が とても 大きい', '体が 高く まるっこい', '背びれに トゲ'] },
+  ],
+  winter: [
+    { name: 'マダラ', shape: 'cod', color: '#a89a7a', line: 50, small: [35, 45], big: [55, 68], feats: ['あごに ひげが 1本', 'おなかが ふくらむ', '茶色の まだら もよう'] },
+    { name: 'マコガレイ', shape: 'flat', color: '#7a6a4a', line: 25, small: [17, 22], big: [28, 34], feats: ['体が 平たい', '目が 2つとも 上の がわ', 'うらがわは 白い'] },
+  ],
+};
+function fishSortRound(season) {
+  const pair = SORT_FISH[season]; const k = Math.floor(Math.random() * 2); const f = pair[k]; const big = Math.random() < 0.5;
+  const [lo, hi] = big ? f.big : f.small; const cm = lo + Math.floor(Math.random() * (hi - lo + 1));
+  const items = pair.map((p) => ({ label: p.name, step: 1 })).concat([{ label: '大きい', step: 2 }, { label: '小さい', step: 2 }]);
+  ['A', 'B'].forEach((g) => ['大', '小'].forEach((z) => items.push({ label: g + '・' + z, step: 3 })));
+  return { title: 'とれた 魚の 種類と 大きさを 見て、きまった 箱に 入れる', shortTitle: '魚を 仕分ける', items, ordered: true, hideSteps: true, layout: 'fishsort',
+    need: [f.name, big ? '大きい' : '小さい', (k ? 'B' : 'A') + '・' + (big ? '大' : '小')], fish: Object.assign({ cm, big }, f), pair };
+}
+
 const JOBS = [
   {
     id: 'logi', area: '漁港', name: '物流センター', work: 'ピッキング', color: '#2f7d6d', category: '実務',
@@ -359,15 +381,9 @@ const JOBS = [
   },
   {
     id: 'fish', area: '漁村', name: '漁協', work: '魚の仕分け', color: '#2d7fa3', category: '実務',
-    intro: 'とれた 魚を、種類と 大きさで 決まった 箱に 入れます。',
-    defect: 'ちがう 箱に 入れる',
-    round() {
-      const boxes = [];
-      ['アジ', 'サバ'].forEach((k) => ['大', '小'].forEach((z) => boxes.push({ label: k + '・' + z, shape: 'tray', color: k === 'アジ' ? '#9cc3d6' : '#6f8fb0' })));
-      const box = pick(boxes).label; const [kind, size] = box.split('・');
-      const fish = kind + '（' + (size === '大' ? '大きい' : '小さい') + '）';
-      return { title: '「' + fish + '」を 箱に 入れる', shortTitle: '魚を 箱に 分ける', items: shuffle(boxes), need: [box], ordered: false, carry: fish };
-    },
+    intro: FISH_SORT_INTRO,
+    defect: '種類・大きさの 見まちがい・ちがう 箱に 入れる',
+    round() { return fishSortRound('summer'); },
   },
   {
     id: 'forest', area: '林業エリア', name: '森林組合', work: '苗木の植えつけ', color: '#3f7a3a', category: '実務',
@@ -772,14 +788,8 @@ const WINTER = {
     },
   },
   fish: {
-    work: 'ブリとタラの仕分け', intro: '冬に とれる 魚を、種類と 大きさで 決まった 箱に 入れます。', defect: 'ちがう 箱に 入れる',
-    round() {
-      const boxes = [];
-      ['ブリ', 'タラ'].forEach((k) => ['大', '小'].forEach((z) => boxes.push({ label: k + '・' + z, shape: 'tray', color: k === 'ブリ' ? '#9cc3d6' : '#c9d6dc' })));
-      const box = pick(boxes).label; const [kind, size] = box.split('・');
-      const fish = kind + '（' + (size === '大' ? '大きい' : '小さい') + '）';
-      return { title: '「' + fish + '」を 箱に 入れる', shortTitle: '魚を 箱に 分ける', items: shuffle(boxes), need: [box], ordered: false, carryText: 'もっている：' + fish };
-    },
+    work: 'マダラとカレイの仕分け', intro: FISH_SORT_INTRO, defect: '種類・大きさの 見まちがい・ちがう 箱に 入れる',
+    round() { return fishSortRound('winter'); },
   },
   forest: {
     work: '薪づくり', intro: '冬の 山の しごと。安全の 準備を してから、丸太を 切って 薪を わり、つみます。', defect: '手順ちがい（ヘルメット・手袋を 後に する など）',
@@ -962,6 +972,8 @@ const FISHING = {
   },
 };
 EXTRA_ACTS.fish = { '竿': '竿を 上げる', 'いけす': 'いけすに 入れる', '海に 返す': '海に 返す' };
+Object.values(SORT_FISH).forEach((pair) => pair.forEach((f) => { EXTRA_ACTS.fish[f.name] = f.name + ' と きめる'; }));
+Object.assign(EXTRA_ACTS.fish, { '大きい': '大きい と きめる', '小さい': '小さい と きめる' });
 JOBS.forEach((job) => {
   if (job.id === 'craft') { job.variants.summer = OMA_PROCS.slice(); job.variants.winter = [Object.assign(job.variants.winter[0], { short: 'しめ飾り' })].concat(OMA_PROCS); }
   if (job.id === 'office') { job.variants.summer[0].short = '仕分け'; job.variants.winter[0].short = '年賀状'; job.variants.summer.push(DATA_ENTRY); job.variants.winter.push(DATA_ENTRY); }
@@ -3847,6 +3859,130 @@ function startFishing(b, def) {
   drawWorkBoard(); renderHud();
   if (state.withSupport) speak('竿先を 見て、あたりを まちます。');
 }
+// 漁協の 仕分け（リアス式海岸の 魚）：作業台の 手前に ものさしの 板と とれた 魚。奥に 工程ごとの カード・箱を 出す
+//   ① 種類の カード（絵と 見分けかた）を えらぶ → ② 大きい・小さい の 札を えらぶ → ③ A・B × 大・小 の 箱に 入れる
+const FISH_H = { long: 0.2, tall: 0.36, cod: 0.27, flat: 0.5 }; // 体の 高さ ÷ 長さ
+function drawFish2D(c, f, cx, cy, len) { // 横から 見た 魚（頭が 左）
+  const h = len * FISH_H[f.shape]; const x0 = cx - len / 2; const bodyL = len * 0.8;
+  c.save(); c.lineJoin = 'round';
+  c.fillStyle = f.color; c.strokeStyle = '#2b2f33'; c.lineWidth = Math.max(2, len * 0.012);
+  const fin = (pts) => { c.beginPath(); pts.forEach(([x, y], i) => (i ? c.lineTo(x0 + x * len, cy + y * len) : c.moveTo(x0 + x * len, cy + y * len))); c.closePath(); c.fill(); c.stroke(); };
+  const top = -h / len / 2;
+  if (f.shape === 'long') fin([[0.18, top + 0.03], [0.22, top - 0.06], [0.45, top - 0.05], [0.5, top - 0.02], [0.55, top - 0.06], [0.76, top - 0.04], [0.78, top + 0.04]]);
+  if (f.shape === 'tall') { fin([[0.2, top + 0.05], [0.25, top - 0.12], [0.3, top - 0.03], [0.35, top - 0.13], [0.4, top - 0.03], [0.45, top - 0.12], [0.5, top - 0.02], [0.62, top - 0.07], [0.72, top + 0.06]]); }
+  if (f.shape === 'cod') [[0.25, 0.38], [0.44, 0.58], [0.62, 0.74]].forEach(([a, b]) => fin([[a, top + 0.04], [(a + b) / 2, top - 0.06], [b, top + 0.05]]));
+  if (f.shape === 'flat') { fin([[0.12, top + 0.06], [0.45, top - 0.05], [0.78, top + 0.1]]); fin([[0.18, -top - 0.06], [0.48, -top + 0.05], [0.78, -top - 0.1]]); }
+  fin([[0.74, 0], [0.98, -h / len * 0.45], [0.94, 0], [0.98, h / len * 0.45]]); // 尾びれ
+  c.beginPath(); c.ellipse(x0 + bodyL / 2, cy, bodyL / 2, h / 2, 0, 0, TAU); c.fill(); c.stroke();
+  if (f.shape === 'cod' || f.shape === 'long') { c.fillStyle = 'rgba(40,30,20,0.35)'; for (let i = 0; i < 9; i++) { c.beginPath(); c.arc(x0 + bodyL * (0.3 + (i % 5) * 0.13), cy - h * 0.18 + (i % 3) * h * 0.14, len * 0.022, 0, TAU); c.fill(); } }
+  if (f.shape === 'cod') { c.fillStyle = 'rgba(255,255,255,0.55)'; c.beginPath(); c.ellipse(x0 + bodyL * 0.45, cy + h * 0.25, bodyL * 0.3, h * 0.2, 0, 0, TAU); c.fill(); // ふくらんだ おなか
+    c.strokeStyle = '#2b2f33'; c.lineWidth = Math.max(2, len * 0.01); c.beginPath(); c.moveTo(x0 + len * 0.06, cy + h * 0.3); c.quadraticCurveTo(x0 + len * 0.07, cy + h * 0.55, x0 + len * 0.04, cy + h * 0.65); c.stroke(); } // ひげ
+  const eyes = f.shape === 'flat' ? [[0.1, -0.06], [0.15, -0.12]] : [[0.1, -0.02]];
+  const er = len * (f.shape === 'tall' ? 0.06 : 0.03);
+  eyes.forEach(([ex, ey]) => { c.fillStyle = '#ffffff'; c.beginPath(); c.arc(x0 + ex * len, cy + ey * len, er, 0, TAU); c.fill(); c.stroke(); c.fillStyle = '#1f2a33'; c.beginPath(); c.arc(x0 + ex * len, cy + ey * len, er * 0.55, 0, TAU); c.fill(); });
+  c.restore();
+}
+function fishLying(f) { // 作業台に 横に ねかせた 魚（頭が -x、背中が 奥 -z）。長さは 本物の cm
+  const g = new THREE.Group(); const L = f.cm / 100; const H = L * FISH_H[f.shape]; const th = f.shape === 'flat' ? L * 0.05 : L * 0.12;
+  const flat = (pts, color, y) => { const sh = new THREE.Shape(); pts.forEach(([x, z], i) => (i ? sh.lineTo(x * L, -z * L) : sh.moveTo(x * L, -z * L)));
+    const m = part(g, new THREE.ShapeGeometry(sh), color, 0, y, 0, { side: THREE.DoubleSide }); m.rotation.x = -Math.PI / 2; return m; };
+  const back = -H / L / 2; const fc = new THREE.Color(f.color).multiplyScalar(0.8).getStyle();
+  if (f.shape === 'long') flat([[0.18, back + 0.03], [0.22, back - 0.06], [0.5, back - 0.03], [0.76, back - 0.04], [0.78, back + 0.04]], fc, 0.004);
+  if (f.shape === 'tall') flat([[0.2, back + 0.05], [0.25, back - 0.12], [0.3, back - 0.03], [0.35, back - 0.13], [0.4, back - 0.03], [0.45, back - 0.12], [0.5, back - 0.02], [0.62, back - 0.07], [0.72, back + 0.06]], fc, 0.004);
+  if (f.shape === 'cod') [[0.25, 0.38], [0.44, 0.58], [0.62, 0.74]].forEach(([a, b]) => flat([[a, back + 0.04], [(a + b) / 2, back - 0.06], [b, back + 0.05]], fc, 0.004));
+  if (f.shape === 'flat') { flat([[0.12, back + 0.06], [0.45, back - 0.05], [0.78, back + 0.1]], fc, 0.003); flat([[0.18, -back - 0.06], [0.48, -back + 0.05], [0.78, -back - 0.1]], fc, 0.003); }
+  flat([[0.74, 0], [0.99, -H / L * 0.45], [0.95, 0], [0.99, H / L * 0.45]], fc, 0.006); // 尾びれ
+  part(g, ball(0.5, 20, 12), f.color, L * 0.4, th / 2, 0, { roughness: 0.45, metalness: 0.1 }).scale.set(L * 0.8, th, H);
+  if (f.shape === 'cod') { part(g, ball(0.5, 16, 10), '#efe9da', L * 0.42, th * 0.45, H * 0.2).scale.set(L * 0.5, th * 0.85, H * 0.55); // おなか
+    const bb = part(g, cyl(0.002, 0.002, L * 0.06, 5), '#d9cdb0', L * 0.05, th * 0.3, H * 0.4 + L * 0.03); bb.rotation.x = Math.PI / 2; } // あごの ひげ
+  if (f.shape === 'cod' || f.shape === 'long') for (let i = 0; i < 9; i++) part(g, ball(L * 0.018, 6, 4), '#3a2e22', L * (0.25 + (i % 5) * 0.11), th * 0.97, H * (-0.25 + (i % 3) * 0.17)).scale.y = 0.3;
+  const er = L * (f.shape === 'tall' ? 0.05 : 0.025);
+  (f.shape === 'flat' ? [[0.1, -0.06], [0.15, -0.12]] : [[0.1, -0.02]]).forEach(([ex, ez]) => { part(g, ball(er, 10, 8), '#f4f1ea', L * ex, th * 0.9, L * ez); part(g, ball(er * 0.6, 8, 6), '#1f2a33', L * ex, th * 0.9 + er * 0.5, L * ez); });
+  return g;
+}
+function startFishSort(b, def) {
+  const W = b.workArea; const f = def.fish; const [A, B] = def.pair; const slots = [];
+  b.counter.visible = true; b.counter.material.color.set('#b8c4cc');
+  part(W, box(SHOP_W - 0.1, 0.004, 2.6), '#7f9aa6', 0, 0.104, 2.2, { roughness: 0.25 }); // ぬれた 床
+  const T = new THREE.Group(); T.position.set(0, 0.905, COUNTER_Z); T.rotation.y = Math.PI; W.add(T); // 台の 上（店員から 見て 右が +x、手前が +z）
+  // ものさしの 板（左に 頭どめ。赤い 線が 大・小の さかい）
+  const maxCm = Math.ceil((Math.max(A.big[1], B.big[1]) + 8) / 10) * 10; const Lb = maxCm / 100; const RZ = 0.24;
+  const ruler = new Board(Lb, 0.18, 1600); ruler.mesh.rotation.x = -Math.PI / 2; ruler.mesh.position.set(0, 0.012, RZ); T.add(ruler.mesh);
+  part(T, box(Lb + 0.02, 0.01, 0.19), '#c9a46a', 0, 0.005, RZ);
+  part(T, box(0.02, 0.06, 0.19), '#8a6a46', -Lb / 2 - 0.01, 0.03, RZ); // 頭どめ
+  ruler.draw((c, w, h) => {
+    c.fillStyle = '#f3e6c4'; c.fillRect(0, 0, w, h); const px = w / maxCm;
+    c.strokeStyle = '#3d3226'; c.fillStyle = '#3d3226'; c.textAlign = 'center'; c.textBaseline = 'bottom'; c.font = '700 ' + Math.round(h * 0.16) + 'px ' + FONT_BODY;
+    for (let cm = 0; cm <= maxCm; cm++) { const x = Math.min(w - 2, cm * px + 1); const L = cm % 10 === 0 ? 0.3 : cm % 5 === 0 ? 0.2 : 0.1; c.lineWidth = cm % 10 === 0 ? 4 : 2;
+      c.beginPath(); c.moveTo(x, 0); c.lineTo(x, h * L); c.stroke(); if (cm % 10 === 0 && cm) { c.textAlign = cm === maxCm ? 'right' : 'center'; c.fillText(String(cm), cm === maxCm ? x - 6 : x, h * 0.52); } }
+    c.textAlign = 'center';
+    const lx = f.line * px; c.fillStyle = '#d0453a'; c.fillRect(lx - 4, 0, 8, h);
+    c.font = '700 ' + Math.round(h * 0.2) + 'px ' + FONT_BODY; c.textBaseline = 'bottom'; c.fillText(f.line + 'cm', lx, h * 0.98);
+  });
+  const fishG = fishLying(f); fishG.position.set(-Lb / 2, 0.014, RZ); T.add(fishG);
+  let tag = null; // 決めた 種類・大きさを 魚の 上に 出す
+  const setTag = (t) => { if (tag) T.remove(tag); tag = labelSprite(t, { h: 0.08, bg: 'rgba(255,240,200,0.97)' }); tag.position.set(-0.3, 0.2, RZ + 0.05); T.add(tag); };
+  // 奥に 立てる 札（カード）
+  const card = (x, draw) => { const g = new THREE.Group(); g.position.set(x, 0, -0.18); T.add(g);
+    const t = new THREE.Group(); t.position.y = 0.03; t.rotation.x = -0.28; g.add(t);
+    const bd = new Board(0.46, 0.42, 1000); bd.draw(draw); bd.mesh.position.set(0, 0.215, 0.006); t.add(bd.mesh);
+    part(t, box(0.48, 0.44, 0.01), '#5a6670', 0, 0.215, 0); part(g, box(0.3, 0.03, 0.12), '#5a6670', 0, 0.015, 0);
+    return g; };
+  const add = (spec, holder, mesh, ringScale) => { const idx = def.items.indexOf(spec); mesh.traverse((o) => { o.userData.slotIndex = idx; });
+    const ring = makeGlowRing(); ring.scale.setScalar(ringScale); ring.position.y = 0.005; holder.add(ring);
+    slots[idx] = { spec, key: itemKey(spec), mesh, ring, holder, done: false }; };
+  const step = (n) => def.items.filter((it) => it.step === n);
+  // ① 種類の カード：絵・名前・見分けかた
+  step(1).forEach((spec, i) => { const p = def.pair.find((q) => q.name === spec.label);
+    const g = card(i ? 0.27 : -0.27, (c, w, h) => {
+      c.fillStyle = '#ffffff'; roundRect(c, 0, 0, w, h, 24); c.fill(); c.strokeStyle = '#2d7fa3'; c.lineWidth = 10; roundRect(c, 5, 5, w - 10, h - 10, 22); c.stroke();
+      c.fillStyle = '#e8f3f8'; roundRect(c, 24, 20, w - 48, h * 0.4, 16); c.fill();
+      drawFish2D(c, p, w / 2, 20 + h * 0.2, w * 0.66);
+      c.fillStyle = '#1f2a33'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.font = '700 ' + Math.round(h * 0.1) + 'px ' + FONT_DISPLAY; c.fillText(p.name, w / 2, h * 0.53);
+      c.textAlign = 'left'; c.font = '700 ' + Math.round(h * 0.068) + 'px ' + FONT_BODY; c.fillStyle = '#33404a';
+      p.feats.forEach((t, k) => c.fillText('・' + t, w * 0.08, h * (0.67 + k * 0.1)));
+    });
+    add(spec, g, g, 2.2); });
+  // ② 大きさの 札：大きい（長い ぼう）・小さい（みじかい ぼう）。さかいの cm も 書く
+  step(2).forEach((spec, i) => { const big = spec.label === '大きい'; const col = big ? '#e0662f' : '#2d9f8a';
+    const g = card(i ? 0.27 : -0.27, (c, w, h) => {
+      c.fillStyle = '#ffffff'; roundRect(c, 0, 0, w, h, 24); c.fill(); c.strokeStyle = col; c.lineWidth = 10; roundRect(c, 5, 5, w - 10, h - 10, 22); c.stroke();
+      c.fillStyle = col; c.textAlign = 'center'; c.textBaseline = 'middle'; c.font = '700 ' + Math.round(h * 0.16) + 'px ' + FONT_DISPLAY; c.fillText(big ? '大きい' : '小さい', w / 2, h * 0.2);
+      c.fillStyle = '#1f2a33'; c.font = '700 ' + Math.round(h * 0.085) + 'px ' + FONT_BODY; c.fillText(f.line + 'cm ' + (big ? 'いじょう' : 'より 小さい'), w / 2, h * 0.4);
+      const bl = big ? w * 0.8 : w * 0.36; const y = h * 0.68; c.strokeStyle = '#1f2a33'; c.lineWidth = 8; // 両はしに 止めの ある ぼう（スケッチの とおり）
+      c.beginPath(); c.moveTo(w / 2 - bl / 2, y); c.lineTo(w / 2 + bl / 2, y); [-1, 1].forEach((sd) => { c.moveTo(w / 2 + sd * bl / 2, y - h * 0.07); c.lineTo(w / 2 + sd * bl / 2, y + h * 0.07); }); c.stroke();
+      c.font = '400 ' + Math.round(h * 0.07) + 'px ' + FONT_BODY; c.fillStyle = '#55626d'; c.fillText('赤い 線より ' + (big ? '長い' : 'みじかい'), w / 2, h * 0.86);
+    });
+    g.visible = false; add(spec, g, g, 2.2); });
+  // ③ 箱：左が A、右が B。それぞれ 大きい 箱と 小さい 箱
+  [[A, 'A', -0.58], [B, 'B', 0.58]].forEach(([p, gName, gx]) => {
+    const sign = textPlate(gName + '：' + p.name, 0.5, 0.1, '#2d7fa3', '#ffffff'); sign.position.set(gx, 0.36, -0.36); sign.visible = false; T.add(sign); sign.userData.step3 = true;
+    ['大', '小'].forEach((z) => { const spec = def.items.find((it) => it.label === gName + '・' + z); const big = z === '大';
+      const g = new THREE.Group(); g.position.set(gx + (big ? -0.2 : 0.21), 0, -0.2); g.visible = false; T.add(g);
+      const m = SM.fishBox({ label: gName + '・' + z }); m.scale.setScalar(big ? 0.74 : 0.56); g.add(m);
+      add(spec, g, m, big ? 1.9 : 1.5); });
+  });
+  const showStep = (n) => { slots.forEach((s) => { s.holder.visible = s.spec.step === n; }); T.children.forEach((o) => { if (o.userData.step3) o.visible = n === 3; }); };
+  const STATUS = ['① カードを 見て、魚の 種類を えらぼう', '② ものさしで 長さを 見よう（赤い 線が ' + f.line + 'cm）', '③ 種類（A・B）と 大きさ（大・小）の 箱に 入れよう'];
+  let kind = '';
+  state.round = { def, slots, pos: 0, lastActionAt: performance.now(), hintShown: false, mistakeThisRound: false,
+    status: () => STATUS[Math.min(2, state.round.pos)],
+    ngText: () => ['カードの 見分けかたを たしかめよう', 'ものさしの 赤い 線と くらべよう', 'A・B と 大・小の 名札を たしかめよう'][Math.min(2, state.round.pos)],
+    onPick(slot, ok) {
+      if (!ok) { flashWrong(slot); return; }
+      const n = slot.spec.step;
+      if (n === 1) { kind = slot.spec.label; setTag(kind); showStep(2); }
+      if (n === 2) { setTag(kind + '・' + slot.spec.label); showStep(3); }
+      if (n === 3) { if (tag) tag.visible = false; const to = slot.holder.position.clone().add(new THREE.Vector3(-f.cm / 200 * 0.6, 0.06, 0)); fishG.scale.setScalar(0.6);
+        anims.push({ kind: 'box', obj: fishG, from: fishG.position.clone(), to, t0: performance.now() }); state.round.slowFinish = true; return; }
+      if (state.withSupport) speak(STATUS[n]);
+    } };
+  showStep(1);
+  moveRig(b.group.localToWorld(new THREE.Vector3(0, 0, 1.15)), b.yaw + Math.PI, 0.5, state.session.roundIndex ? 500 : undefined);
+  state.feedback = { text: '', kind: '' };
+  drawWorkBoard(); renderHud();
+  if (state.withSupport) speak(def.title + '。' + STATUS[0] + '。');
+}
 // 畑の 通路を 左右に 歩く（トマトの ハウス）：◀▶・左スティック。かかえた かごも いっしょに 動く
 function stepSlide(dt) {
   const r = state.round; const sl = r && r.slide; if (!sl || state.phase !== 'work' || tween) return;
@@ -4113,21 +4249,6 @@ const STAGES = {
     spots: { 'ふくろ': [0.55, 0.915, 2.42, { s: 1.6 }], '中紙': [0.15, 0.915, 2.42, { s: 1.5 }], 'ひも': [-0.25, 0.915, 2.42, { s: 1.6 }],
       'ハサミ': [-0.25, 0.906, 1.98, { s: 1.6, ly: 0.05 }], 'のり': [-0.55, 0.906, 2.02, { s: 1.5 }], '検品かご': [-0.95, 0.906, 2.35, { s: 1.5 }] },
   },
-  // ---- 漁協：ぬれた コンクリートの 床に 発泡スチロールの 魚箱（すのこの 上に 2 れつ）。とれた 魚を 手に 持って 入れる
-  '魚の仕分け': {
-    counter: false, stand: [0, 0.7], pitch: 0.55,
-    decor(W, def) { part(W, box(SHOP_W - 0.1, 0.004, 2.6), '#7f9aa6', 0, 0.104, 2.2, { roughness: 0.25 });
-      [2.15, 2.8].forEach((z) => [-1, 1].forEach((sd) => { part(W, box(0.6, 0.03, 0.46), '#a0784a', sd * 0.42, 0.12, z); [-0.18, 0, 0.18].forEach((dz) => part(W, box(0.6, 0.05, 0.05), '#8a6a46', sd * 0.42, 0.14, z + dz)); }));
-      const hose = part(W, new THREE.TorusGeometry(0.22, 0.02, 6, 20), '#e3a33c', -1.4, 0.13, 1.4); hose.rotation.x = Math.PI / 2;
-      const held = def.carryText || def.carry || ''; const fishName = held.replace('もっている：', '').split('（')[0];
-      const fish = new THREE.Group(); fish.position.set(-0.32, 0.98, 0.7 + 0.55); fish.rotation.y = 0.3; W.add(fish); // 右手に 持った 魚
-      const big = /大きい/.test(held); const k = big ? 0.85 : 0.6;
-      const bodyC = { 'アジ': '#9cb8c8', 'サバ': '#5f8aa8', 'ブリ': '#6f9ab8', 'タラ': '#c9b8a0' }[fishName] || '#9cb8c8';
-      const body = part(fish, ball(0.07 * k, 14, 10), bodyC, 0, 0, 0, { metalness: 0.15, roughness: 0.4, emissive: bodyC, emissiveIntensity: 0.15 }); body.scale.set(2.6, 0.75, 0.6);
-      const tail = part(fish, new THREE.ConeGeometry(0.06 * k, 0.1 * k, 4), bodyC, 0.22 * k, 0, 0); tail.rotation.z = Math.PI / 2;
-      part(fish, ball(0.012, 8, 6), '#1f2a33', -0.13 * k, 0.015, 0.035 * k); },
-    byIndex: [[0.42, 0.165, 2.15], [-0.42, 0.165, 2.15], [0.42, 0.165, 2.8], [-0.42, 0.165, 2.8]], model: (spec) => SM.fishBox(spec), ly: 0.12,
-  },
   // ---- 森林組合：苗畑の 土の 上。まん中に 植える ところ（あな）、左の ベンチに 安全の 道具、右に 苗と 土と じょうろ
   '苗木の植えつけ': {
     counter: false, stand: [0, 0.65], pitch: 0.6,
@@ -4283,7 +4404,6 @@ STAGES['しめ飾りづくり'] = Object.assign({}, STAGES['お守りづくり']
   spots: { 'わら': [0.55, 0.915, 2.42, { s: 1.6 }], 'ひも': [0.15, 0.915, 2.42, { s: 1.6 }], '紙垂': [-0.25, 0.915, 2.42, { s: 1.6 }], 'だいだい': [-0.62, 0.906, 2.42, { s: 1.5, ly: 0.1 }],
     'ハサミ': [-0.15, 0.906, 1.98, { s: 1.6, ly: 0.05 }], 'のり': [-0.45, 0.906, 2.02, { s: 1.5 }], '検品かご': [-1.0, 0.906, 2.25, { s: 1.5, ly: 0.12 }] },
 });
-STAGES['ブリとタラの仕分け'] = STAGES['魚の仕分け'];
 // 事務所の つくえの 小物（パソコン・キーボード・ペン立て）
 function officeDesk(W) {
   part(W, box(0.5, 0.32, 0.03), '#2b2f36', -1.05, 1.12, 2.5); part(W, box(0.46, 0.27, 0.005), '#6fa7d8', -1.05, 1.12, 2.483, { emissive: '#2a5a85', emissiveIntensity: 0.4 }); part(W, cyl(0.03, 0.06, 0.15, 10), '#3d4a54', -1.05, 0.98, 2.52);
@@ -4398,6 +4518,7 @@ function nextRound() {
   if (def.layout === 'orchard') return startOrchard(b, def);
   if (def.layout === 'tomato') return startTomato(b, def);
   if (def.layout === 'fishing') return startFishing(b, def);
+  if (def.layout === 'fishsort') return startFishSort(b, def);
   if (def.layout === 'strawberry') return startStrawberry(b, def);
   if (def.layout === 'cafe') return startCafe(b, def);
   if (def.layout === 'care') return startCare(b, def);
@@ -5552,6 +5673,9 @@ function drawWorkBoard() {
     } else if (r.cover) {
       ctx.font = '700 40px ' + FONT_BODY; ctx.fillStyle = '#33404a';
       ctx.fillText('きれいに なった ところ ' + Math.floor(r.cover.surf.ratio() * 100) + '%', 48, y); y += 56;
+    } else if (r.status) { // 何工程めかを 書く（答えは 書かない）
+      ctx.font = '700 38px ' + FONT_BODY; ctx.fillStyle = job.color;
+      wrapLines(ctx, r.status(), W - 96).slice(0, 2).forEach((l) => { ctx.fillText(l, 48, y); y += 50; }); y += 6;
     } else if (state.withSupport && !r.def.hideSteps) {
       ctx.font = '400 38px ' + FONT_BODY; ctx.fillStyle = '#33404a';
       ctx.fillText('のこり ' + remainingKeys().length + ' こ', 48, y); y += 56;
@@ -6121,7 +6245,7 @@ function renderHud() {
     steps = '<div>のこり ' + remainingKeys().length + ' こ</div>';
   }
   if (r.slide) steps += '<div>◀ ▶ で 通路を 歩けます（かごも いっしょ。VR は 左スティック）</div>';
-  if (r.fishing) steps += '<div>' + esc(r.fishing.status()) + '</div>';
+  const stat = r.status || (r.fishing && r.fishing.status); if (stat) steps += '<div>' + esc(stat()) + '</div>';
   el.innerHTML = '<span class="tag">' + esc(job.name) + '・' + (state.withSupport ? '配慮あり' : '配慮なし') + '</span>' +
     '<h2>' + esc(state.withSupport ? r.def.title : r.def.shortTitle) + '</h2>' +
     (r.def.carryText ? '<div>' + esc(r.def.carryText) + '</div>' : '') + steps +
