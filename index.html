@@ -579,15 +579,16 @@ const CARE_PEOPLE = ['田中さん', '佐藤さん', '鈴木さん', '高橋さ�
 const CARE_TIERS = ['上の だん', '2だんめ', '3だんめ', '下の だん'];
 const CARE_MENU = {
   summer: { shape: 'mealTray', forms: [['普通食', '#f0d9a8'], ['きざみ食', '#cfe0a8'], ['おかゆ', '#f6f1e3']] },
-  winter: { shape: 'drinkTray', forms: [['ほうじ茶', '#b07a3c'], ['白湯', '#eef3f4'], ['とろみ茶', '#7f9a3c']] },
+  // 冬は 温かい 飲み物と おやつ（とろみが いる 人には やわらかい プリン）
+  winter: { shape: 'drinkTray', forms: [['ほうじ茶・どら焼き', '#b07a3c', 'dora'], ['白湯・カステラ', '#eef3f4', 'castella'], ['とろみ茶・プリン', '#7f9a3c', 'pudding']] },
 };
 function careRound(when) {
   const m = CARE_MENU[when]; const eaters = shuffle(CARE_PEOPLE); const forms = shuffle(m.forms.concat([pick(m.forms)])); // 食事の 形は 3 しゅるい（1 つは 2 人）
-  const trays = CARE_TIERS.map((label, i) => ({ label, person: eaters[i], form: forms[i][0], shape: m.shape, color: forms[i][1], thick: forms[i][0] === 'とろみ茶' }));
+  const trays = CARE_TIERS.map((label, i) => ({ label, person: eaters[i], form: forms[i][0], shape: m.shape, color: forms[i][1], snack: forms[i][2], thick: forms[i][0].startsWith('とろみ') }));
   const people = CARE_PEOPLE.map((label) => ({ label, shape: 'resident' }));
   const need = []; trays.forEach((t) => need.push(t.label, t.person));
   return {
-    title: '配膳車の ' + (when === 'winter' ? '飲み物' : 'おぜん') + 'を 上の だんから 順に、名札の 席へ 運ぶ', shortTitle: (when === 'winter' ? '飲み物' : 'おぜん') + 'を 運ぶ',
+    title: '配膳車の ' + (when === 'winter' ? '飲み物と おやつ' : 'おぜん') + 'を 上の だんから 順に、名札の 席へ 運ぶ', shortTitle: (when === 'winter' ? 'おやつ' : 'おぜん') + 'を 運ぶ',
     items: trays.concat(people), need, ordered: true, layout: 'care', seats: shuffle(CARE_PEOPLE),
   };
 }
@@ -767,7 +768,7 @@ const WINTER = {
     round() { return cafeRound('winter'); },
   },
   care: {
-    work: '温かい飲み物の配ぜん', rounds: 2, intro: '配膳車の 飲み物を 上の だんから 順に とって、名札と 同じ 名前の 席へ 運びます。とろみ などの 形も 名札で たしかめます。', defect: '順番・人の まちがい',
+    work: '温かい飲み物とおやつの配ぜん', rounds: 2, intro: '配膳車の 温かい 飲み物と おやつを 上の だんから 順に とって、名札と 同じ 名前の 席へ 運びます。とろみ などの 形も 名札で たしかめます。', defect: '順番・人の まちがい',
     round() { return careRound('winter'); },
   },
   office: {
@@ -2452,13 +2453,17 @@ Object.assign(SHAPE_MODELS, {
     [-0.03, 0.03].forEach((z) => part(g, box(0.17 * k, 0.006, 0.012), '#1f2a33', 0, 0.05, z * k));
     return g;
   },
-  // 介護（冬）：湯のみの のった おぜん（とろみは スプーン つき）
+  // 介護（冬）：湯のみと おやつの 小皿が のった おぜん（とろみは スプーン つき）
   drinkTray(s) {
-    const g = new THREE.Group();
+    const g = new THREE.Group(); const X = 0.055;
     part(g, box(0.22, 0.016, 0.16), '#9a6b44', 0, 0.008, 0);
-    part(g, cyl(0.035, 0.03, 0.07, 18), '#e8e2d6', 0, 0.051, 0);
-    part(g, cyl(0.032, 0.032, 0.004, 18), s.color, 0, 0.084, 0);
-    if (s.thick) part(g, box(0.09, 0.006, 0.012), '#c49a6c', 0.07, 0.02, 0.03).rotation.y = 0.4;
+    part(g, cyl(0.035, 0.03, 0.07, 18), '#e8e2d6', -0.05, 0.051, 0);
+    part(g, cyl(0.032, 0.032, 0.004, 18), s.color, -0.05, 0.084, 0);
+    part(g, cyl(0.045, 0.04, 0.008, 20), '#f4f1ea', X, 0.02, 0); // 小皿
+    if (s.snack === 'dora') { [0.032, 0.046].forEach((y) => part(g, cyl(0.032, 0.032, 0.014, 18), '#9a5a28', X, y, 0)); part(g, cyl(0.03, 0.03, 0.006, 18), '#5a2a2a', X, 0.039, 0); }
+    if (s.snack === 'castella') { part(g, box(0.06, 0.03, 0.035), '#f2cf5a', X, 0.039, 0); part(g, box(0.06, 0.006, 0.035), '#7a4320', X, 0.057, 0); }
+    if (s.snack === 'pudding') { part(g, cyl(0.022, 0.03, 0.035, 18), '#f3d77a', X, 0.041, 0); part(g, cyl(0.02, 0.022, 0.006, 18), '#8a4a1c', X, 0.061, 0); }
+    if (s.thick) part(g, box(0.09, 0.006, 0.012), '#c49a6c', 0.0, 0.02, 0.06).rotation.y = 0.2;
     return g;
   },
   // 農園（冬）：いちご（赤い・白い）
