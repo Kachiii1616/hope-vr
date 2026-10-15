@@ -166,6 +166,13 @@ button.primary { background: var(--accent); color: var(--accent-ink); border-col
 .pick-list button { text-align: left; padding: 10px 14px; }
 .pick-list button small { display: block; font-weight: 400; color: var(--ink-soft); }
 .pick-list button[aria-current="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.area-map { display: block; width: 100%; aspect-ratio: 850 / 680; border-radius: 12px; cursor: pointer; touch-action: manipulation; margin-top: 6px; }
+.area-desc { min-height: 1.5em; }
+.area-list { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+.area-list button { display: flex; gap: 10px; align-items: flex-start; }
+.area-list button[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 2px var(--accent); }
+.area-no { flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; border: 2px solid var(--accent); color: var(--accent); }
+.area-list button[aria-pressed="true"] .area-no { background: var(--accent); color: var(--accent-ink); }
 .shop-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-top: 8px; }
 .shop-grid .item { border: 1px solid var(--line); border-radius: 12px; padding: 10px; background: var(--card); display: flex; flex-direction: column; gap: 6px; }
 .shop-grid .item b { font-size: 15px; }
@@ -6104,8 +6111,14 @@ function buildMinimapBase() {
   const cssW = mmCanvas.clientWidth || 200;
   mmCanvas.width = Math.round(cssW * dpr); mmCanvas.height = Math.round(cssW * MM.h / MM.w * dpr);
   mmScale = mmCanvas.width / MM.w;
-  const c = document.createElement('canvas'); c.width = mmCanvas.width; c.height = mmCanvas.height; const x = c.getContext('2d');
-  x.fillStyle = '#4f9fc4'; x.fillRect(0, 0, c.width, c.height);
+  const c = document.createElement('canvas'); c.width = mmCanvas.width; c.height = mmCanvas.height;
+  paintIsland(c.getContext('2d'), mmScale);
+  mmBase = c;
+}
+// 島・山・湖・川・道を 描く（右上の 地図と 家えらびの 地図で 共用）。sc は 地図 px → ドット
+function paintIsland(x, sc) {
+  const mmPos = (px, py) => [(px - MM.x0) * sc, (py - MM.y0) * sc]; const mmScale = sc;
+  x.fillStyle = '#4f9fc4'; x.fillRect(0, 0, MM.w * sc, MM.h * sc);
   const path = (pts) => { x.beginPath(); pts.forEach(([px, py], i) => { const [u, v] = mmPos(px, py); if (i) x.lineTo(u, v); else x.moveTo(u, v); }); };
   path(ISLAND); x.closePath(); x.fillStyle = season === 'winter' ? SNOW_TINT['#9cc47f'] : '#9cc47f'; x.fill();
   // 山
@@ -6116,7 +6129,6 @@ function buildMinimapBase() {
   x.lineCap = 'round'; x.lineJoin = 'round';
   RIVERS.forEach(({ w, line }) => { path(line); x.strokeStyle = '#5aa7d1'; x.lineWidth = Math.max(1.5, (w / MAP_SCALE) * mmScale); x.stroke(); });
   ROADS.forEach((line) => { path(line); x.strokeStyle = '#e9e4d8'; x.lineWidth = Math.max(2, (ROAD_W / MAP_SCALE) * mmScale); x.stroke(); });
-  mmBase = c;
 }
 const mmHead = new THREE.Vector3(); const mmDir = new THREE.Vector3();
 function drawMinimap() {
@@ -6623,22 +6635,82 @@ function openOpening() {
     $('op-go').onclick = () => start(false); $('op-skip').onclick = () => start(true);
   });
 }
-// 家の 場所（はじめて・引っ越し）
+// 家の 場所（はじめて・引っ越し）。島の 地図で 場所と まわりの お店を 見ながら えらぶ
+const AREA_NEAR = 190; const AREA_MAX = 4; // 地図 px。この 中で 近い 順に 4 けんまでを「近所の お店」として 地図に 名前を 出す
+const AREA_MARKS = [['ビーチ', [250, 205]], ['湖', [265, 592]], ['山', [520, 392]], ['フェリー', [140, 452]], ['りんご畑', [745, 700]]];
 function openAreaPicker(first) {
   modal.dataset.closable = first ? '0' : '1';
-  openModal('<h2>' + (first ? 'どこに 家を つくりますか' : '引っ越し') + '</h2><p>' + (first ? '家は いつでも 引っ越せます。つぎから、この 家から 出発します。' : 'いまの 家の 家具・バッジは そのまま 運びます。') + '</p>' +
-    '<div class="pick-list">' + Object.entries(HOME_SITES).map(([k, h]) => '<button type="button" data-area="' + k + '" aria-current="' + (profile.home === k) + '"><b>' + esc(h.name) + '</b><small>' + esc(h.note) + '</small></button>').join('') + '</div>' +
-    (first ? '' : '<div class="row"><button type="button" id="ap-close">やめる</button></div>'),
+  const keys = Object.keys(HOME_SITES);
+  let sel = profile.home && HOME_SITES[profile.home] ? profile.home : keys[0];
+  openModal('<h2>' + (first ? 'どこに 家を つくりますか' : '引っ越し') + '</h2><p>' + (first ? '地図の 番号か 下の 一覧を えらぶと、まわりの お店が 見えます。家は いつでも 引っ越せます。' : 'いまの 家の 家具・バッジは そのまま 運びます。') + '</p>' +
+    '<canvas class="area-map" id="ap-map" role="img" aria-label="島の 地図。番号の 場所を タップすると その 地域を えらびます"></canvas>' +
+    '<p class="area-desc" id="ap-desc" aria-live="polite"></p>' +
+    '<div class="pick-list area-list">' + keys.map((k, i) => '<button type="button" data-area="' + k + '" aria-pressed="false"><span class="area-no">' + (i + 1) + '</span><span><b>' + esc(HOME_SITES[k].name) + '</b><small>' + esc(HOME_SITES[k].note) + '</small></span></button>').join('') + '</div>' +
+    '<div class="row"><button type="button" class="primary" id="ap-ok"></button>' + (first ? '' : '<button type="button" id="ap-close">やめる</button>') + '</div>',
   (card) => {
-    card.querySelectorAll('[data-area]').forEach((btn) => {
-      btn.onclick = () => {
-        const moved = !!profile.home && profile.home !== btn.dataset.area;
-        profile.home = btn.dataset.area; saveProfile(); buildHome(); closeModal();
-        if (opening.ferry) opening.ferry.visible = false;
-        goHome(); toast(first ? '家が できました！' : moved ? HOME_SITES[profile.home].name + 'に 引っ越しました' : 'いまの 家です');
+    const cv = $('ap-map'); const ctx = cv.getContext('2d');
+    let base = null; let sc = 1; let px = 1;
+    const pos = (mx, my) => [(mx - MM.x0) * sc, (my - MM.y0) * sc];
+    const dist = (b, k) => Math.hypot(SITES[b.job.id].at[0] - HOME_SITES[k].at[0], SITES[b.job.id].at[1] - HOME_SITES[k].at[1]);
+    const near = (k) => booths.filter((b) => dist(b, k) < AREA_NEAR).sort((a, b) => dist(a, k) - dist(b, k)).slice(0, AREA_MAX);
+    const draw = () => {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2); const cssW = cv.clientWidth || 300;
+      if (!base || base.width !== Math.round(cssW * dpr)) {
+        cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssW * MM.h / MM.w * dpr); sc = cv.width / MM.w; px = dpr;
+        base = document.createElement('canvas'); base.width = cv.width; base.height = cv.height; paintIsland(base.getContext('2d'), sc);
+      }
+      const x = ctx; x.drawImage(base, 0, 0); x.lineJoin = 'round'; x.textAlign = 'center';
+      const label = (t, u, v, size, color, weight) => {
+        x.font = (weight || 700) + ' ' + Math.round(size * px) + 'px ' + FONT_BODY; x.lineWidth = 3 * px; x.strokeStyle = 'rgba(255,255,255,0.9)';
+        const hw = x.measureText(t).width / 2 + 3 * px; u = Math.min(Math.max(u, hw), cv.width - hw); // 地図の 端で 字が 切れないように
+        x.strokeText(t, u, v); x.fillStyle = color; x.fillText(t, u, v);
       };
+      // えらんだ 地域の「近所」を うすく 囲む
+      const [su, sv] = pos(...HOME_SITES[sel].at); const nb = near(sel);
+      const rr = Math.max(60, ...nb.map((b) => dist(b, sel) + 22));
+      x.beginPath(); x.arc(su, sv, rr * sc, 0, Math.PI * 2); x.fillStyle = 'rgba(255, 210, 63, 0.28)'; x.fill();
+      x.setLineDash([5 * px, 4 * px]); x.lineWidth = 2 * px; x.strokeStyle = '#e0662f'; x.stroke(); x.setLineDash([]);
+      x.textBaseline = 'middle'; AREA_MARKS.forEach(([t, at]) => { const [u, v] = pos(...at); label(t, u, v, 10, '#2c5d78', 400); });
+      const dot = 3.4 * px;
+      booths.forEach((b) => {
+        const [u, v] = pos(...SITES[b.job.id].at); const isNear = nb.includes(b);
+        x.globalAlpha = isNear ? 1 : 0.55;
+        x.beginPath(); x.arc(u, v, isNear ? dot * 1.3 : dot, 0, Math.PI * 2); x.fillStyle = b.job.color; x.fill();
+        x.lineWidth = Math.max(1, dot * 0.3); x.strokeStyle = '#ffffff'; x.stroke(); x.globalAlpha = 1;
+        if (isNear) { x.textBaseline = 'top'; label(b.job.name, u, v + dot * 1.6, 11, '#1f2a33'); }
+      });
+      // 家の 候補（番号つきの まる）
+      keys.forEach((k, i) => {
+        const [u, v] = pos(...HOME_SITES[k].at); const on = k === sel; const R = (on ? 11 : 9) * px;
+        x.beginPath(); x.arc(u, v, R, 0, Math.PI * 2); x.fillStyle = on ? '#e0662f' : '#ffffff'; x.fill();
+        x.lineWidth = 2 * px; x.strokeStyle = on ? '#ffffff' : '#e0662f'; x.stroke();
+        x.font = '700 ' + Math.round((on ? 13 : 11) * px) + 'px ' + FONT_BODY; x.textBaseline = 'middle'; x.fillStyle = on ? '#ffffff' : '#c8463d'; x.fillText(String(i + 1), u, v + 0.5 * px);
+      });
+    };
+    const select = (k) => {
+      sel = k;
+      card.querySelectorAll('[data-area]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.area === k)));
+      const nb = near(k).map((b) => b.job.name);
+      $('ap-desc').innerHTML = '<b>' + esc(HOME_SITES[k].name) + '</b>　' + (nb.length ? '近所の お店：' + esc(nb.join('・')) : '近くに お店は ありません');
+      $('ap-ok').textContent = profile.home === k ? 'いまの 家の まま' : first ? HOME_SITES[k].name + 'に 家を つくる' : HOME_SITES[k].name + 'に 引っ越す';
+      draw();
+    };
+    card.querySelectorAll('[data-area]').forEach((btn) => { btn.onclick = () => select(btn.dataset.area); });
+    cv.addEventListener('click', (e) => {
+      const r = cv.getBoundingClientRect();
+      const mx = (e.clientX - r.left) / r.width * MM.w + MM.x0; const my = (e.clientY - r.top) / r.height * MM.h + MM.y0;
+      let best = null; let bestD = 70;
+      keys.forEach((k) => { const d = Math.hypot(HOME_SITES[k].at[0] - mx, HOME_SITES[k].at[1] - my); if (d < bestD) { bestD = d; best = k; } });
+      if (best) select(best);
     });
+    $('ap-ok').onclick = () => {
+      const moved = !!profile.home && profile.home !== sel;
+      profile.home = sel; saveProfile(); buildHome(); closeModal();
+      if (opening.ferry) opening.ferry.visible = false;
+      goHome(); toast(first ? '家が できました！' : moved ? HOME_SITES[profile.home].name + 'に 引っ越しました' : 'いまの 家です');
+    };
     if ($('ap-close')) $('ap-close').onclick = closeModal;
+    requestAnimationFrame(() => select(sel));
   });
 }
 // 設定
