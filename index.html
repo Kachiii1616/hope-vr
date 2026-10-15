@@ -5691,10 +5691,11 @@ function startWallShelf(b, def) {
 }
 
 // レジ打ちと 袋づめ（コンビニの 冬）：店員から 見て 左から、お客さまの かご → スキャンした 品物を ならべる ところ →
-//   レジ（画面・キー・お金の 引き出し）→ ひろげた レジ袋 → 右はしに コードつきの ハンドスキャナー。
+//   ひろげた レジ袋 → レジ（画面・キー・お金の 引き出し）→ 右はしに コードつきの ハンドスキャナー。
+//   レジの 画面と キーは IT企業の パソコンと 同じくらいの 大きな 文字（画面の 文字 約 4cm）。
 //   お客さまは 台の 向こうの、かごと レジの あいだ（かごや レジの 画面と かさならない ところ）。ならんでいる 人は 出さない。
 //   品物を えらぶと かごから 出して、スキャナーが とんで きて ピッ。お金の キーで 引き出しが ひらき、おつりを わたすと しまる。
-const REGI = { y: 0.9, reg: [-0.36, 2.32], basket: [0.82, 2.4], done: [0.4, 1.98], bag: [-0.92, 2.36], gun: [-1.24, 1.98], guest: [0.22, COUNTER_Z + 1.05] };
+const REGI = { y: 0.9, reg: [-0.78, 2.3], basket: [0.84, 2.4], done: [0.48, 1.98], bag: [-0.12, 2.38], gun: [-1.28, 1.95], guest: [0.4, COUNTER_Z + 1.05] };
 function textPlate(text, w, h, bg, fg) {
   const b = new Board(w, h, 900);
   b.draw((ctx, cw, ch) => { ctx.fillStyle = bg; roundRect(ctx, 0, 0, cw, ch, ch * 0.18); ctx.fill(); ctx.fillStyle = fg; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -5739,30 +5740,31 @@ function startRegister(b, def) {
   };
   // レジ：本体（店員がわに お金の 引き出し）・キー・画面
   const [rx, rz] = REGI.reg;
-  part(W, box(0.5, 0.16, 0.42), '#3d4a54', rx, Y + 0.08, rz);
+  part(W, box(0.7, 0.16, 0.44), '#3d4a54', rx, Y + 0.08, rz);
   const drawer = new THREE.Group(); drawer.position.set(rx, Y + 0.05, rz - 0.02); W.add(drawer);
-  part(drawer, box(0.44, 0.08, 0.4), '#55626d', 0, 0, 0);
-  part(drawer, box(0.4, 0.004, 0.36), '#2b2f36', 0, 0.041, 0);
-  [-0.13, -0.045, 0.045, 0.13].forEach((x, i) => part(drawer, box(0.08, 0.006, 0.14), i % 2 ? '#c9b48a' : '#8fb3d9', x, 0.045, 0.06)); // お札
-  [-0.12, -0.04, 0.04, 0.12].forEach((x, i) => part(drawer, cyl(0.025, 0.025, 0.008, 14), i % 2 ? '#d9a42c' : '#c9c9c9', x, 0.046, -0.1)); // 小銭
-  part(drawer, box(0.12, 0.02, 0.01), '#c9cdd2', 0, 0, -0.205, { metalness: 0.4, roughness: 0.4 }); // とって
-  const drawerHome = drawer.position.clone(); const drawerOpen = drawerHome.clone().add(new THREE.Vector3(0, 0, -0.24));
-  const screen = new Board(0.44, 0.3, 900);
+  part(drawer, box(0.62, 0.08, 0.42), '#55626d', 0, 0, 0);
+  part(drawer, box(0.58, 0.004, 0.38), '#2b2f36', 0, 0.041, 0);
+  [-0.21, -0.07, 0.07, 0.21].forEach((x, i) => part(drawer, box(0.12, 0.006, 0.16), i % 2 ? '#c9b48a' : '#8fb3d9', x, 0.045, 0.07)); // お札
+  [-0.2, -0.07, 0.07, 0.2].forEach((x, i) => part(drawer, cyl(0.03, 0.03, 0.008, 14), i % 2 ? '#d9a42c' : '#c9c9c9', x, 0.046, -0.1)); // 小銭
+  part(drawer, box(0.16, 0.025, 0.01), '#c9cdd2', 0, 0, -0.215, { metalness: 0.4, roughness: 0.4 }); // とって
+  const drawerHome = drawer.position.clone(); const drawerOpen = drawerHome.clone().add(new THREE.Vector3(0, 0, -0.26));
+  const SCR = { w: 0.66, h: 0.46 };
+  const screen = new Board(SCR.w, SCR.h, 1000);
   const scr = { lines: [], total: false, paid: 0 };
   const paintScreen = () => screen.draw((c, w, h) => {
     c.fillStyle = '#12202b'; c.fillRect(0, 0, w, h); c.fillStyle = '#9fe3ff'; c.textBaseline = 'middle';
-    const row = h / 7.2; c.font = '700 ' + Math.round(row * 0.62) + 'px ' + FONT_BODY;
-    scr.lines.forEach(([n, p], i) => { c.textAlign = 'left'; c.fillText(n, w * 0.06, row * (i + 0.8)); c.textAlign = 'right'; c.fillText(p + '円', w * 0.94, row * (i + 0.8)); });
-    c.fillStyle = '#ffffff'; c.fillRect(w * 0.05, row * 3.55, w * 0.9, 3);
+    const row = h / 7; c.font = '700 ' + Math.round(row * 0.66) + 'px ' + FONT_BODY;
+    scr.lines.forEach(([n, p], i) => { c.textAlign = 'left'; c.fillText(n, w * 0.05, row * (i + 0.7)); c.textAlign = 'right'; c.fillText(p + '円', w * 0.95, row * (i + 0.7)); });
+    c.fillStyle = '#ffffff'; c.fillRect(w * 0.04, row * 3.45, w * 0.92, 5);
     const sum = scr.lines.reduce((t, l) => t + l[1], 0);
     [[scr.total, '合計', sum], [scr.paid, 'お預かり', scr.paid], [scr.paid, 'おつり', scr.paid - def.total]].forEach(([show, k, v], i) => {
-      if (!show) return; c.fillStyle = i === 2 ? '#ffd23f' : '#ffffff'; c.textAlign = 'left'; c.fillText(k, w * 0.06, row * (4.3 + i)); c.textAlign = 'right'; c.fillText(v + '円', w * 0.94, row * (4.3 + i));
+      if (!show) return; c.fillStyle = i === 2 ? '#ffd23f' : '#ffffff'; c.textAlign = 'left'; c.fillText(k, w * 0.05, row * (4.2 + i)); c.textAlign = 'right'; c.fillText(v + '円', w * 0.95, row * (4.2 + i));
     });
   });
   paintScreen();
-  part(W, box(0.5, 0.36, 0.06), '#2b2f36', rx, Y + 0.34, rz + 0.17); // 画面の わく
-  const scrHolder = tilted(screen.mesh, -0.08); scrHolder.position.set(rx, Y + 0.36, rz + 0.135); W.add(scrHolder);
-  part(W, box(0.48, 0.03, 0.2), '#55626d', rx, Y + 0.175, rz - 0.06); // キーの 台
+  part(W, box(SCR.w + 0.04, SCR.h + 0.04, 0.05), '#2b2f36', rx, Y + 0.16 + SCR.h / 2 + 0.03, rz + 0.18); // 画面の わく
+  const scrHolder = tilted(screen.mesh, 0); scrHolder.position.set(rx, Y + 0.16 + SCR.h / 2 + 0.03, rz + 0.15); W.add(scrHolder); // わくの 前に まっすぐ（かたむけると 上が わくに うまる）
+  part(W, box(0.68, 0.03, 0.2), '#55626d', rx, Y + 0.175, rz - 0.07); // キーの 台
   // お客さまの かご（台の 上）
   const basket = new THREE.Group(); basket.position.copy(at(REGI.basket)); W.add(basket);
   part(basket, box(0.5, 0.012, 0.34), '#3c7fc4', 0, 0.006, 0);
@@ -5815,11 +5817,12 @@ function startRegister(b, def) {
       const sl = addSlot(spec, holder, mesh, { label: n + '（' + g[3] + 'g）', labelY: 0.3 + (order % 2) * 0.1 }); sl.good = g;
     } else if (key[k]) {
       const [t, col] = key[k]; const n = Object.keys(key).indexOf(k);
-      const plate = textPlate(t, 0.105, 0.065, col, '#ffffff');
-      const holder = tilted(plate, -1.15); holder.position.set(rx + 0.17 - n * 0.113, Y + 0.2, rz - 0.07); W.add(holder);
-      addSlot(spec, holder, plate, { ring: 0.6, ringY: -0.03 });
+      const plate = textPlate(t, 0.15, 0.09, col, '#ffffff'); // 大きな キー（文字 約 5cm）
+      const holder = tilted(plate, -0.75); holder.position.set(rx + 0.24 - n * 0.16, Y + 0.22, rz - 0.08); W.add(holder);
+      addSlot(spec, holder, plate, { ring: 0.8, ringY: -0.04 });
     } else if (k === 'おつり') {
-      addSlot(spec, drawer, drawer.children[0], { label: 'おつり（引き出し）', labelY: 0.12, ring: 1.6, ringY: 0.05 });
+      const sl = addSlot(spec, drawer, drawer.children[0], { label: 'おつり（引き出し）', ring: 1.8, ringY: 0.05 });
+      sl.label.position.set(0, 0.02, -0.3); sl.ring.position.z = -0.1; // 札は 引き出しの 手前（キーと かさならない）
     } else if (k === 'レジ袋') {
       addSlot(spec, bagH, bagH, { label: 'レジ袋', labelY: 0.5, ring: 1.6 });
     } else if (k === 'お客さま') {
