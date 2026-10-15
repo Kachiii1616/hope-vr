@@ -418,19 +418,20 @@ const JOBS = [
     variants: {
       summer: [{
         work: '登山の受付',
-        intro: '登山届に 書かれた 持ち物を たしかめて、たりない ものを そろえ、さいごに 登山客に わたします。山に 合わない ものは わたしません。',
+        intro: '登山届を 見て、手前に ならんだ 持ち物を ひろって かごに まとめ、さいごに 登山客に わたします。山に 合わない ものは 入れません。',
         defect: 'ちがう 持ち物・山に 合わない もの',
         round() {
           const gear = [
-            { label: '雨具', shape: 'pouch', color: '#3c7fc4' }, { label: 'ライト', shape: 'cyl', color: '#f2c230' },
-            { label: '水筒', shape: 'cyl', color: '#c9cdd2' }, { label: '地図', shape: 'card', color: '#e8f0d8' },
-            { label: '救急セット', shape: 'box', color: '#d0453a' }, { label: '帽子', shape: 'helmet', color: '#d9c49a' },
+            { label: '雨具', model: () => SM.raincoat() }, { label: 'ライト', model: () => SM.light() },
+            { label: '水筒', model: () => SM.bottle() }, { label: '地図', model: () => SM.map() },
+            { label: '救急セット', model: () => SM.aid() }, { label: '帽子', model: () => SM.hat() },
           ];
-          const wrong = [{ label: 'サンダル', shape: 'disc', color: '#e07fa4' }, { label: '浮き輪', shape: 'disc', color: '#f39a2b' }];
+          const wrong = [{ label: 'サンダル', model: () => SM.sandals() }, { label: '浮き輪', model: () => SM.ring() }];
           const need = sample(gear, 3).map((g) => g.label);
           const card = '登山届：' + need.join('・');
-          // 持ち物は 好きな 順で そろえて（free）、さいごに お客さまに わたす
-          return { title: card + ' を そろえて わたす', shortTitle: '登山の 持ち物を そろえて わたす', items: shuffle(gear.concat(wrong)).concat([{ label: 'お客さま', color: '#3c7fc4' }]), need: need.concat(['お客さま']), free: need, ordered: true, carryText: card };
+          // 物流センターの ピッキングと 同じ ならび。持ち物は 好きな 順で かごに まとめて（free）、さいごに お客さまに かごごと わたす
+          return { title: card + ' を かごに まとめて わたす', shortTitle: '登山の 持ち物を まとめて わたす', items: shuffle(gear.concat(wrong)), need: need.concat(['お客さま']), free: need, ordered: true, carryText: card,
+            layout: 'picking', slip: { title: '登山届', color: '#8a6a3c' }, basket: '#4f7a3a', handTo: '#3c7fc4' };
         },
       }],
       winter: [{
@@ -614,7 +615,7 @@ const ACTIONS = {
   fish: (l) => l + 'の 箱に 入れる',
   forest: { 'ヘルメット': 'ヘルメットを かぶる', 'スコップ': 'スコップで 穴を ほる', '苗木': '苗木を 植える', '土': '土を かける', 'じょうろ': '水を やる', 'のこぎり': 'のこぎりで 切る', 'ロープ': 'ロープを はる' },
   ski: (l) => l + 'を わたす',
-  hut: (l) => HUT_ACTS[l] || (/番の たな$/.test(l) ? '板を ' + l + 'に 置く' : l + 'を わたす'),
+  hut: (l) => HUT_ACTS[l] || (state.round && state.round.def.layout === 'picking' ? l + 'を かごに 入れる' : null) || (/番の たな$/.test(l) ? '板を ' + l + 'に 置く' : l + 'を わたす'),
   wind: {
     'ヘルメット': 'ヘルメットを かぶる', '安全帯': '安全帯を つける', '停止スイッチ': '風車を 止める', 'ライト': 'ライトで 羽を 見る',
     'スパナ': 'スパナで ボルトを しめる', 'オイルゲージ': 'オイルの 量を はかる', '点検表': '点検表に 書く', 'ペンキ': 'ペンキを ぬる',
@@ -4567,10 +4568,6 @@ function handOverPick() {
   };
 }
 Object.assign(STAGES, {
-  // 山小屋（夏）：木の 受付。台の 上の たなと 台の 手前に 登山の 持ち物。台の 向こうに 登山客
-  '登山の受付': { counter: '#8a6a46', stand: [0, 0.75], pitch: 0.24, decor(W) { counterRack(W); handTray(W); }, onPick: handOverPick(),
-    spots: { '雨具': [0.82, 1.21, 2.45, { model: () => SM.raincoat() }], 'ライト': [0.28, 1.21, 2.45, { model: () => SM.light() }], '水筒': [-0.28, 1.21, 2.45, { model: () => SM.bottle() }], '救急セット': [-0.82, 1.21, 2.45, { model: () => SM.aid() }],
-      '地図': [0.8, 0.906, 2.02, { model: () => SM.map() }], '帽子': [0.28, 0.906, 2.02, { model: () => SM.hat() }], 'サンダル': [-0.28, 0.906, 2.02, { model: () => SM.sandals() }], '浮き輪': [-0.8, 0.906, 2.02, { model: () => SM.ring() }], 'お客さま': GUEST('#3c7fc4') } },
   // 山小屋（冬）：リフト券の 受付。台の まん中の 券の 箱（2 × 2）
   'リフト券の受付': { counter: '#8a6a46', stand: [0, 0.9], pitch: 0.38, onPick: handOverPick(), spots: { 'お客さま': GUEST('#e0662f') },
     decor(W) { part(W, box(0.9, 0.03, 0.5), '#6b4a2a', 0, 0.915, 2.2); part(W, box(0.02, 0.06, 0.5), '#6b4a2a', 0, 0.94, 2.2); part(W, box(0.9, 0.06, 0.02), '#6b4a2a', 0, 0.94, 2.2); part(W, box(0.18, 0.12, 0.14), '#2b2f36', -0.85, 0.96, 2.1); handTray(W); },
@@ -5064,12 +5061,14 @@ function startRegister(b, def) {
 const PICK_BOX = { x: -0.25, z: 2.42, w: 0.66, h: 0.17, d: 0.46 }; // 店員は +z を 向くので、+x が 店員の 左
 function startPicking(b, def) {
   const W = b.workArea; const slots = [];
+  const slipDef = def.slip || { title: '注文票', color: '#2f7d6d' };
+  const rowText = (k) => (k === 'お客さま' ? 'お客さまに わたす' : k);
   // 注文票（台の 左に 立てる）
   const slip = new Board(0.62, 0.84, 600);
   const paintSlip = () => slip.draw((ctx, w, h) => {
     ctx.fillStyle = '#fffef8'; ctx.fillRect(0, 0, w, h);
-    ctx.strokeStyle = '#2f7d6d'; ctx.lineWidth = 10; ctx.strokeRect(5, 5, w - 10, h - 10);
-    ctx.fillStyle = '#2f7d6d'; ctx.font = '700 64px ' + FONT_DISPLAY; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('注文票', w / 2, h * 0.11);
+    ctx.strokeStyle = slipDef.color; ctx.lineWidth = 10; ctx.strokeRect(5, 5, w - 10, h - 10);
+    ctx.fillStyle = slipDef.color; ctx.font = '700 64px ' + FONT_DISPLAY; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(slipDef.title, w / 2, h * 0.11);
     ctx.fillRect(w * 0.08, h * 0.19, w * 0.84, 4);
     const done = new Set(slots.filter((sl) => sl.done).map((sl) => sl.key));
     ctx.textAlign = 'left';
@@ -5077,7 +5076,9 @@ function startPicking(b, def) {
       const y = h * (0.3 + i * 0.15); const ok = done.has(k);
       ctx.strokeStyle = '#1f2a33'; ctx.lineWidth = 5; ctx.strokeRect(w * 0.1, y - 26, 52, 52);
       if (ok) { ctx.strokeStyle = '#2e9d57'; ctx.lineWidth = 10; ctx.beginPath(); ctx.moveTo(w * 0.1 + 8, y); ctx.lineTo(w * 0.1 + 22, y + 16); ctx.lineTo(w * 0.1 + 48, y - 20); ctx.stroke(); }
-      ctx.fillStyle = ok ? '#8a949c' : '#1f2a33'; ctx.font = '700 56px ' + FONT_BODY; ctx.fillText(k, w * 0.1 + 76, y + 2);
+      ctx.fillStyle = ok ? '#8a949c' : k === 'お客さま' ? slipDef.color : '#1f2a33';
+      let px = 56; ctx.font = '700 ' + px + 'px ' + FONT_BODY; while (px > 28 && ctx.measureText(rowText(k)).width > w * 0.9 - 76) { px -= 4; ctx.font = '700 ' + px + 'px ' + FONT_BODY; }
+      ctx.fillText(rowText(k), w * 0.1 + 76, y + 2);
     });
   });
   paintSlip();
@@ -5086,15 +5087,18 @@ function startPicking(b, def) {
   slip.mesh.position.set(0, 0.44, 0); tilt.add(slip.mesh);
   part(tilt, box(0.68, 0.9, 0.03), '#7a5a3a', 0, 0.44, -0.02); // 板
   part(tilt, box(0.2, 0.05, 0.05), '#b9bcb8', 0, 0.86, 0.02);  // クリップ
-  // 段ボール箱（ふたが ひらいている）
-  const { x: bx, z: bz, w: bw, h: bh, d: bd } = PICK_BOX; const kraft = '#c49a6c';
-  part(W, box(bw, 0.02, bd), kraft, bx, 0.91, bz);
-  [-1, 1].forEach((sd) => { part(W, box(bw, bh, 0.02), kraft, bx, 0.9 + bh / 2, bz + sd * bd / 2); part(W, box(0.02, bh, bd), kraft, bx + sd * bw / 2, 0.9 + bh / 2, bz); });
-  [-1, 1].forEach((sd) => {
+  // 段ボール箱（ふたが ひらいている）。山小屋は ふたの ない 持ち手つきの かご。箱ごと うごかせるよう ひとつの グループに（原点は W と 同じ）
+  const crate = new THREE.Group(); W.add(crate);
+  const { x: bx, z: bz, w: bw, d: bd } = PICK_BOX; const kraft = def.basket || '#c49a6c';
+  const bh = def.basket ? 0.07 : PICK_BOX.h; // かごは 浅く（入れた 持ち物が 店員から 見える）
+  part(crate, box(bw, 0.02, bd), kraft, bx, 0.91, bz);
+  [-1, 1].forEach((sd) => { part(crate, box(bw, bh, 0.02), kraft, bx, 0.9 + bh / 2, bz + sd * bd / 2); part(crate, box(0.02, bh, bd), kraft, bx + sd * bw / 2, 0.9 + bh / 2, bz); });
+  if (def.basket) [-1, 1].forEach((sd) => part(crate, box(0.03, 0.03, bd * 0.5), '#2f4f24', bx + sd * (bw / 2 - 0.02), 0.9 + bh + 0.015, bz)); // かごの 持ち手
+  if (!def.basket) [-1, 1].forEach((sd) => {
     // 前後の ふた：奥は 立てて、店員がわ（-z）は 外に たらして 中が 見えるように
-    const f = sd > 0 ? part(W, box(bw, 0.015, bd * 0.48), '#d1a877', bx, 0.9 + bh + 0.08, bz + bd / 2 + 0.1) : part(W, box(bw, bd * 0.48, 0.015), '#d1a877', bx, 0.9 + bh - bd * 0.24, bz - bd / 2 - 0.012);
+    const f = sd > 0 ? part(crate, box(bw, 0.015, bd * 0.48), '#d1a877', bx, 0.9 + bh + 0.08, bz + bd / 2 + 0.1) : part(crate, box(bw, bd * 0.48, 0.015), '#d1a877', bx, 0.9 + bh - bd * 0.24, bz - bd / 2 - 0.012);
     if (sd > 0) f.rotation.x = -0.9;
-    const s2 = part(W, box(bw * 0.4, 0.015, bd), '#d1a877', bx + sd * (bw / 2 + 0.07), 0.9 + bh + 0.06, bz); s2.rotation.z = sd * 0.9; // 左右の ふた
+    const s2 = part(crate, box(bw * 0.4, 0.015, bd), '#d1a877', bx + sd * (bw / 2 + 0.07), 0.9 + bh + 0.06, bz); s2.rotation.z = sd * 0.9; // 左右の ふた
   });
   // 品物（手前に 1 列。ひとつずつ 名前の 書いた 箱に 入っている）
   const n = def.items.length; const span = 2.0;
@@ -5110,12 +5114,21 @@ function startPicking(b, def) {
     plate.draw((ctx, w, h) => { ctx.fillStyle = '#ffffff'; roundRect(ctx, 0, 0, w, h, 14); ctx.fill(); ctx.fillStyle = '#1f2a33'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       let px = Math.round(h * 0.7); ctx.font = '700 ' + px + 'px ' + FONT_BODY; while (px > 20 && ctx.measureText(spec.label).width > w * 0.9) { px -= 4; ctx.font = '700 ' + px + 'px ' + FONT_BODY; } ctx.fillText(spec.label, w / 2, h * 0.54); });
     plate.mesh.position.set(0, BH * 0.55, BD / 2 + 0.01); bin.add(plate.mesh); // 店員がわ（holder を 180° まわしているので +z が 手前）
-    const item = fitInto(makeItemMesh(spec), BW * 0.7, 0.2, BD * 0.7); item.position.y = 0.02; grp.add(item);
+    const item = fitInto(spec.model ? spec.model() : makeItemMesh(spec), BW * 0.7, 0.2, BD * 0.7); item.position.y = 0.02; grp.add(item);
     grp.traverse((o) => { o.userData.slotIndex = idx; });
     const ringMesh = makeGlowRing(); ringMesh.scale.setScalar(BW / 0.26); ringMesh.position.y = 0.01; holder.add(ringMesh);
     slots.push({ spec, key: itemKey(spec), mesh: grp, item, ring: ringMesh, holder, done: false });
   });
-  state.round = { def, slots, pos: 0, lastActionAt: performance.now(), hintShown: false, mistakeThisRound: false, paintSlip, inBox: 0 };
+  if (def.handTo) {
+    // さいごに わたす お客さま（台の 向こうの 右より）。さわると かごごと お客さまの 手もとへ
+    const spec = { label: 'お客さま', color: def.handTo }; const idx = slots.length;
+    const holder = new THREE.Group(); holder.position.set(-0.75, 0.1, 3.45); holder.rotation.y = Math.PI - 0.3; W.add(holder);
+    const grp = SM.guest(def.handTo); holder.add(grp); grp.traverse((o) => { o.userData.slotIndex = idx; });
+    const ringMesh = makeGlowRing(); ringMesh.scale.setScalar(1.8); ringMesh.position.y = 0.01; holder.add(ringMesh);
+    slots.push({ spec, key: 'お客さま', mesh: grp, ring: ringMesh, holder, done: false });
+  }
+  state.round = { def, slots, pos: 0, lastActionAt: performance.now(), hintShown: false, mistakeThisRound: false, paintSlip, inBox: 0, crate,
+    ngText: (slot) => (slot.key === 'お客さま' ? 'さきに ' + slipDef.title + 'の 持ち物を そろえよう' : def.handTo ? slipDef.title + 'を たしかめよう' : null) };
   state.feedback = { text: '', kind: '' };
   drawWorkBoard();
   renderHud();
@@ -5992,7 +6005,7 @@ function onSelectItem(slotIndex) {
   if (ok) {
     slot.done = true; if (r.def.ordered) r.pos++;
     slot.ring.visible = false; r.hintShown = false;
-    if (r.def.layout === 'picking') { dropIntoBox(slot, r.inBox++); r.paintSlip(); } else if (r.stock) { shelveBox(r.stock, slot); } else if (r.onPick) r.onPick(slot, true); else animateDone(slot);
+    if (r.def.layout === 'picking') { if (slot.key === 'お客さま') handOverCrate(r); else dropIntoBox(slot, r.inBox++); r.paintSlip(); } else if (r.stock) { shelveBox(r.stock, slot); } else if (r.onPick) r.onPick(slot, true); else animateDone(slot);
     state.feedback = { text: 'OK！', kind: 'ok' };
     if (remainingKeys().length === 0) return finishRound();
     if (state.withSupport && r.def.ordered && !r.def.hideSteps) speak('つぎは、' + stepLabel(nextTargetKey()) + '。');
@@ -6103,10 +6116,15 @@ function animateDone(slot) { anims.push({ kind: 'done', slot, t0: performance.no
 // ひろった 品物を 段ボール箱の 中へ（箱に 入ったまま 見えている）
 function dropIntoBox(slot, k) {
   const it = slot.item; const from = slot.holder.position.clone().add(new THREE.Vector3(0, it.position.y, 0));
-  slot.holder.remove(it); slot.mesh.remove(it); state.booth.workArea.add(it); it.position.copy(from); it.rotation.y = Math.PI;
+  slot.holder.remove(it); slot.mesh.remove(it); (state.round.crate || state.booth.workArea).add(it); it.position.copy(from); it.rotation.y = Math.PI;
   it.traverse((o) => { delete o.userData.slotIndex; });
   const to = new THREE.Vector3(PICK_BOX.x - 0.18 + (k % 3) * 0.18, 0.93, PICK_BOX.z + (k >= 3 ? 0.1 : -0.06));
   anims.push({ kind: 'box', obj: it, from, to, t0: performance.now() });
+}
+// そろった かごを 台の 向こうの お客さまの 手もとへ（かごの グループは 原点が W と 同じなので、うごかす ぶんだけ ずらす）
+function handOverCrate(r) {
+  anims.push({ kind: 'box', obj: r.crate, from: r.crate.position.clone(), to: new THREE.Vector3(-0.75 - PICK_BOX.x + 0.1, 0.08, 3.12 - PICK_BOX.z), t0: performance.now() });
+  r.slowFinish = true;
 }
 // 手に 持った 品物を、えらんだ たなの すきまへ（弧を えがいて 入り、正面を 通路に 向ける）
 function putOnShelf(r, slot) {
