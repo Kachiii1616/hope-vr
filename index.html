@@ -5389,17 +5389,17 @@ function startPicking(b, def) {
   const n = def.items.length; const span = 2.0;
   def.items.forEach((spec, idx) => {
     const x = -span / 2 + (idx + 0.5) * (span / n);
-    const holder = new THREE.Group(); holder.position.set(x, 0.9, 1.98); holder.rotation.y = Math.PI; W.add(holder);
+    const holder = new THREE.Group(); holder.position.set(x, 0.9, 2.02); holder.rotation.y = Math.PI; W.add(holder);
     const grp = new THREE.Group(); holder.add(grp);
     const bin = new THREE.Group(); grp.add(bin);
-    const BW = Math.min(0.36, span / n - 0.06); const BH = 0.12; const BD = 0.3;
+    const BW = Math.min(0.36, span / n - 0.06); const BH = 0.045; const BD = 0.26; // 箱は 浅く（中の 品物が 店員から 見える）
     part(bin, box(BW, 0.015, BD), '#d6b48a', 0, 0.008, 0);
     [-1, 1].forEach((sd) => { part(bin, box(BW, BH, 0.015), '#c49a6c', 0, BH / 2, sd * BD / 2); part(bin, box(0.015, BH, BD), '#c49a6c', sd * BW / 2, BH / 2, 0); });
     const plate = new Board(BW * 0.92, 0.1, 900);
     plate.draw((ctx, w, h) => { ctx.fillStyle = '#ffffff'; roundRect(ctx, 0, 0, w, h, 14); ctx.fill(); ctx.fillStyle = '#1f2a33'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       let px = Math.round(h * 0.7); ctx.font = '700 ' + px + 'px ' + FONT_BODY; while (px > 20 && ctx.measureText(spec.label).width > w * 0.9) { px -= 4; ctx.font = '700 ' + px + 'px ' + FONT_BODY; } ctx.fillText(spec.label, w / 2, h * 0.54); });
-    plate.mesh.position.set(0, BH * 0.55, BD / 2 + 0.01); bin.add(plate.mesh); // 店員がわ（holder を 180° まわしているので +z が 手前）
-    const item = fitInto(spec.model ? spec.model() : makeItemMesh(spec), BW * 0.7, 0.2, BD * 0.7); item.position.y = 0.02; grp.add(item);
+    plate.mesh.position.set(0, 0.012, BD / 2 + 0.03); plate.mesh.rotation.x = -1.15; bin.add(plate.mesh); // 名札は 箱の 手前の 台に ねかせて 置く（品物を かくさない）。holder を 180° まわしているので +z が 手前
+    const item = fitInto(spec.model ? spec.model() : makeItemMesh(spec), BW * 0.75, 0.2, BD * 0.75); item.position.y = 0.02; grp.add(item);
     grp.traverse((o) => { o.userData.slotIndex = idx; });
     const ringMesh = makeGlowRing(); ringMesh.scale.setScalar(BW / 0.26); ringMesh.position.y = 0.01; holder.add(ringMesh);
     slots.push({ spec, key: itemKey(spec), mesh: grp, item, ring: ringMesh, holder, done: false });
@@ -6394,8 +6394,9 @@ function dropIntoBox(slot, k) {
   anims.push({ kind: 'box', obj: it, from, to, t0: performance.now() });
 }
 // そろった かごを 台の 向こうの お客さまの 手もとへ（かごの グループは 原点が W と 同じなので、うごかす ぶんだけ ずらす）
+//   お客さまは (-0.75, 3.45) に 立ち、体の はんけいは 約 0.3。かご（おく行き 0.46）が 体に めりこまないよう、お客さまの 正面 0.56 の ところに 止める
 function handOverCrate(r) {
-  anims.push({ kind: 'box', obj: r.crate, from: r.crate.position.clone(), to: new THREE.Vector3(-0.75 - PICK_BOX.x + 0.1, 0.08, 3.12 - PICK_BOX.z), t0: performance.now() });
+  anims.push({ kind: 'box', obj: r.crate, from: r.crate.position.clone(), to: new THREE.Vector3(-0.58 - PICK_BOX.x, 0.04, 2.92 - PICK_BOX.z), t0: performance.now() });
   r.slowFinish = true;
 }
 // 手に 持った 品物を、えらんだ たなの すきまへ（弧を えがいて 入り、正面を 通路に 向ける）
