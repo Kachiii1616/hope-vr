@@ -990,12 +990,28 @@ const FISHING = {
     return { title: 'あたりを まって 竿を 上げ、釣れた 魚を きまりどおりに（' + FISH_RULE + '）', shortTitle: '魚を 釣る', items, need: ['竿', keep ? 'いけす' : '海に 返す'], ordered: true, layout: 'fishing', fish };
   },
 };
+//   苗木の 育成（森林組合）：ハウスの 作業台で、苗床の 小さな 苗木を セルトレイ（コンテナ）に 植えかえる（写真の とおり）。
+//   1 回 = トレイの 1 列（3 つの 穴）。培土を 入れる → 元気な 苗を ぬく → 左の 穴から 順に 植える（×3）→ じょうろで 水。4 回で 1 トレイ 完成
+const NURSERY_COLS = 3; const NURSERY_ROWS = 4;
+const NURSERY = {
+  work: '苗木の育成', short: '育苗', rounds: NURSERY_ROWS,
+  intro: 'ハウスの 作業台で、苗床で 芽を 出した 小さな 苗木を、セルトレイ（穴の ある 黒い 入れもの）に 1 本ずつ 植えかえます。しおれた 苗は 植えません。',
+  defect: 'しおれた 苗を 植える・穴の 順番ちがい・手順ちがい',
+  round() {
+    const items = [{ label: '', id: 'soil', name: '培土を 穴に 入れる' }]
+      .concat([0, 1, 2, 3].map(() => ({ label: '', id: 'good', name: '元気な 苗を ぬく' })), [0, 1].map(() => ({ label: '', id: 'wilt', name: 'しおれた 苗' })))
+      .concat([0, 1, 2].map((k) => ({ label: '', id: 'c' + k, name: '左から ' + (k + 1) + 'つめの 穴に 植える', cell: k })), [{ label: '', id: 'water', name: 'じょうろで 水を やる' }]);
+    return { title: 'セルトレイの 1 列に 苗木を 植える（培土 → 元気な 苗 → 左の 穴から 順に → 水）', shortTitle: '苗木を 植えかえる', items,
+      need: ['soil', 'good', 'c0', 'good', 'c1', 'good', 'c2', 'water'], ordered: true, layout: 'nursery' };
+  },
+};
 EXTRA_ACTS.fish = { '竿': '竿を 上げる', 'いけす': 'いけすに 入れる', '海に 返す': '海に 返す' };
 Object.values(SORT_FISH).forEach((pair) => pair.forEach((f) => { EXTRA_ACTS.fish[f.name] = f.name + ' と きめる'; }));
 Object.assign(EXTRA_ACTS.fish, { '大きい': '大きい と きめる', '小さい': '小さい と きめる' });
 JOBS.forEach((job) => {
   if (job.id === 'craft') { job.variants.summer = OMA_PROCS.slice(); job.variants.winter = [Object.assign(job.variants.winter[0], { short: 'しめ飾り' })].concat(OMA_PROCS); }
   if (job.id === 'office') { job.variants.summer[0].short = '仕分け'; job.variants.winter[0].short = '年賀状'; job.variants.summer.push(DATA_ENTRY); job.variants.winter.push(DATA_ENTRY); }
+  if (job.id === 'forest') { job.variants.summer[0].short = '植えつけ'; job.variants.winter[0].short = '薪'; job.variants.summer.push(NURSERY); job.variants.winter.push(NURSERY); }
   if (job.id === 'fish') { job.variants.summer[0].short = '仕分け'; job.variants.winter[0].short = '仕分け'; job.variants.summer.push(FISHING); job.variants.winter.push(FISHING); }
   if (job.id === 'rice') {
     const base = { work: job.work, short: '苗受け', intro: job.intro, defect: job.defect, round: job.round };
@@ -3922,6 +3938,97 @@ function startTomato(b, def) {
   drawWorkBoard(); renderHud();
   if (state.withSupport) speak(def.title + '。');
 }
+// 苗木の 育成（森林組合のハウス）：作業台の 左に 苗床（木の 箱）、まん中に セルトレイ、右に 培土の たらいと じょうろ。
+//   店員は +z を 向くので +x が 左。うしろの たなには 植えおわった トレイを かさねる（写真の とおり）
+const NURSERY_AT = { bed: [0.42, 2.2], tray: [-0.2, 2.2], soil: [-0.78, 2.05], can: [-0.62, 2.5], cell: 0.13 }; // 左の 指示カードに かくれないよう 右に よせる
+function treeSeedling(wilt) {
+  const g = new THREE.Group(); const top = new THREE.Group(); g.add(top);
+  part(g, cyl(0.026, 0.022, 0.05, 10), '#5a3f28', 0, 0.025, 0); // 根の まわりの 土（ポットから ぬいた かたち）
+  part(top, cyl(0.004, 0.005, 0.1, 6), wilt ? '#8a7a4a' : '#6b4f32', 0, 0.09, 0);
+  [[0.07, 0.034], [0.11, 0.026], [0.145, 0.018]].forEach(([y, r]) => part(top, new THREE.ConeGeometry(r, 0.06, 8), wilt ? '#b9a457' : '#3f8f3a', 0, y, 0));
+  if (wilt) { top.rotation.z = 0.75; top.position.y = -0.01; } // しおれて たおれかけている
+  return g;
+}
+function nurseryTray(W, x, z, filled, planted) {
+  const C = NURSERY_AT.cell; const TW = C * NURSERY_COLS + 0.04; const TD = C * NURSERY_ROWS + 0.04;
+  part(W, box(TW, 0.07, TD), '#24282b', x, 0.935, z, { roughness: 0.8 });
+  const cellPos = (col, row) => [x + (NURSERY_COLS - 1) / 2 * C - col * C, z - (NURSERY_ROWS - 1) / 2 * C + row * C]; // col 0 が 左（+x）、row 0 が 手前
+  const fills = [];
+  for (let row = 0; row < NURSERY_ROWS; row++) for (let col = 0; col < NURSERY_COLS; col++) {
+    const [cx, cz] = cellPos(col, row);
+    part(W, cyl(0.045, 0.045, 0.004, 14), '#0e1012', cx, 0.972, cz); // 穴
+    const f = part(W, cyl(0.043, 0.043, 0.006, 14), '#6b4f32', cx, 0.974, cz); f.visible = row < filled; fills.push(f);
+    if (row < planted) { const t = treeSeedling(false); t.position.set(cx, 0.95, cz); t.rotation.y = row * 1.3 + col; t.scale.setScalar(0.85); W.add(t); }
+  }
+  return { cellPos, fills };
+}
+function startNursery(b, def) {
+  const W = b.workArea; const slots = []; const s = state.session; const row = s.roundIndex % NURSERY_ROWS;
+  const add = (spec, holder, mesh, ringScale) => {
+    const idx = def.items.indexOf(spec); mesh.traverse((o) => { o.userData.slotIndex = idx; });
+    const ring = makeGlowRing(); ring.scale.setScalar(ringScale); ring.position.y = 0.006; holder.add(ring);
+    slots[idx] = { spec, key: itemKey(spec), mesh, ring, holder, done: false };
+  };
+  const sign = (t, x, y, z) => { const l = labelSprite(t, { h: 0.07 }); l.position.set(x, y, z); W.add(l); };
+  // うしろの たなに 黒い トレイを かさねて おく（ハウスの ようす）
+  part(W, box(2.6, 0.03, 0.4), '#c9a46a', 0, 1.2, 2.95);
+  [-1.25, 1.25].forEach((x) => part(W, box(0.04, 1.2, 0.04), '#9aa3a8', x, 0.6, 2.95));
+  [-0.9, -0.3, 0.45, 1.0].forEach((x, k) => { for (let n = 0; n < 2 + (k % 2) * 2; n++) part(W, box(0.42, 0.05, 0.3), '#24282b', x, 1.24 + n * 0.055, 2.95); });
+  // セルトレイ（前の 回で 植えた 列は もう 苗が 立っている）
+  const tray = nurseryTray(W, NURSERY_AT.tray[0], NURSERY_AT.tray[1], row, row);
+  sign('セルトレイ', NURSERY_AT.tray[0], 1.12, NURSERY_AT.tray[1] + 0.32);
+  // 苗床（木の 箱）。元気な 苗と しおれた 苗が まざって いる
+  const [bx, bz] = NURSERY_AT.bed;
+  part(W, box(0.5, 0.012, 0.42), '#b0855a', bx, 0.906, bz);
+  [-1, 1].forEach((sd) => { part(W, box(0.5, 0.09, 0.02), '#b0855a', bx, 0.945, bz + sd * 0.2); part(W, box(0.02, 0.09, 0.42), '#b0855a', bx + sd * 0.24, 0.945, bz); });
+  part(W, box(0.46, 0.05, 0.38), '#5a3f28', bx, 0.935, bz);
+  sign('苗床', bx, 1.12, bz + 0.24);
+  const spots = shuffle([0, 1, 2].flatMap((i) => [0, 1].map((j) => [bx + 0.15 - i * 0.15, bz - 0.09 + j * 0.18])));
+  def.items.filter((sp) => sp.id === 'good' || sp.id === 'wilt').forEach((spec, k) => {
+    const [x, z] = spots[k]; const holder = new THREE.Group(); holder.position.set(x, 0.96, z); W.add(holder);
+    const mesh = treeSeedling(spec.id === 'wilt'); mesh.rotation.y = k * 1.7; holder.add(mesh); add(spec, holder, mesh, 0.45);
+  });
+  // 培土の たらい と スコップ
+  const [sx, sz] = NURSERY_AT.soil;
+  const tub = new THREE.Group(); tub.position.set(sx, 0.9, sz); W.add(tub);
+  part(tub, cyl(0.2, 0.17, 0.14, 20), '#24282b', 0, 0.07, 0); part(tub, cyl(0.185, 0.185, 0.02, 20), '#6b4f32', 0, 0.125, 0);
+  const scoop = part(tub, box(0.06, 0.02, 0.16), '#8a8f96', 0.05, 0.15, -0.05); scoop.rotation.x = 0.3;
+  add(def.items.find((sp) => sp.id === 'soil'), tub, tub, 1.5);
+  sign('培土', sx, 1.12, sz + 0.1);
+  // じょうろ
+  const [wx, wz] = NURSERY_AT.can;
+  const can = new THREE.Group(); can.position.set(wx, 0.9, wz); W.add(can);
+  part(can, cyl(0.07, 0.08, 0.16, 16), '#4f8fd1', 0, 0.08, 0);
+  const spout = part(can, cyl(0.012, 0.016, 0.2, 8), '#4f8fd1', 0.1, 0.16, 0); spout.rotation.z = -0.9;
+  part(can, new THREE.TorusGeometry(0.05, 0.01, 6, 14, Math.PI), '#4f8fd1', -0.04, 0.17, 0).rotation.z = Math.PI / 2;
+  add(def.items.find((sp) => sp.id === 'water'), can, can, 0.9);
+  sign('じょうろ', wx, 1.16, wz + 0.05);
+  // この 回に 植える 穴（いまの 列の 3 つ）
+  def.items.filter((sp) => sp.cell !== undefined).forEach((spec) => {
+    const [cx, cz] = tray.cellPos(spec.cell, row); const holder = new THREE.Group(); holder.position.set(cx, 0.97, cz); W.add(holder);
+    const hit = part(holder, cyl(0.055, 0.055, 0.03, 12), '#ffffff', 0, 0.01, 0, { transparent: true, opacity: 0.01 }); // えらびやすい 当たり
+    add(spec, holder, hit, 0.4);
+  });
+  const hand = new THREE.Vector3(NURSERY_AT.tray[0], 1.18, NURSERY_AT.tray[1] - 0.35); // ぬいた 苗を 持つ ところ（トレイの 手前 上）
+  state.round = { def, slots, pos: 0, lastActionAt: performance.now(), hintShown: false, mistakeThisRound: false,
+    ngText(slot) {
+      if (slot.key === 'wilt') return 'しおれた 苗は 植えません。元気な 苗を えらぼう';
+      if (slot.spec.cell !== undefined) return state.round.held ? '左の 穴から 順に 植えよう' : 'さきに 苗床から 元気な 苗を ぬこう';
+      if (slot.key === 'good' && !tray.fills[row * NURSERY_COLS].visible) return 'さきに 培土を 穴に 入れよう';
+      return '';
+    },
+    onPick(slot, ok) {
+      const r = state.round;
+      if (!ok) { flashWrong(slot); return; }
+      if (slot.key === 'soil') { for (let c = 0; c < NURSERY_COLS; c++) tray.fills[row * NURSERY_COLS + c].visible = true; return; }
+      if (slot.key === 'good') { r.held = slot.holder; slot.mesh.traverse((o) => { delete o.userData.slotIndex; }); anims.push({ kind: 'box', obj: slot.holder, from: slot.holder.position.clone(), to: hand.clone(), t0: performance.now() }); return; }
+      if (slot.spec.cell !== undefined && r.held) { const h = r.held; r.held = null; anims.push({ kind: 'box', obj: h, from: h.position.clone(), to: slot.holder.position.clone().setY(0.95), t0: performance.now() }); return; }
+      if (slot.key === 'water') { anims.push({ kind: 'box', obj: slot.holder, from: slot.holder.position.clone(), to: new THREE.Vector3(NURSERY_AT.tray[0] - 0.25, 1.05, NURSERY_AT.tray[1]), t0: performance.now() }); slot.holder.rotation.z = 0.5; }
+    } };
+  state.feedback = { text: '', kind: '' };
+  drawWorkBoard(); renderHud();
+  if (state.withSupport) speak(def.title + '。最初は、' + stepLabel(def.need[0]) + '。');
+}
 // 漁船で 釣り：船べりに 立って 竿を 出す。あたり（竿先が ゆれる）を まって 竿を 上げ、魚を いけす か 海へ
 function fishModel(f) {
   const g = new THREE.Group(); const L = f.cm / 100; // 頭を 上に して 糸に つるす（ローカルの +y が 頭）
@@ -4640,6 +4747,7 @@ function nextRound() {
   if (def.layout === 'orchard') return startOrchard(b, def);
   if (def.layout === 'planting') return startPlanting(b, def);
   if (def.layout === 'tomato') return startTomato(b, def);
+  if (def.layout === 'nursery') return startNursery(b, def);
   if (def.layout === 'fishing') return startFishing(b, def);
   if (def.layout === 'fishsort') return startFishSort(b, def);
   if (def.layout === 'strawberry') return startStrawberry(b, def);
@@ -6089,6 +6197,7 @@ function sfxKind(slot) {
   if (lay === 'tomato' || lay === 'strawberry' || lay === 'orchard') return 'pick';
   if (lay === 'paddy') return spec.seedling ? 'soil' : 'water';
   if (lay === 'planting') return { helmet: 'plastic', water: 'water', can: 'water', pole: 'wood', wrap: 'cloth', tie: 'rope', gum: 'tape', jute: 'metal', shake: 'wood' }[id] || 'soil';
+  if (lay === 'nursery') return id === 'water' ? 'water' : 'soil';
   if (lay === 'library') return LIB.genres[id] ? 'wood' : 'book';
   if (lay === 'stock') return 'cardboard';
   if (lay === 'fishing') return id === '竿' ? 'rope' : 'water';
