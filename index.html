@@ -628,7 +628,7 @@ const EXTRA_ACTS = {
   forest: { '手袋': '手袋を はめる', 'のこぎり': 'のこぎりで 丸太を 切る', 'おの': 'おので 薪を わる', '薪だな': '薪を つむ' },
   wind: { 'ヒーター': 'ヒーターで 氷を とかす' },
   office: { '首都': '首都の トレーに 入れる', '繁華街': '繁華街の トレーに 入れる', '漁村': '漁村の トレーに 入れる', '農村': '農村の トレーに 入れる' },
-  rink: { 'ボートの かぎ': 'ボートの かぎを わたす', 'オール': 'オールを わたす', 'ヘルメット': 'ヘルメットを わたす', '手袋': '手袋を わたす', 'マフラー': 'マフラーを わたす', '浮き輪': '浮き輪を わたす' },
+  rink: { 'ヘルメット': 'ヘルメットを わたす', '手袋': '手袋を わたす', 'マフラー': 'マフラーを わたす', '浮き輪': '浮き輪を わたす' },
   yatai: {
     'かき氷の カップ': 'カップを とる', 'かき氷器': '氷を けずる', 'いちご シロップ': 'いちご シロップを かける', 'メロン シロップ': 'メロン シロップを かける',
     'レモン シロップ': 'レモン シロップを かける', 'スプーン': 'スプーンを さす', 'お客さま': 'お客さまに わたす',
@@ -639,7 +639,7 @@ const EXTRA_ACTS = {
     '新聞紙': '新聞紙を しく', '下じき': '下じきを しく', '半紙': '半紙を おく', '文鎮': '文鎮で おさえる', 'すずり': 'すずりに すみを 入れる', '筆': '筆を おく', 'クレヨン': 'クレヨンを 出す',
   },
 };
-ACTIONS.rink = (l) => l + 'を わたす';
+ACTIONS.rink = (l) => (l === 'お客さま' ? 'お客さまに わたす' : state.round && state.round.def.layout === 'picking' ? l + 'を かごに 入れる' : l + 'を わたす'); // ボートの 受付は かごに まとめる
 ACTIONS.school = (l) => l + 'の たなに もどす';
 ACTIONS.rice = (l) => ({ '元気な 苗': '元気な 苗を とる', 'しおれた 苗': 'しおれた 苗を とる', '苗箱': '苗箱を 受けとる', 'しおれた 苗箱': 'しおれた 苗箱を 受けとる', '空き箱': '空き箱を かさねる', '肥料': '肥料を まく' }[l] || (/列め$/.test(l) ? '苗を ' + l + 'に のせる' : l));
 function actionText(job, spec) {
@@ -657,14 +657,18 @@ JOBS.push(
     variants: {
       summer: [{
         work: 'ボートの受付', short: 'ボート',
-        intro: '受付票を 見て、体の 大きさに あう ライフジャケットと、ボートの かぎを わたします。',
+        intro: '受付票を 見て、手前に ならんだ 道具から 体の 大きさに あう ライフジャケットと ボートの かぎを ひろって かごに まとめ、さいごに お客さまに わたします。',
         defect: 'ちがう サイズ・わたし わすれ',
         round() {
           const sizes = ['S', 'M', 'L'];
-          const items = sizes.map((z) => ({ label: 'ライフジャケット ' + z, shape: 'lifejacket', color: '#f39a2b', size: z }))
-            .concat([{ label: 'ボートの かぎ', color: '#e3b23c' }, { label: 'オール', color: '#8a6a46' }, { label: '浮き輪', shape: 'disc', color: '#f39a2b' }]);
-          const z = pick(sizes); const card = '受付票：ライフジャケット ' + z + '・ボート 1そう';
-          return { title: card, shortTitle: 'ボートの 受付', items: shuffle(items), need: ['ライフジャケット ' + z, 'ボートの かぎ'], ordered: false, carryText: card };
+          // たたんだ ライフジャケットに サイズの 札（かごに 入れても S・M・L が 見える）
+          const jacket = (z) => { const g = makeItemMesh({ shape: 'lifejacket', color: '#f39a2b', size: z }); const t = textPlate(z, 0.06, 0.06, '#ffffff', '#1f2a33'); t.rotation.x = -Math.PI / 2; t.position.set(0, 0.055, 0); g.add(t); return g; };
+          const items = sizes.map((z) => ({ label: 'ライフジャケット ' + z, model: () => jacket(z) }))
+            .concat([{ label: 'ボートの かぎ', model: () => SM.key() }, { label: 'オール', model: () => SM.oar() }, { label: '浮き輪', model: () => SM.ring('#f39a2b') }]);
+          const z = pick(sizes); const need = ['ライフジャケット ' + z, 'ボートの かぎ']; const card = '受付票：ライフジャケット ' + z + '・ボート 1そう';
+          // 物流センターの ピッキングと 同じ ならび。道具は 好きな 順で かごに まとめて（free）、さいごに お客さまに かごごと わたす
+          return { title: card + ' を かごに まとめて わたす', shortTitle: 'ボートの 道具を まとめて わたす', items: shuffle(items), need: need.concat(['お客さま']), free: need, ordered: true, carryText: card,
+            layout: 'picking', slip: { title: '受付票', color: '#3a87b5', what: '道具' }, basket: '#4f8fa8', handTo: '#e07fa4' };
         },
       }],
       winter: [{
@@ -4548,8 +4552,6 @@ Object.assign(SM, {
   dryer() { const g = new THREE.Group(); part(g, box(0.6, 1.4, 0.4), '#c9ced6', 0, 0.7, 0, { metalness: 0.3, roughness: 0.45 }); part(g, box(0.5, 0.8, 0.01), '#ffb26b', 0, 0.85, 0.205, { emissive: '#ff7a1a', emissiveIntensity: 0.5 });
     [-0.12, 0.12].forEach((x) => part(g, box(0.1, 0.14, 0.04), '#d0453a', x, 0.9, 0.23)); const t = textPlate('乾燥室', 0.3, 0.09, '#d0453a', '#ffffff'); t.position.set(0, 1.32, 0.205); g.add(t); return g; },
   returnBox() { const g = new THREE.Group(); part(g, box(0.5, 0.6, 0.35), '#8a8f96', 0, 0.3, 0); part(g, box(0.36, 0.05, 0.01), '#1f2a33', 0, 0.48, 0.176); const t = textPlate('返却口', 0.3, 0.09, '#f2c230', '#1f2a33'); t.position.set(0, 0.3, 0.176); g.add(t); return g; },
-  jacketHang(spec) { const g = new THREE.Group(); const k = { S: 0.8, M: 1, L: 1.2 }[spec.size] || 1; part(g, box(0.3 * k, 0.4 * k, 0.07), spec.color, 0, -0.22 * k, 0); [-1, 1].forEach((sd) => part(g, box(0.02, 0.4 * k, 0.075), '#1f2a33', sd * 0.06 * k, -0.22 * k, 0));
-    part(g, cyl(0.004, 0.004, 0.06, 4), '#8a8f96', 0, -0.01, 0); const t = textPlate(spec.size, 0.08, 0.08, '#ffffff', '#1f2a33'); t.position.set(0, -0.12 * k, 0.04); g.add(t); return g; },
   oar() { const g = new THREE.Group(); part(g, cyl(0.02, 0.02, 1.3, 8), '#8a6a46', 0, 0.65, 0); part(g, box(0.16, 0.36, 0.03), '#a8865a', 0, 0.18, 0); return g; },
   key() { const g = ITEM_MODELS['ボートの かぎ'](); g.scale.setScalar(2.2); const t = textPlate('ボート', 0.1, 0.04, '#e3b23c', '#1f2a33'); t.rotation.x = -Math.PI / 2; t.position.set(0, 0.016, 0.01); g.add(t); return g; },
   skateCubby(spec) { const g = SHAPE_MODELS.skate(spec); g.scale.setScalar(1.6); const t = textPlate(spec.label.replace('スケートぐつ ', ''), 0.1, 0.06, '#ffffff', '#1f2a33'); t.position.set(0, 0.3, 0.06); g.add(t); return g; },
@@ -4625,11 +4627,6 @@ Object.assign(STAGES, {
           paper.rotation.y = 0; anims.push({ kind: 'paper', obj: paper, from: paper.position.clone(), to: new THREE.Vector3(0.55, 0.92, 2.05), rx0: paper.rotation.x, rx1: Math.PI / 2, s0: 1, s1: 0.8, t0: performance.now() }); }
       };
     } },
-  // スケート場（夏）：ボートの 受付。奥の さおに ライフジャケット（S・M・L）、台に かぎ、右に オールと 浮き輪
-  'ボートの受付': { counter: '#4f8fa8', stand: [0, 0.8], pitch: 0.2,
-    decor(W) { part(W, cyl(0.015, 0.015, 1.4, 8), '#8a8f96', 0.45, 1.5, 2.6).rotation.z = Math.PI / 2; [-0.2, 1.1].forEach((x) => part(W, box(0.04, 1.4, 0.04), '#8a8f96', x, 0.8, 2.6)); },
-    spots: { 'ライフジャケット S': [0.9, 1.48, 2.6, { model: (sp) => SM.jacketHang(sp), ly: -0.12 }], 'ライフジャケット M': [0.45, 1.48, 2.6, { model: (sp) => SM.jacketHang(sp), ly: -0.12 }], 'ライフジャケット L': [0.0, 1.48, 2.6, { model: (sp) => SM.jacketHang(sp), ly: -0.12 }],
-      'ボートの かぎ': [0.3, 0.906, 2.0, { model: () => SM.key() }], 'オール': [-0.7, 0.906, 2.4, { model: () => SM.oar() }], '浮き輪': [-0.3, 0.906, 2.05, { model: () => SM.ring('#f39a2b') }] } },
   // スケート場（冬）：スケートの 受付。台の 上の たなに スケートぐつ（サイズの 札）、手前に ヘルメット・手袋・マフラー
   'スケートの受付': { counter: '#3a87b5', stand: [0, 0.8], pitch: 0.26, decor(W) { counterRack(W, '#c9ced6'); },
     spots: { 'スケートぐつ 20': [0.85, 1.21, 2.45, { model: (sp) => SM.skateCubby(sp) }], 'スケートぐつ 22': [0.3, 1.21, 2.45, { model: (sp) => SM.skateCubby(sp) }], 'スケートぐつ 24': [-0.3, 1.21, 2.45, { model: (sp) => SM.skateCubby(sp) }], 'スケートぐつ 26': [-0.85, 1.21, 2.45, { model: (sp) => SM.skateCubby(sp) }],
@@ -5234,7 +5231,7 @@ function startPicking(b, def) {
     slots.push({ spec, key: 'お客さま', mesh: grp, ring: ringMesh, holder, done: false });
   }
   state.round = { def, slots, pos: 0, lastActionAt: performance.now(), hintShown: false, mistakeThisRound: false, paintSlip, inBox: 0, crate,
-    ngText: (slot) => (slot.key === 'お客さま' ? 'さきに ' + slipDef.title + 'の 持ち物を そろえよう' : def.handTo ? slipDef.title + 'を たしかめよう' : null) };
+    ngText: (slot) => (slot.key === 'お客さま' ? 'さきに ' + slipDef.title + 'の ' + (slipDef.what || '持ち物') + 'を そろえよう' : def.handTo ? slipDef.title + 'を たしかめよう' : null) };
   state.feedback = { text: '', kind: '' };
   drawWorkBoard();
   renderHud();
