@@ -3992,7 +3992,7 @@ function nurseryTray(W, x, z, filled, planted) {
   for (let row = 0; row < NURSERY_ROWS; row++) for (let col = 0; col < NURSERY_COLS; col++) {
     const [cx, cz] = cellPos(col, row);
     part(W, cyl(0.045, 0.045, 0.004, 14), '#0e1012', cx, 0.972, cz); // 穴
-    const f = part(W, cyl(0.043, 0.043, 0.006, 14), '#6b4f32', cx, 0.974, cz); f.visible = row < filled; fills.push(f);
+    const f = part(W, cyl(0.043, 0.043, 0.006, 14), row < planted ? '#3a2717' : '#6b4f32', cx, 0.974, cz); f.visible = row < filled; fills.push(f); // 水を やった 列は ぬれて こい 色
     if (row < planted) { const t = treeSeedling(false); t.position.set(cx, 0.95, cz); t.rotation.y = row * 1.3 + col; t.scale.setScalar(0.85); W.add(t); }
   }
   return { cellPos, fills };
@@ -4036,6 +4036,7 @@ function startNursery(b, def) {
   part(can, cyl(0.07, 0.08, 0.16, 16), '#4f8fd1', 0, 0.08, 0);
   const spout = part(can, cyl(0.012, 0.016, 0.2, 8), '#4f8fd1', 0.1, 0.16, 0); spout.rotation.z = -0.9;
   part(can, new THREE.TorusGeometry(0.05, 0.01, 6, 14, Math.PI), '#4f8fd1', -0.04, 0.17, 0).rotation.z = Math.PI / 2;
+  part(can, cyl(0.024, 0.013, 0.03, 12), '#3d78b5', 0.19, 0.231, 0).rotation.z = -0.9; // はす口（水が シャワーに なって 出る）
   add(def.items.find((sp) => sp.id === 'water'), can, can, 0.9);
   sign('じょうろ', wx, 1.16, wz + 0.05);
   // この 回に 植える 穴（いまの 列の 3 つ）
@@ -4058,7 +4059,11 @@ function startNursery(b, def) {
       if (slot.key === 'soil') { for (let c = 0; c < NURSERY_COLS; c++) tray.fills[row * NURSERY_COLS + c].visible = true; return; }
       if (slot.key === 'good') { r.held = slot.holder; slot.mesh.traverse((o) => { delete o.userData.slotIndex; }); anims.push({ kind: 'box', obj: slot.holder, from: slot.holder.position.clone(), to: hand.clone(), t0: performance.now() }); return; }
       if (slot.spec.cell !== undefined && r.held) { const h = r.held; r.held = null; anims.push({ kind: 'box', obj: h, from: h.position.clone(), to: slot.holder.position.clone().setY(0.95), t0: performance.now() }); return; }
-      if (slot.key === 'water') { anims.push({ kind: 'box', obj: slot.holder, from: slot.holder.position.clone(), to: new THREE.Vector3(NURSERY_AT.tray[0] - 0.25, 1.05, NURSERY_AT.tray[1]), t0: performance.now() }); slot.holder.rotation.z = 0.5; }
+      if (slot.key === 'water') { // トレイの 右に 持っていき、かたむけて はす口から 水を かける → 土が ぬれて 色が こくなる
+        const drops = []; for (let k = 0; k < 40; k++) { const d = part(W, ball(0.008, 6, 4), '#7fc4f0', 0, 0, 0, { transparent: true, opacity: 0.9, roughness: 0.1 }); d.scale.y = 1.8; d.visible = false; drops.push({ m: d, jx: (Math.random() - 0.5) * 0.7, jz: (Math.random() - 0.5) * 0.5, delay: (k / 40) * 0.3 }); }
+        const rowZ = tray.cellPos(0, row)[1]; const wet = [0, 1, 2].map((c) => tray.fills[row * NURSERY_COLS + c]);
+        anims.push({ kind: 'pour', obj: slot.holder, from: slot.holder.position.clone(), to: new THREE.Vector3(NURSERY_AT.tray[0] - 0.42, 1.1, rowZ), t0: performance.now(), drops, wet });
+        r.finishWait = reduceMotion ? 1100 : 2700; }
     } };
   state.feedback = { text: '', kind: '' };
   drawWorkBoard(); renderHud();
@@ -6314,7 +6319,7 @@ function finishRound() {
   if (state.withSupport) speak('できました。');
   state.phase = 'between';
   const lay = state.round && state.round.def.layout;
-  const wait = lay === 'wallShelf' || lay === 'cafe' || lay === 'care' || lay === 'library' ? 1400 : state.round && state.round.slowFinish ? 1200 : 900; // たなに 入る ところ・お客さまに わたす ところを 見せる
+  const wait = state.round && state.round.finishWait ? state.round.finishWait : lay === 'wallShelf' || lay === 'cafe' || lay === 'care' || lay === 'library' ? 1400 : state.round && state.round.slowFinish ? 1200 : 900; // たなに 入る ところ・お客さまに わたす ところを 見せる
   setTimeout(() => {
     if (!state.session || state.session !== s) return;
     if (s.roundIndex >= s.target) showResult(); else nextRound();
@@ -6423,6 +6428,26 @@ function stepAnims(now) {
       const u = Math.min(1, t / 0.55); const e = u * u * (3 - 2 * u);
       a.obj.position.lerpVectors(a.from, a.to, e); a.obj.position.y += Math.sin(u * Math.PI) * 0.35;
       if (u >= 1) anims.splice(i, 1);
+    } else if (a.kind === 'pour') { // じょうろ：はこぶ → かたむける → はす口から 水が 出る → もどす
+      const T = reduceMotion ? [0.01, 0.01, 0.6, 0.01] : [0.55, 0.35, 1.1, 0.45]; const o = a.obj;
+      if (t < T[0]) { const u = t / T[0]; const e = u * u * (3 - 2 * u); o.position.lerpVectors(a.from, a.to, e); o.position.y += Math.sin(u * Math.PI) * 0.2; }
+      else o.position.copy(a.to);
+      const tu = Math.min(1, Math.max(0, (t - T[0]) / T[1])); const back = Math.min(1, Math.max(0, (t - T[0] - T[1] - T[2]) / T[3]));
+      o.rotation.z = -0.8 * (tu * tu * (3 - 2 * tu)) * (1 - back);
+      if (back > 0) { const e = back * back * (3 - 2 * back); o.position.lerpVectors(a.to, a.from, e); o.position.y += Math.sin(back * Math.PI) * 0.1; } // 台の 上に もどす
+      const pt = t - T[0] - T[1]; const pouring = tu >= 1 && pt < T[2];
+      if (pouring && !a.sounded) { a.sounded = true; playSfx('water'); }
+      const el = 0.67 + o.rotation.z; const vx = 0.45 * Math.cos(el); const vy = 0.45 * Math.sin(el); const G = 5;
+      const c = Math.cos(o.rotation.z); const sn = Math.sin(o.rotation.z); // はす口の 先（じょうろの ローカル 0.202, 0.24）
+      const px = o.position.x + 0.202 * c - 0.24 * sn; const py = o.position.y + 0.202 * sn + 0.24 * c; const pz = o.position.z;
+      a.drops.forEach((d) => {
+        const age = pouring ? (pt - d.delay) % 0.3 : -1; const live = pt - d.delay >= 0 && pt - d.delay < T[2] - 0.05;
+        if (!live || age < 0) { d.m.visible = false; return; }
+        const y = py + vy * age - 0.5 * G * age * age;
+        d.m.visible = y > 0.98; d.m.position.set(px + (vx + d.jx) * age, y, pz + d.jz * age);
+      });
+      const wetU = Math.min(1, Math.max(0, pt / T[2])); a.wet.forEach((f) => f.material.color.set('#6b4f32').lerp(new THREE.Color('#3a2717'), wetU));
+      if (t > T[0] + T[1] + T[2] + T[3]) { a.drops.forEach((d) => { d.m.visible = false; }); anims.splice(i, 1); }
     } else if (a.kind === 'paper') { // 紙が ふわっと 上がって トレーに ねかせて 入る
       const u = Math.min(1, t / (reduceMotion ? 0.01 : 0.75)); const e = u * u * (3 - 2 * u);
       a.obj.position.lerpVectors(a.from, a.to, e); a.obj.position.y += Math.sin(Math.PI * e) * 0.18;
