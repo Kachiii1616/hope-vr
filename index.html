@@ -751,13 +751,12 @@ function registerRound() {
   const bill = pick([1000, 5000]);
   const scans = goods.map(([n]) => 'scan:' + n);
   const items = shuffle(goods).map(([n]) => ({ label: '', id: 'scan:' + n, good: n, name: n + 'を スキャン' }))
-    .concat([1000, 5000, 10000].map((y) => ({ label: '', id: 'pay:' + y, yen: y, name: y + '円の キーを おす' })))
-    .concat([{ label: '', id: '合計', name: '合計キーを おす' }, { label: '', id: 'お札', name: 'お客さまから お札を 受けとる' }, { label: '', id: '入金', name: 'お札を 引き出しに 入れる' }, { label: '', id: 'おつり', name: 'おつりを わたす' }])
+    .concat([{ label: '', id: '合計', name: '合計キーを おす' }, { label: '', id: 'お札', name: 'お客さまから お札を 受けとる' }, { label: '', id: '入金', name: 'お札を 釣銭機に 入れる' }, { label: '', id: 'おつり', name: '出てきた おつりを わたす' }])
     .concat(goods.map(([n]) => ({ label: '', id: 'bag:' + n, good: n, name: n + 'を 袋に 入れる' })))
     .concat([{ label: '', id: 'お客さま', name: 'お客さまに わたす' }]);
   return {
     title: 'レジ：' + goods.map((g) => g[0]).join('・') + '（袋は 重い ものから）', shortTitle: 'レジを 打って 袋に 入れる', items,
-    need: scans.concat(['合計', 'お札', 'pay:' + bill, '入金', 'おつり'], goods.map(([n]) => 'bag:' + n), ['お客さま']), free: scans, ordered: true, // お札を 受けとる → 金額の キー（引き出しが ひらく）→ 引き出しに 入れる
+    need: scans.concat(['合計', 'お札', '入金', 'おつり'], goods.map(([n]) => 'bag:' + n), ['お客さま']), free: scans, ordered: true, // お札を 受けとる → 自動釣銭機に 入れる（おつりだけ 出てくる）→ おつりを わたす
     layout: 'register', goods, total, bill,
   };
 }
@@ -774,8 +773,8 @@ const WINTER = {
   },
   store: {
     work: 'レジ打ちと袋づめ', rounds: 3,
-    intro: 'お客さまの かごの 品物を スキャンして 合計を 出し、お客さまから お札を 受けとって 金額の キーを おし、ひらいた 引き出しに 入れて おつりを わたします。品物は 重い ものから 袋に 入れて わたします。',
-    defect: 'お金の キーの まちがい・手順ちがい・袋に 入れる 順番の まちがい',
+    intro: 'お客さまの かごの 品物を スキャンして 合計を 出し、お客さまから お札を 受けとって レジの 自動釣銭機に 入れ、出てきた おつりを わたします。品物は 重い ものから 袋に 入れて わたします。',
+    defect: '手順ちがい（お札を 入れる 前に おつりを とる など）・袋に 入れる 順番の まちがい',
     round() { return registerRound(); },
   },
   cafe: {
@@ -5744,11 +5743,11 @@ function startWallShelf(b, def) {
 }
 
 // レジ打ちと 袋づめ（コンビニの 冬）：店員から 見て 左から、お客さまの かご → スキャンした 品物を ならべる ところ →
-//   ひろげた レジ袋 → レジ（画面・キー・お金の 引き出し）→ 右はしに コードつきの ハンドスキャナー。
+//   ひろげた レジ袋 → レジ（画面・合計キー・自動釣銭機）→ 右はしに コードつきの ハンドスキャナー。
 //   レジの 画面と キーは IT企業の パソコンと 同じくらいの 大きな 文字（画面の 文字 約 4cm）。
 //   お客さまは 台の 向こうの、かごと レジの あいだ（かごや レジの 画面と かさならない ところ）。ならんでいる 人は 出さない。
-//   品物を えらぶと かごから 出して、スキャナーが とんで きて ピッ。合計の あと お客さまが さし出す お札を 受けとり、金額の キーで
-//   引き出しが ひらいたら お札を 入れる。おつりを わたすと しまる。レジ袋は はじめから ひろげて ある。
+//   品物を えらぶと かごから 出して、スキャナーが とんで きて ピッ。合計の あと お客さまが さし出す お札を 受けとり、
+//   レジの 自動釣銭機に 入れると おつりだけ 出てくるので、それを わたす。レジ袋は はじめから ひろげて ある。
 const REGI = { y: 0.9, reg: [-0.78, 2.3], basket: [0.84, 2.4], done: [0.48, 1.98], bag: [-0.12, 2.38], gun: [-1.28, 1.95], recv: [-0.26, 1.88], guest: [0.4, COUNTER_Z + 1.05] };
 function textPlate(text, w, h, bg, fg) {
   const b = new Board(w, h, 900);
@@ -5792,16 +5791,23 @@ function startRegister(b, def) {
     const slot = { spec, key: itemKey(spec), mesh, ring, holder, label, done: false };
     slots[idx] = slot; bySlot[slot.key] = slot; return slot;
   };
-  // レジ：本体（店員がわに お金の 引き出し）・キー・画面
-  const [rx, rz] = REGI.reg;
+  // レジ：本体（店員がわの 前に 自動釣銭機：左に お札の 入れ口、右に おつりの 出口）・キー・画面
+  //   お札を 入れると 機械が 数えて、おつりだけ 出てくる（金額の キーも 引き出しも ない）
+  const [rx, rz] = REGI.reg; const front = rz - 0.22;
   part(W, box(0.7, 0.16, 0.44), '#3d4a54', rx, Y + 0.08, rz);
-  const drawer = new THREE.Group(); drawer.position.set(rx, Y + 0.05, rz - 0.02); W.add(drawer);
-  part(drawer, box(0.62, 0.08, 0.42), '#55626d', 0, 0, 0);
-  part(drawer, box(0.58, 0.004, 0.38), '#2b2f36', 0, 0.041, 0);
-  [-0.21, -0.07, 0.07, 0.21].forEach((x, i) => part(drawer, box(0.12, 0.006, 0.16), i % 2 ? '#c9b48a' : '#8fb3d9', x, 0.045, 0.07)); // お札
-  [-0.2, -0.07, 0.07, 0.2].forEach((x, i) => part(drawer, cyl(0.03, 0.03, 0.008, 14), i % 2 ? '#d9a42c' : '#c9c9c9', x, 0.046, -0.1)); // 小銭
-  part(drawer, box(0.16, 0.025, 0.01), '#c9cdd2', 0, 0, -0.215, { metalness: 0.4, roughness: 0.4 }); // とって
-  const drawerHome = drawer.position.clone(); const drawerOpen = drawerHome.clone().add(new THREE.Vector3(0, 0, -0.26));
+  part(W, box(0.66, 0.13, 0.006), '#55626d', rx, Y + 0.075, front - 0.003); // 釣銭機の 前の 板
+  const CH = { inX: rx + 0.17, outX: rx - 0.16, slotY: Y + 0.11 };
+  part(W, box(0.22, 0.022, 0.012), '#12161a', CH.inX, CH.slotY, front - 0.007); // お札の 入れ口
+  const inLed = part(W, box(0.16, 0.007, 0.012), '#3fbf6a', CH.inX, CH.slotY - 0.03, front - 0.007, { emissive: '#2fae5a', emissiveIntensity: 0.6 });
+  part(W, box(0.2, 0.016, 0.012), '#12161a', CH.outX, CH.slotY + 0.01, front - 0.007); // おつりの お札の 出口
+  // 小銭の 出口（手前に つき出た 受け皿）
+  const tray = new THREE.Group(); tray.position.set(CH.outX, Y + 0.02, front - 0.07); W.add(tray);
+  part(tray, box(0.2, 0.01, 0.12), '#8a949c', 0, 0, 0, { metalness: 0.4, roughness: 0.4 });
+  part(tray, box(0.2, 0.035, 0.01), '#8a949c', 0, 0.017, -0.06, { metalness: 0.4, roughness: 0.4 });
+  [-1, 1].forEach((sd) => part(tray, box(0.01, 0.035, 0.12), '#8a949c', sd * 0.1, 0.017, 0, { metalness: 0.4, roughness: 0.4 }));
+  [['お札を 入れる', CH.inX, CH.slotY + 0.032], ['おつり', CH.outX, CH.slotY + 0.04]].forEach(([t, x, y]) => {
+    const pl = textPlate(t, 0.16, 0.034, '#2b2f36', '#ffffff'); const h = new THREE.Group(); h.rotation.y = Math.PI; h.position.set(x, y, front - 0.008); h.add(pl); W.add(h);
+  });
   const SCR = { w: 0.66, h: 0.46 };
   const screen = new Board(SCR.w, SCR.h, 1000);
   const scr = { lines: [], total: false, paid: 0 };
@@ -5837,12 +5843,18 @@ function startRegister(b, def) {
     cord.geometry.dispose(); cord.geometry = new THREE.TubeGeometry(curve, 28, 0.008, 6, false);
   };
   drawCord();
-  // お客さまの お札（合計を 言うと お客さまが 手に 持って さし出す → 受けとって 台に 置く → 引き出しに 入れる）
+  // お客さまの お札（合計を 言うと お客さまが 手に 持って さし出す → 受けとって 台に 置く → 釣銭機に 入れる）
   const cash = new THREE.Group(); cash.visible = false; W.add(cash);
   const billMesh = textPlate(def.bill + '円', 0.24, 0.11, def.bill === 1000 ? '#8fb3d9' : '#c9b48a', '#1f2a33'); billMesh.rotation.x = -Math.PI / 2; billMesh.rotation.z = Math.PI; billMesh.position.y = 0.004; cash.add(billMesh);
-  // おつり（引き出しから 出して わたす）
-  const coins = new THREE.Group(); coins.visible = false; coins.position.copy(drawerOpen).add(new THREE.Vector3(0, 0.06, -0.1)); W.add(coins);
-  for (let i = 0; i < 4; i++) part(coins, cyl(0.016, 0.016, 0.004, 16), i % 2 ? '#d9a42c' : '#c9c9c9', -0.05 + i * 0.033, (i % 2) * 0.004, (i % 2) * 0.02);
+  // おつり（釣銭機から 出てくる。千円札は 出口から つき出て、小銭は 受け皿に 落ちる）
+  const change = def.bill - def.total; const nBills = Math.floor(change / 1000);
+  const coins = new THREE.Group(); coins.visible = false; coins.position.set(CH.outX, Y + 0.03, front - 0.07); W.add(coins);
+  for (let i = 0; i < 4; i++) part(coins, cyl(0.02, 0.02, 0.005, 16), i % 2 ? '#d9a42c' : '#c9c9c9', -0.05 + i * 0.033, (i % 2) * 0.004, (i % 2) * 0.02 - 0.01);
+  const outBill = new THREE.Group(); outBill.visible = false; W.add(outBill);
+  const outBillIn = new THREE.Vector3(CH.outX, CH.slotY + 0.01, front + 0.06); const outBillOut = new THREE.Vector3(CH.outX, CH.slotY + 0.01, front - 0.06);
+  if (nBills) { const pl = textPlate('1000円' + (nBills > 1 ? '×' + nBills : ''), 0.18, 0.09, '#8fb3d9', '#1f2a33'); pl.rotation.x = -Math.PI / 2; pl.rotation.z = Math.PI; outBill.add(pl); }
+  outBill.position.copy(outBillIn);
+  const changeParts = () => [coins].concat(nBills ? [outBill] : []);
   // お客さま（台の 向こう）
   const guest = new THREE.Group(); guest.position.set(REGI.guest[0], 0.1, REGI.guest[1]); guest.rotation.y = Math.PI; W.add(guest);
   const gm = person('#e3a33c', '#3d4a54');
@@ -5861,7 +5873,7 @@ function startRegister(b, def) {
   const bagH = new THREE.Group(); bagH.position.copy(at(REGI.bag)); W.add(bagH);
   bagH.add(openRegiBag(BAG.w, BAG.h, BAG.d));
   let inBag = 0;
-  const key = { '合計': ['合計', '#e0662f'], 'pay:1000': ['1000円', '#3c7fc4'], 'pay:5000': ['5000円', '#3c7fc4'], 'pay:10000': ['10000円', '#3c7fc4'] };
+  const key = { '合計': ['合計', '#e0662f'] };
   const scanItems = def.items.filter((it) => it.id.startsWith('scan:'));
   def.items.forEach((spec) => {
     const k = spec.id;
@@ -5872,13 +5884,13 @@ function startRegister(b, def) {
       const g = def.goods[i];
       const sl = addSlot(spec, holder, mesh, { label: n + '（' + g[3] + 'g）', labelY: 0.3 + (order % 2) * 0.1 }); sl.good = g;
     } else if (key[k]) {
-      const [t, col] = key[k]; const n = Object.keys(key).indexOf(k);
-      const plate = textPlate(t, 0.15, 0.09, col, '#ffffff'); // 大きな キー（文字 約 5cm）
-      const holder = tilted(plate, -0.75); holder.position.set(rx + 0.24 - n * 0.16, Y + 0.22, rz - 0.08); W.add(holder);
+      const [t, col] = key[k];
+      const plate = textPlate(t, 0.2, 0.1, col, '#ffffff'); // 大きな キー（文字 約 5cm）
+      const holder = tilted(plate, -0.75); holder.position.set(rx, Y + 0.22, rz - 0.08); W.add(holder);
       addSlot(spec, holder, plate, { ring: 0.8, ringY: -0.04 });
     } else if (k === 'おつり') {
-      const sl = addSlot(spec, drawer, drawer.children[0], { label: 'おつり（引き出し）', ring: 1.8, ringY: 0.05 });
-      sl.label.position.set(0, 0.02, -0.3); sl.ring.position.z = -0.1; // 札は 引き出しの 手前（キーと かさならない）
+      const sl = addSlot(spec, tray, tray.children[0], { label: 'おつりを とって わたす', ring: 1.3, ringY: 0.01 });
+      sl.label.position.set(0, 0.03, -0.14); // 札は 受け皿の 手前
     } else if (k === 'お札') {
       const sl = addSlot(spec, cash, billMesh, { label: 'お札を 受けとる', ring: 1.3 }); sl.label.position.set(0, 0, 0.15); // 立てた お札の 上（cash は x で -90° まわして ある）
     } else if (k === '入金') {
@@ -5930,27 +5942,29 @@ function startRegister(b, def) {
         anims.push({ kind: 'fill', from: 0, to: 1, set: (u) => { cash.position.lerpVectors(cashFrom, cashHold, u * u * (3 - 2 * u)); }, t0: now });
         state.feedback = { text: 'お客さまが ' + def.bill + '円を 出しました', kind: 'ok' };
       } else if (k === 'お札') {
-        // お札を 受けとって レジの 前に 置く。ここからは 引き出しに 入れる お札
+        // お札を 受けとって レジの 前に 置く。ここからは 釣銭機に 入れる お札
         anims.push({ kind: 'box', obj: cash, from: cash.position.clone(), to: cashRecv.clone(), t0: now },
           { kind: 'fill', from: -Math.PI / 2, to: 0, set: (a) => { cash.rotation.x = a; }, t0: now }); // 台に ねかせて 置く
         const ps = bySlot['入金']; W.remove(ps.holder); ps.holder = cash; ps.mesh = billMesh;
         billMesh.traverse((m) => { m.userData.slotIndex = slots.indexOf(ps); });
         ps.ring = makeGlowRing(); ps.ring.scale.setScalar(1.3); cash.add(ps.ring);
-        ps.label = labelSprite('引き出しに 入れる', { h: 0.07 }); ps.label.position.y = 0.16; ps.label.visible = false; cash.add(ps.label);
+        ps.label = labelSprite('釣銭機に 入れる', { h: 0.07 }); ps.label.position.y = 0.16; ps.label.visible = false; cash.add(ps.label);
         setTimeout(() => { if (state.round === r && !ps.done) ps.label.visible = true; }, 600);
         state.feedback = { text: def.bill + '円 おあずかりします', kind: 'ok' };
-      } else if (k.startsWith('pay:')) {
-        // お預かりの 金額を 打つと 引き出しが ひらく
-        scr.paid = def.bill; paintScreen(); coins.visible = def.bill - def.total > 0;
-        anims.push({ kind: 'fill', from: 0, to: 1, set: (u) => drawer.position.lerpVectors(drawerHome, drawerOpen, u), t0: now });
       } else if (k === '入金') {
-        // 台の 上の お札を ひらいた 引き出しの お札の ところへ（そのまま 引き出しと いっしょに しまう）
-        const to = drawerOpen.clone().add(new THREE.Vector3(0, 0.05, 0.07));
-        anims.push({ kind: 'box', obj: cash, from: cash.position.clone(), to, t0: now });
-        setTimeout(() => { if (state.round !== r) return; drawer.add(cash); cash.position.set(0, 0.05, 0.07); playSfx('paper'); }, 600);
+        // お札を 入れ口の 前へ もって いき、すいこまれる → 機械が 数えて、画面に お預かり・おつり、おつりだけ 出てくる
+        const mouth = new THREE.Vector3(CH.inX, CH.slotY, front - 0.13); const inside = new THREE.Vector3(CH.inX, CH.slotY, front + 0.12);
+        anims.push({ kind: 'box', obj: cash, from: cash.position.clone(), to: mouth, t0: now });
+        setTimeout(() => { if (state.round !== r) return; playSfx('paper'); inLed.material.emissive.set('#7dff9e');
+          anims.push({ kind: 'fill', from: 0, to: 1, set: (u) => { cash.position.lerpVectors(mouth, inside, u); }, t0: performance.now() }); }, 600);
+        setTimeout(() => { if (state.round !== r) return; cash.visible = false; inLed.material.emissive.set('#2fae5a');
+          scr.paid = def.bill; paintScreen(); playSfx('coin'); coins.visible = true;
+          if (nBills) { outBill.visible = true; anims.push({ kind: 'fill', from: 0, to: 1, set: (u) => { outBill.position.lerpVectors(outBillIn, outBillOut, u); }, t0: performance.now() }); }
+        }, 1300);
       } else if (k === 'おつり') {
-        anims.push({ kind: 'box', obj: coins, from: coins.position.clone(), to: hand.clone(), t0: now });
-        setTimeout(() => { coins.visible = false; anims.push({ kind: 'fill', from: 1, to: 0, set: (u) => drawer.position.lerpVectors(drawerHome, drawerOpen, u), t0: performance.now() }); }, 650);
+        // 出てきた おつり（お札と 小銭）を お客さまの 手もとへ
+        changeParts().forEach((o) => anims.push({ kind: 'box', obj: o, from: o.position.clone(), to: hand.clone(), t0: now }));
+        setTimeout(() => { changeParts().forEach((o) => { o.visible = false; }); }, 650);
       } else if (k.startsWith('bag:')) {
         // 重い ものから 底に（入れた 順に 少しずつ 上へ）
         const h = slot.holder; const to = bagH.position.clone().add(new THREE.Vector3((inBag % 2) * 0.1 - 0.05 + (inBag === 2 ? 0.02 : 0), 0.01 + inBag * 0.06, (inBag % 2) * 0.03 - 0.015)); inBag++;
@@ -7488,7 +7502,7 @@ function sfxKind(slot) {
   const r = state.round; const lay = r && r.def.layout; const spec = slot.spec || {}; const job = state.booth && state.booth.job; const id = String(spec.id || slot.key || '');
   if (lay === 'laptop') return 'beep';
   if (lay === 'dataentry') return id.startsWith('p') ? 'paper' : 'beep';
-  if (lay === 'register') { if (id.startsWith('scan:')) return 'plastic'; if (id === 'お札' || id === '入金') return 'paper'; if (id.startsWith('pay:') || id === '合計') return 'beep'; if (id.startsWith('bag:')) return 'bag'; }
+  if (lay === 'register') { if (id.startsWith('scan:')) return 'plastic'; if (id === 'お札' || id === '入金') return 'paper'; if (id === '合計') return 'beep'; if (id.startsWith('bag:')) return 'bag'; }
   if (lay === 'tomato' || lay === 'strawberry' || lay === 'orchard') return 'pick';
   if (lay === 'paddy') return spec.seedling ? 'soil' : 'water';
   if (lay === 'planting') return { helmet: 'plastic', water: 'water', can: 'water', pole: 'wood', wrap: 'cloth', tie: 'rope', gum: 'tape', jute: 'metal', shake: 'wood' }[id] || 'soil';
