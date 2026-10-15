@@ -4938,10 +4938,20 @@ function yataiCook(b, W, def) {
       go(ch, slot.holder.position.clone().add(new THREE.Vector3(0, 0.035, -0.03)));
       later(600, () => { dome.visible = true; dome.scale.set(1, 0.4, 1); anims.push({ kind: 'fill', set: (u) => dome.scale.set(1, u, 1), from: 0.4, to: 1.15, t0: performance.now() }); });
       later(1350, () => go(ch, spot));
-    } else if (YATAI_SYRUP[k]) { // シロップの びんを カップの 上へ → かける → もとに もどす
-      const home = slot.holder.position.clone(); go(slot.holder, spot.clone().add(new THREE.Vector3(0.1, 0.25, 0)));
-      later(600, () => { slot.holder.rotation.z = 1.9; dome.material.color.set(YATAI_SYRUP[k]); });
-      later(1100, () => { slot.holder.rotation.z = 0; go(slot.holder, home); });
+    } else if (YATAI_SYRUP[k]) { // シロップの びんを カップの 上へ → 口を 下（かき氷）に 向けて かたむける → たらして 氷を そめる → もどす
+      const bt = slot.holder; const home = bt.position.clone(); const col = YATAI_SYRUP[k]; const TILT = 2.3;
+      // びんの まん中（台から 0.1）を 中心に まわし、かたむけ きった とき 口（台から 0.24）が 氷の 真上に 来るように
+      const mouth = spot.clone().add(new THREE.Vector3(0, 0.36, 0)); const piv = mouth.clone().sub(new THREE.Vector3(0.14 * Math.sin(TILT), 0.14 * Math.cos(TILT), 0));
+      const at = (th) => piv.clone().sub(new THREE.Vector3(0.1 * Math.sin(th), 0.1 * Math.cos(th), 0));
+      go(bt, at(0));
+      later(600, () => anims.push({ kind: 'fill', set: (u) => { bt.rotation.z = u; bt.position.copy(at(u)); }, from: 0, to: TILT, t0: performance.now() }));
+      const stream = part(W, cyl(0.006, 0.009, 1, 8), col, mouth.x, mouth.y, mouth.z, { transparent: true, opacity: 0.85, roughness: 0.2 }); stream.visible = false;
+      const len = mouth.y - (spot.y + 0.19); const white = new THREE.Color('#f4fbff'); const syrupC = new THREE.Color(col);
+      later(1250, () => { stream.visible = true; anims.push({ kind: 'fill', set: (u) => { // 口から 氷へ のびる シロップの すじ、氷は 上から そまっていく
+        const l = Math.max(0.001, len * Math.min(1, u * 3)); stream.scale.y = l; stream.position.y = mouth.y - l / 2;
+        dome.material.color.lerpColors(white, syrupC, Math.max(0, (u - 0.25) / 0.75)); }, from: 0, to: 1, t0: performance.now() }); });
+      later(1900, () => { stream.visible = false; anims.push({ kind: 'fill', set: (u) => { bt.rotation.z = u; bt.position.copy(at(u)); }, from: TILT, to: 0, t0: performance.now() }); });
+      later(2550, () => go(bt, home));
     } else if (k === 'スプーン') { // スプーンを カップの 上へ → さきを 下に 向ける → 氷に さす（さしたまま わたす）
       const sp = slot.holder; const above = spot.clone().add(new THREE.Vector3(0.02, 0.42, 0)); const inIce = spot.clone().add(new THREE.Vector3(0.02, 0.24, 0));
       go(sp, above); parts.push(sp);
