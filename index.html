@@ -3247,7 +3247,7 @@ function makeGlowRing() {
 const state = {
   where: 'plaza',        // 'plaza' | 'booth'
   booth: null,           // booths[i]
-  phase: 'choose',       // 'choose' | 'work' | 'result'
+  phase: 'choose',       // 'choose' | 'pick' | 'work' | 'between'（おわったら 'choose' に もどる）
   withSupport: false,
   session: null,         // { started, completed, inspected, defects, promptCount, questionCount, roundIndex }
   round: null,           // { def, slots:[{spec, key, mesh, ring, done}], pos, lastActionAt, hintShown, mistakeThisRound }
@@ -3369,7 +3369,7 @@ function goBooth(i) {
   if (state.booth && state.booth !== booths[i]) { clearWork(); Object.values(state.booth.btns).forEach((m) => { m.visible = false; }); }
   stopSpeech();
   const b = booths[i];
-  state.variantChosen = false;
+  state.variantChosen = false; state.lastResult = null;
   state.where = 'booth'; state.booth = b; state.phase = 'choose'; state.session = null; state.round = null; state.feedback = { text: '', kind: '' };
   const stand = b.group.localToWorld(new THREE.Vector3(0, 0, STAFF_Z));
   moveRig(stand, b.yaw + Math.PI, 0.12); // 店員の 立ち位置。少し 下を 向いて、台の 上と 指示モニターが 両方 見えるように
@@ -3622,11 +3622,17 @@ function showChoose() {
     ctx.font = '400 40px ' + FONT_BODY; ctx.fillStyle = '#33404a';
     wrapLines(ctx, job.intro, W - 96).forEach((l, n) => ctx.fillText(l, 48, 210 + n * 54));
     ctx.fillStyle = '#55626d'; ctx.font = '400 32px ' + FONT_BODY;
-    ctx.fillText('1 回の体験は ' + (job.rounds || ROUNDS_PER_SESSION) + ' こ。下の ボタンで はじめます。', 48, H - 112);
+    const last = lastResultFor(job);
+    if (last) { ctx.fillStyle = '#7a4a12'; ctx.font = '700 32px ' + FONT_BODY; }
+    ctx.fillText(last ? '前回：できた ' + last.completed + ' こ・ミス ' + last.defects + ' 回・ヒント ' + last.questionCount + ' 回・' + fmtDuration(last.durationSec) + (last.rw ? '・' + MEDAL[last.rw.medal] : '')
+      : '1 回の体験は ' + (job.rounds || ROUNDS_PER_SESSION) + ' こ。下の ボタンで はじめます。', 48, H - 112);
     ctx.fillStyle = '#7a4a12'; ctx.font = '400 28px ' + FONT_BODY;
     ctx.fillText('配慮ありは 銀バッジまで（金バッジは 配慮なしで ミス 0・ヒント 0）', 48, H - 66);
   });
 }
+
+// いま 見ている しごとの 前回の 結果（山小屋などは えらんだ しごとごと）
+const lastResultFor = (job) => (state.lastResult && state.lastResult.job === job && state.lastResult.work === job.work ? state.lastResult : null);
 
 function paintBoardBase(ctx, W, H, job) {
   ctx.fillStyle = '#fffdf8'; roundRect(ctx, 0, 0, W, H, 36); ctx.fill();
@@ -6043,7 +6049,6 @@ function showResult() {
   const wasField = b.inField || b.away; b.fieldArrived = false;
   clearWork();
   if (wasField) { moveRig(b.group.localToWorld(new THREE.Vector3(0, 0, STAFF_Z)), b.yaw + Math.PI, 0.12); } // 畑から お店に もどって 結果を 見る
-  state.phase = 'result';
   if (s.harvest) {
     // とった りんご・トマトを ぜんぶ 1 つの かごに 入れて、台の 上に 見せる
     harvestBasket(b.workArea, new THREE.Vector3(0, 0.9, COUNTER_Z), s.harvestKind, s.harvest, false);
@@ -6070,26 +6075,12 @@ function showResult() {
     if (rw.up) toast('バッジ（' + MEDAL[rw.medal] + '）を もらいました！');
     if (rw.trophy) setTimeout(() => toast('トロフィー（' + MEDAL[rw.trophy] + '）！ 全部の お店が ' + MEDAL[rw.trophy] + 'に そろいました'), 2400);
   }
-  setButtons(['again', 'back']);
-  b.board.draw((ctx, W, H) => {
-    paintBoardBase(ctx, W, H, b.job);
-    ctx.textAlign = 'left'; ctx.textBaseline = 'top'; ctx.fillStyle = '#1f2a33';
-    ctx.font = '700 60px ' + FONT_DISPLAY; ctx.fillText('おつかれさまでした', 48, 116);
-    ctx.font = '400 40px ' + FONT_BODY; ctx.fillStyle = '#33404a';
-    const rows = [
-      ['できた数', s.completed + ' こ'], ['かかった時間', fmtDuration(durationSec)], ['ミス', s.defects + ' 回'],
-      ['ヒント（自分から）', s.questionCount + ' 回'], ['ガイド（自動）', s.promptCount + ' 回'],
-    ];
-    rows.forEach(([k, v], n) => { const col = n % 2; const row = Math.floor(n / 2); ctx.fillText(k + '：' + v, 48 + col * 480, 210 + row * 60); });
-    if (rw) {
-      ctx.font = '700 40px ' + FONT_BODY; ctx.fillStyle = '#7a4a12';
-      ctx.fillText('バッジ：' + MEDAL[rw.medal] + (rw.up ? '（新しく もらいました）' : '') + (rw.pay ? '　おきゅうりょう：' + yen(rw.pay) : ''), 48, H - 140);
-    }
-    ctx.fillStyle = '#55626d'; ctx.font = '400 30px ' + FONT_BODY;
-    ctx.fillText('「きろく」に 残しました。点数ではなく、つぎに ためす 配慮を 考える 材料です。', 48, H - 70);
-  });
-  state.session = null; state.round = null;
-  renderHud();
+  // おわったら その しごとの スタート画面へ もどる（結果は スタート画面と トーストで 見せる）
+  state.session = null; state.round = null; state.feedback = { text: '', kind: '' };
+  state.lastResult = { job: b.job, work: b.job.work, completed: s.completed, defects: s.defects, questionCount: s.questionCount, promptCount: s.promptCount, durationSec, rw };
+  if (!wasField) moveRig(b.group.localToWorld(new THREE.Vector3(0, 0, STAFF_Z)), b.yaw + Math.PI, 0.12, 600); // 店員の 立ち位置に もどる
+  showChoose(); renderHud();
+  toast('おつかれさまでした！ できた ' + s.completed + ' こ・ミス ' + s.defects + ' 回' + (rw ? '・バッジ：' + MEDAL[rw.medal] : ''));
   speak('おつかれさまでした。');
 }
 
@@ -6628,24 +6619,17 @@ function renderHud() {
     return;
   }
   if (state.phase === 'choose') {
+    const lr = lastResultFor(job);
+    const lastHtml = lr ? '<div class="feedback ok">前回：できた ' + lr.completed + ' こ・ミス ' + lr.defects + ' 回・ヒント ' + lr.questionCount + ' 回・' + fmtDuration(lr.durationSec) +
+      (lr.rw ? '　バッジ：' + MEDAL[lr.rw.medal] + (lr.rw.up ? '（新しく もらいました）' : '') + (lr.rw.pay ? '　おきゅうりょう ' + yen(lr.rw.pay) : '') : '') + '</div>' : '';
     el.innerHTML = '<span class="tag">' + esc(job.name) + '</span><h2>' + esc(job.work) + '</h2><div>' + esc(job.intro) + '</div>' +
       '<div class="row"><button type="button" id="h-without">はじめる：配慮なし</button><button type="button" class="primary" id="h-with">はじめる：配慮あり</button>' + exitBtn + '</div>' +
-      '<div class="meta"><span>配慮ありは 銀バッジまで。金バッジは 配慮なしで ミス 0・ヒント 0。</span></div>';
+      '<div class="meta"><span>配慮ありは 銀バッジまで。金バッジは 配慮なしで ミス 0・ヒント 0。</span></div>' + lastHtml;
     $('h-without').onclick = () => startSession(false); $('h-with').onclick = () => startSession(true);
     if ($('h-exit')) $('h-exit').onclick = exitToWalk;
     const fun = { ski: season === 'winter' && ['自分も スキーを する', startSki], rink: season === 'winter' && ['自分も すべる', () => { const c = LAKE.blk; startWalk(new THREE.Vector3(c.x, 0, c.z), 0); }],
       hut: season === 'summer' && ['山に のぼる', startClimb], yatai: ['お客さんとして 買う', openYataiShop] }[job.id];
     if (fun) { el.querySelector('.row').insertAdjacentHTML('beforeend', '<button type="button" id="h-fun">' + fun[0] + '</button>'); $('h-fun').onclick = fun[1]; }
-    return;
-  }
-  if (state.phase === 'result') {
-    const last = logEntries[0]; const rw = state.lastReward;
-    el.innerHTML = '<span class="tag">' + esc(job.name) + '</span><h2>おつかれさまでした</h2>' +
-      (last ? '<div class="meta"><span>できた ' + last.phase.completed + ' こ</span><span>ミス ' + last.phase.defects + '</span><span>ヒント ' + last.phase.questionCount + '</span><span>ガイド ' + last.phase.promptCount + '</span><span>' + fmtDuration(last.phase.durationSec) + '</span></div>' : '') +
-      (rw ? '<div class="feedback ok">バッジ：' + MEDAL[rw.medal] + (rw.up ? '（新しく もらいました）' : '') + (rw.pay ? '　おきゅうりょう ' + yen(rw.pay) : '') + '</div>' : '') +
-      '<div class="row"><button type="button" id="h-again">もう一度</button><button type="button" id="h-log">きろくを見る</button>' + exitBtn + '</div>';
-    $('h-again').onclick = showChoose_; $('h-log').onclick = () => toggleLog(true);
-    if ($('h-exit')) $('h-exit').onclick = exitToWalk;
     return;
   }
   const r = state.round; const s = state.session; if (!r || !s) return;
@@ -6667,7 +6651,6 @@ function renderHud() {
     '<div class="row"><button type="button" id="h-hint">ヒント</button><button type="button" id="h-quit">作業を やめる</button><button type="button" id="h-back">島ぜんたいへ</button>' + exitBtn + '</div>';
   $('h-hint').onclick = () => useHint(false); $('h-quit').onclick = quitWork; $('h-back').onclick = goPlaza; $('h-exit').onclick = exitToWalk;
 }
-function showChoose_() { showChoose(); renderHud(); }
 
 // ===========================================================================
 // 自分で あそぶ（仕事の あいまに）
