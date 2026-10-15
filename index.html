@@ -994,7 +994,7 @@ Object.assign(EXTRA_ACTS.fish, { '大きい': '大きい と きめる', '小さ
 JOBS.forEach((job) => {
   if (job.id === 'craft') { job.variants.summer = OMA_PROCS.slice(); job.variants.winter = [Object.assign(job.variants.winter[0], { short: 'しめ飾り' })].concat(OMA_PROCS); }
   if (job.id === 'office') { job.variants.summer[0].short = '仕分け'; job.variants.winter[0].short = '年賀状'; job.variants.summer.push(DATA_ENTRY); job.variants.winter.push(DATA_ENTRY); }
-  if (job.id === 'forest') { job.variants.summer[0].short = '植えつけ'; job.variants.winter[0].short = '薪'; job.variants.summer.push(NURSERY); job.variants.winter.push(NURSERY); }
+  if (job.id === 'forest') { job.variants.summer[0].short = '植えつけ'; job.variants.winter[0].short = '薪'; job.variants.summer.unshift(NURSERY); job.variants.winter.push(NURSERY); } // 夏は 育成 → 植えつけ の 順
   if (job.id === 'fish') { job.variants.summer[0].short = '仕分け'; job.variants.winter[0].short = '仕分け'; job.variants.summer.push(FISHING); job.variants.winter.push(FISHING); }
   if (job.id === 'rice') {
     const base = { work: job.work, short: '苗受け', intro: job.intro, defect: job.defect, round: job.round };
