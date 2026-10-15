@@ -687,7 +687,7 @@ JOBS.push(
     round() {
       const f = pick(['いちご', 'メロン', 'レモン']);
       const items = ['かき氷の カップ', 'かき氷器', 'いちご シロップ', 'メロン シロップ', 'レモン シロップ', 'スプーン', 'お客さま'].map((label) => ({ label, color: label === 'お客さま' ? '#3c7fc4' : '#ffffff' }));
-      return { title: '注文：' + f + 'の かき氷', shortTitle: 'かき氷を つくる', items: shuffle(items), need: ['かき氷の カップ', 'かき氷器', f + ' シロップ', 'スプーン', 'お客さま'], ordered: true };
+      return { title: '注文：' + f + 'の かき氷', shortTitle: 'かき氷を つくる', dish: f + 'の かき氷', items: shuffle(items), need: ['かき氷の カップ', 'かき氷器', f + ' シロップ', 'スプーン', 'お客さま'], ordered: true };
     },
   },
   {
@@ -824,7 +824,7 @@ const WINTER = {
         { name: '甘酒', need: ['紙コップ', '甘酒', 'お客さま'] },
         { name: 'おしるこ', need: ['おわん', 'おしるこ', 'お客さま'] },
       ]);
-      return { title: '注文：' + r.name, shortTitle: r.name + ' を わたす', items: shuffle(items), need: r.need, ordered: true };
+      return { title: '注文：' + r.name, shortTitle: r.name + ' を わたす', dish: r.name, items: shuffle(items), need: r.need, ordered: true };
     },
   },
   super: {
@@ -4640,11 +4640,11 @@ Object.assign(STAGES, {
     spots: { 'スケートぐつ 20': [0.85, 1.21, 2.45, { model: (sp) => SM.skateCubby(sp) }], 'スケートぐつ 22': [0.3, 1.21, 2.45, { model: (sp) => SM.skateCubby(sp) }], 'スケートぐつ 24': [-0.3, 1.21, 2.45, { model: (sp) => SM.skateCubby(sp) }], 'スケートぐつ 26': [-0.85, 1.21, 2.45, { model: (sp) => SM.skateCubby(sp) }],
       'ヘルメット': [0.6, 0.906, 2.02, { model: () => SM.helmet() }], '手袋': [0, 0.906, 2.02, { model: () => SM.gloves() }], 'マフラー': [-0.6, 0.906, 2.02, { s: 2 }] } },
   // 屋台（夏）：紅白の のれんの 屋台。左に カップ、まん中に かき氷器、右に シロップ。台の 向こうに お客さま
-  'かき氷づくり': { counter: '#c98f5a', stand: [0, 0.85], pitch: 0.3, decor(W) { yataiFrame(W); },
+  'かき氷づくり': { counter: '#c98f5a', stand: [0, 0.85], pitch: 0.3, decor(W) { yataiFrame(W); }, after: yataiCook,
     spots: { 'かき氷の カップ': [0.9, 0.906, 2.05, { s: 1.6 }], 'かき氷器': [0.35, 0.906, 2.2, { s: 1.8 }], 'いちご シロップ': [-0.2, 0.906, 2.3, { s: 1.4 }], 'メロン シロップ': [-0.45, 0.906, 2.3, { s: 1.4, ly: 0.1 }], 'レモン シロップ': [-0.7, 0.906, 2.3, { s: 1.4 }],
       'スプーン': [-0.95, 0.906, 2.0, { s: 1.6 }], 'お客さま': GUEST('#3c7fc4') } },
   // 屋台（冬）：左に 紙袋と 焼きいもの 石がま、まん中に 甘酒、右に おしるこ
-  '焼きいも・甘酒': { counter: '#c98f5a', stand: [0, 0.85], pitch: 0.3, decor(W) { yataiFrame(W); part(W, box(0.5, 0.06, 0.35), '#5a5f66', 0.6, 0.93, 2.35); for (let i = 0; i < 12; i++) part(W, ball(0.035, 8, 6), '#8a8f96', 0.42 + (i % 4) * 0.12, 0.97, 2.25 + Math.floor(i / 4) * 0.1); },
+  '焼きいも・甘酒': { counter: '#c98f5a', stand: [0, 0.85], pitch: 0.3, after: yataiCook, decor(W) { yataiFrame(W); part(W, box(0.5, 0.06, 0.35), '#5a5f66', 0.6, 0.93, 2.35); for (let i = 0; i < 12; i++) part(W, ball(0.035, 8, 6), '#8a8f96', 0.42 + (i % 4) * 0.12, 0.97, 2.25 + Math.floor(i / 4) * 0.1); },
     spots: { '紙袋': [1.0, 0.906, 2.0, { s: 1.6 }], '焼きいも': [0.6, 0.99, 2.35, { s: 1.6 }], '紙コップ': [0.15, 0.906, 2.0, { s: 1.6 }], '甘酒': [0, 0.906, 2.4, { s: 1.6 }], 'おわん': [-0.45, 0.906, 2.0, { s: 1.6 }], 'おしるこ': [-0.6, 0.906, 2.4, { s: 1.6 }], 'お客さま': GUEST('#3c7fc4') } },
 });
 // ---- 第 3 弾：スーパーの 袋づめ・風力発電所・書き初め・田んぼの 苗受け --------------
@@ -4693,6 +4693,103 @@ Object.assign(STAGES, {
 });
 STAGES['鍋の材料の袋づめ'] = STAGES['レジの袋づめ'];
 STAGES['羽の氷とかしと点検'] = STAGES['風車の点検'];
+// 屋台：のれんに はった 作り方（できあがりの 絵と 手順）を 見ながら、台の 手前で つくって、台の 向こうの お客さまに わたす（カフェと 同じ 流れ）
+const YATAI = { spot: [-0.15, 0.906, 1.85], sheet: { x: 0.72, y: 1.56, w: 0.5, h: 0.66 }, hand: [-0.62, 1.0, 3.1] };
+const YATAI_SYRUP = { 'いちご シロップ': '#e0455a', 'メロン シロップ': '#6fcf73', 'レモン シロップ': '#f6dc5a' };
+function yataiSheetPaint(sheet, def, doneN) {
+  const need = def.need; const syrup = need.find((k) => YATAI_SYRUP[k]); const dish = def.dish || def.title.replace('注文：', '');
+  sheet.draw((ctx, w, h) => {
+    ctx.fillStyle = '#fffef8'; ctx.fillRect(0, 0, w, h); ctx.strokeStyle = '#c9302c'; ctx.lineWidth = 6; ctx.strokeRect(3, 3, w - 6, h - 6);
+    ctx.fillStyle = '#c9302c'; ctx.font = '700 ' + Math.round(w * 0.11) + 'px ' + FONT_DISPLAY; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('作り方', w / 2, h * 0.065);
+    // できあがりの 絵
+    const px = w * 0.08; const py = h * 0.12; const pw = w * 0.84; const ph = h * 0.33;
+    ctx.fillStyle = '#f3ead8'; ctx.fillRect(px, py, pw, ph); ctx.strokeStyle = '#8a6a46'; ctx.lineWidth = 4; ctx.strokeRect(px, py, pw, ph);
+    const cx = px + pw / 2; const bot = py + ph * 0.9;
+    if (syrup) { // かき氷：カップに 山もりの 氷、シロップの 色、スプーン
+      const tw = pw * 0.2; const bw = pw * 0.14; const top = py + ph * 0.55;
+      ctx.fillStyle = YATAI_SYRUP[syrup]; ctx.beginPath(); ctx.ellipse(cx, top, tw * 1.05, ph * 0.36, 0, Math.PI, TAU); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.45)'; ctx.beginPath(); ctx.ellipse(cx - tw * 0.3, top - ph * 0.18, tw * 0.3, ph * 0.08, -0.4, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.moveTo(cx - tw, top); ctx.lineTo(cx + tw, top); ctx.lineTo(cx + bw, bot); ctx.lineTo(cx - bw, bot); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#c8463d'; ctx.fillRect(cx - tw * 0.92, top + (bot - top) * 0.3, tw * 1.84, (bot - top) * 0.25);
+      ctx.strokeStyle = '#9aa4ab'; ctx.lineWidth = 8; ctx.beginPath(); ctx.moveTo(cx + tw * 0.2, top - ph * 0.15); ctx.lineTo(cx + tw * 0.9, top - ph * 0.45); ctx.stroke();
+    } else if (need[0] === '紙袋') { // 焼きいも：紙袋から のぞく いも
+      ctx.fillStyle = '#7a3e6a'; ctx.beginPath(); ctx.ellipse(cx + pw * 0.04, py + ph * 0.38, pw * 0.08, ph * 0.22, 0.5, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#f2c230'; ctx.beginPath(); ctx.ellipse(cx + pw * 0.08, py + ph * 0.22, pw * 0.05, ph * 0.06, 0.5, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#c9a06a'; ctx.fillRect(cx - pw * 0.15, py + ph * 0.45, pw * 0.3, bot - py - ph * 0.45); ctx.fillStyle = '#b88d55'; ctx.fillRect(cx - pw * 0.15, py + ph * 0.45, pw * 0.3, ph * 0.06);
+    } else { // 甘酒（紙コップ）・おしるこ（おわん）：上から 中身が 見える
+      const cup = need[0] === '紙コップ'; const top = py + ph * 0.35; const tw = pw * (cup ? 0.16 : 0.26);
+      ctx.fillStyle = cup ? '#ffffff' : '#7a2e22';
+      ctx.beginPath(); if (cup) { ctx.moveTo(cx - tw, top); ctx.lineTo(cx + tw, top); ctx.lineTo(cx + tw * 0.75, bot); ctx.lineTo(cx - tw * 0.75, bot); } else { ctx.moveTo(cx - tw, top); ctx.quadraticCurveTo(cx, bot + ph * 0.25, cx + tw, top); } ctx.closePath(); ctx.fill();
+      if (cup) { ctx.fillStyle = '#e0662f'; ctx.fillRect(cx - tw * 0.9, top + (bot - top) * 0.35, tw * 1.8, (bot - top) * 0.3); }
+      ctx.fillStyle = cup ? '#f6f0de' : '#5a2a26'; ctx.beginPath(); ctx.ellipse(cx, top, tw, ph * 0.08, 0, 0, TAU); ctx.fill();
+      if (!cup) { ctx.fillStyle = '#fbfaf4'; [[-0.35, 0], [0.3, 0.01]].forEach(([dx, dy]) => { ctx.fillRect(cx + tw * dx - 14, top - 8 + dy * ph, 28, 16); }); }
+      ctx.strokeStyle = '#b9a58a'; ctx.lineWidth = 4; [-1, 0, 1].forEach((k) => { const x0 = cx + k * 22; ctx.beginPath(); ctx.moveTo(x0, top - 14); ctx.bezierCurveTo(x0 - 12, top - 28, x0 + 12, top - 40, x0, top - 56); ctx.stroke(); });
+    }
+    ctx.fillStyle = '#1f2a33'; let fs = Math.round(w * 0.085); ctx.font = '700 ' + fs + 'px ' + FONT_BODY;
+    while (fs > 20 && ctx.measureText(dish).width > w * 0.86) { fs -= 2; ctx.font = '700 ' + fs + 'px ' + FONT_BODY; }
+    ctx.fillText(dish, w / 2, h * 0.5);
+    ctx.fillStyle = '#c9302c'; ctx.fillRect(w * 0.08, h * 0.55, w * 0.84, 3);
+    // 手順（配慮ありは できた 手順に ✓、いまの 手順を 色で）
+    ctx.textAlign = 'left'; const rowH = Math.min(h * 0.085, (h * 0.42) / need.length);
+    ctx.font = '700 ' + Math.round(rowH * 0.6) + 'px ' + FONT_BODY;
+    need.forEach((k, i) => {
+      const done = state.withSupport && i < doneN; const now = state.withSupport && i === doneN;
+      ctx.fillStyle = done ? '#9aa4ab' : now ? '#c9302c' : '#1f2a33';
+      ctx.fillText((done ? '✓ ' : (i + 1) + '. ') + actionText(state.booth.job, { label: k }), w * 0.09, h * 0.59 + rowH * (i + 0.5));
+    });
+  });
+}
+function yataiCook(b, W, def) {
+  const r = state.round; const S = YATAI.sheet;
+  // のれんに はった 作り方（店員の 方を 向ける）。上の はしを 洗たくばさみで とめる
+  const sheet = new Board(S.w, S.h, 700); sheet.mesh.position.set(S.x, S.y, 2.64); sheet.mesh.rotation.y = Math.PI; W.add(sheet.mesh);
+  [-0.16, 0.16].forEach((dx) => part(W, box(0.03, 0.06, 0.02), '#8a6a46', S.x + dx, S.y + S.h / 2 - 0.01, 2.63));
+  const paint = () => yataiSheetPaint(sheet, def, r.pos); paint();
+  const bySlot = (k) => r.slots.find((x) => x.key === k);
+  const base = bySlot(def.need[0]); const parts = [base.holder]; // お客さまに わたす もの（入れものと 中身）
+  const spot = new THREE.Vector3(...YATAI.spot); const bm = base.mesh;
+  const go = (obj, to) => anims.push({ kind: 'box', obj, from: obj.position.clone(), to: to.clone(), t0: performance.now() });
+  const later = (ms, fn) => setTimeout(() => { if (state.round === r && state.phase === 'work') fn(); }, ms);
+  // 入れものの 中身（はじめは かくす）。入れものの モデルの 大きさの まま 中に 足す
+  let dome = null; let spoon = null; let fill = null;
+  if (base.key === 'かき氷の カップ') {
+    dome = part(bm, new THREE.SphereGeometry(0.052, 18, 10, 0, TAU, 0, Math.PI / 2), '#f4fbff', 0, 0.068, 0, { roughness: 0.9 }); dome.scale.set(1, 1.15, 1); dome.visible = false;
+    spoon = new THREE.Group(); bm.add(spoon); spoon.position.set(0.015, 0.1, 0.01); spoon.rotation.z = -0.5; spoon.visible = false;
+    part(spoon, box(0.006, 0.09, 0.012), '#3c7fc4', 0, 0.02, 0); part(spoon, box(0.016, 0.02, 0.016), '#3c7fc4', 0, -0.03, 0);
+  } else if (base.key === '紙コップ' || base.key === 'おわん') {
+    const cup = base.key === '紙コップ';
+    fill = new THREE.Group(); bm.add(fill); fill.visible = false; fill.position.y = cup ? 0.08 : 0.048;
+    part(fill, cyl(cup ? 0.037 : 0.054, cup ? 0.037 : 0.054, 0.004, 20), cup ? '#f6f0de' : '#5a2a26', 0, 0, 0);
+    if (!cup) [[-0.02, 0.01], [0.022, -0.012]].forEach(([x, z]) => part(fill, box(0.022, 0.01, 0.022), '#fbfaf4', x, 0.004, z));
+  }
+  r.onPick = (slot, ok) => {
+    if (!ok) { flashWrong(slot); return; }
+    slot.holder.children.forEach((c) => { if (c.isSprite) c.visible = false; });
+    paint(); const k = slot.key; const ch = base.holder; // ch：入れもの
+    if (k === 'お客さま') { // できあがりを 台の 向こうの お客さまの 手もとへ
+      parts.forEach((o) => go(o, new THREE.Vector3(...YATAI.hand).add(o.position.clone().sub(spot))));
+      r.slowFinish = true; return;
+    }
+    if (slot === base) go(ch, spot); // 入れものを 台の 手前に
+    else if (k === 'かき氷器') { // カップを かき氷器の 下へ → 氷が つもる → 手前に もどす
+      go(ch, slot.holder.position.clone().add(new THREE.Vector3(0, 0.035, -0.03)));
+      later(600, () => { dome.visible = true; dome.scale.set(1, 0.4, 1); anims.push({ kind: 'fill', set: (u) => dome.scale.set(1, u, 1), from: 0.4, to: 1.15, t0: performance.now() }); });
+      later(1350, () => go(ch, spot));
+    } else if (YATAI_SYRUP[k]) { // シロップの びんを カップの 上へ → かける → もとに もどす
+      const home = slot.holder.position.clone(); go(slot.holder, spot.clone().add(new THREE.Vector3(0.1, 0.25, 0)));
+      later(600, () => { slot.holder.rotation.z = 1.9; dome.material.color.set(YATAI_SYRUP[k]); });
+      later(1100, () => { slot.holder.rotation.z = 0; go(slot.holder, home); });
+    } else if (k === 'スプーン') { animateDone(slot); spoon.visible = true; }
+    else if (k === '焼きいも') { slot.holder.scale.setScalar(0.85); go(slot.holder, spot.clone().add(new THREE.Vector3(0, 0.12, 0))); later(560, () => { slot.holder.rotation.z = 1.2; }); parts.push(slot.holder); }
+    else if (k === '甘酒' || k === 'おしるこ') { // なべの よこへ 入れものを 持っていって よそう → 手前に もどす
+      go(ch, slot.holder.position.clone().add(new THREE.Vector3(0.25, 0, -0.3)));
+      later(600, () => { fill.visible = true; });
+      later(1100, () => go(ch, spot));
+    } else animateDone(slot);
+    if (nextTargetKey() === 'お客さま') { r.handing = true; later(k === 'かき氷器' || k === '甘酒' || k === 'おしるこ' ? 1500 : 900, () => { state.feedback = { text: 'できあがり！ お客さまに わたそう', kind: 'ok' }; drawWorkBoard(); }); }
+  };
+}
 // 屋台の やね（紅白の のれん）と ちょうちん
 function yataiFrame(W) {
   [-1.45, 1.45].forEach((x) => part(W, box(0.08, 1.8, 0.08), '#8a6a46', x, 1.0, 2.65));
