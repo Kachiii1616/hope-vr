@@ -324,16 +324,16 @@ const JOBS = [
   {
     id: 'clean', area: '首都', name: '清掃', work: 'モップかけ', color: '#4f8b9b', category: '実務',
     intro: '', defect: '', round() { return null; }, // 下の variants から えらんだ しごとが 入る（selectVariant）
-    // 客室の 清掃。モップかけ・台ふきの 2 つから えらぶ（夏も 冬も。冬の モップは 雪どけ水）。
+    // 夏は 客室の 清掃（モップかけ・台ふきの 2 つから えらぶ）。冬は 利用者さんの 家の 前の 雪かき。
     variants: (() => {
-      const mop = (winter) => ({
-        work: winter ? '雪どけ水のモップかけ' : 'モップかけ', short: 'モップ', rounds: 2,
-        intro: 'モップを 持って 部屋の ゆかを ぜんぶ ふきます。ベッドや たなに ぶつからないように、よけて 進みます。' + (winter ? 'ゆかには 雪どけ水が 落ちています。' : ''),
+      const mop = {
+        work: 'モップかけ', short: 'モップ', rounds: 2,
+        intro: 'モップを 持って 部屋の ゆかを ぜんぶ ふきます。ベッドや たなに ぶつからないように、よけて 進みます。',
         defect: 'ものに ぶつかる',
         round() {
-          return { title: 'モップで ゆかを ぜんぶ ふく（ものに ぶつからないように）', shortTitle: 'ゆかを ぜんぶ ふく', items: [], need: [], ordered: false, layout: 'mop', winter };
+          return { title: 'モップで ゆかを ぜんぶ ふく（ものに ぶつからないように）', shortTitle: 'ゆかを ぜんぶ ふく', items: [], need: [], ordered: false, layout: 'mop' };
         },
-      });
+      };
       const wipe = {
         work: '台ふき', short: '台ふき', rounds: 3,
         intro: '利用者さんの 家の キッチンの 台・机・食卓・ローテーブルの うち、よごれている 家具の 前へ 行って、上を ぜんぶ ふきます。家具は 動かしません。ふき残しが ないように。',
@@ -342,7 +342,18 @@ const JOBS = [
           return { title: '台ふきで 台の 上を ぜんぶ ふく', shortTitle: '台の 上を ぜんぶ ふく', items: [], need: [], ordered: false, layout: 'wipe' };
         },
       };
-      return { summer: [mop(false), wipe], winter: [mop(true), wipe] };
+      // 雪かき：1 回めは 玄関から 門まで の 通路、2 回めは 門の 前の 歩道（SNOWY）
+      const snow = {
+        work: '家の前の雪かき', short: '雪かき', rounds: 2, outdoor: true,
+        intro: '利用者さんの 家の 前に 出て、スコップで 雪を どけて 歩ける 道を つくります。1 回めは 玄関から 門まで、2 回めは 門の 前の 歩道です。植木や 郵便受けに ぶつからないように。',
+        defect: 'ものに ぶつかる',
+        round() {
+          const k = state.session ? state.session.roundIndex % 2 : 0;
+          return { title: k ? '門の 前の 歩道の 雪を ぜんぶ どける（電柱に ぶつからないように）' : '玄関から 門まで の 雪を どけて 道を つくる（ものに ぶつからないように）',
+            shortTitle: k ? '歩道の 雪を どける' : '玄関から 門まで 雪を どける', items: [], need: [], ordered: false, layout: 'snow', part: k };
+        },
+      };
+      return { summer: [mop, wipe], winter: [snow] };
     })(),
   },
   {
@@ -978,6 +989,34 @@ const FISHING = {
     return { title: '網を 上げて 魚を はずし、きまりどおりに（' + FISH_RULE + '）', shortTitle: '網を 上げる', items, need: ['網', 'はずす', keep ? 'いけす' : '海に 返す'], ordered: true, layout: 'fishing', fish };
   },
 };
+//   流氷フェリーの 船員（漁協の 冬）：流氷の 海を 走る フェリーの 甲板で、3 工程（1 工程 = 1 回）。
+//   steps：[id, 動作]。decoys は えらぶと ミスに なる もの（[id, 動作, 声かけ]）。③ の 方向は 毎回 かわる
+const FERRY_DIRS = { left: ['左', [-9, -0.3, -11]], front: ['正面', [0.8, -0.3, -14]], right: ['右', [10, -0.3, -11]] };
+const FERRY_STAGES = [
+  { title: '① 出港の 準備：ライフジャケットを 着て、もやい綱を ほどき、ブリッジに「出港 よし」と 合図', short: '① 出港の 準備',
+    steps: [['vest', 'ライフジャケットを 着る'], ['rope', 'もやい綱を ほどく'], ['horn', 'ブリッジに「出港 よし」と 合図する']],
+    decoys: [['ring', '浮き輪を 海に 投げる', '浮き輪は 人が 海に 落ちた ときに 投げます']] },
+  { title: '② 甲板の 氷とり：手袋を はめて、甲板の 氷を わり、すべり止めの 砂を まく', short: '② 甲板の 氷とり',
+    steps: [['gloves', '手袋を はめる'], ['chip', 'スコップで 甲板の 氷を わる'], ['sand', 'すべり止めの 砂を まく']],
+    decoys: [['water', 'バケツの 水を まく', '水は すぐに こおって、もっと すべります']] },
+  { title: '③ 流氷の 見張り：双眼鏡で 海を 見て、大きな 流氷の 方向を ブリッジに 報告', short: '③ 流氷の 見張り' },
+];
+function ferryRound(k) {
+  const stage = k % FERRY_STAGES.length; const st = FERRY_STAGES[stage]; let steps = st.steps; let decoys = st.decoys; let dir = null;
+  if (stage === 2) {
+    dir = pick(Object.keys(FERRY_DIRS)); const say = (d) => '「' + FERRY_DIRS[d][0] + 'に 大きな 流氷」と 報告する';
+    steps = [['binoc', '双眼鏡で 海を 見る'], ['d_' + dir, say(dir)]];
+    decoys = Object.keys(FERRY_DIRS).filter((d) => d !== dir).map((d) => ['d_' + d, say(d), '双眼鏡で 見えた 方向を たしかめよう']);
+  }
+  const items = steps.concat(decoys).map(([id, name]) => ({ label: '', id, name }));
+  return { title: st.title, shortTitle: st.short, items, need: steps.map((x) => x[0]), ordered: true, layout: 'ferry', stage, dir, ng: Object.fromEntries(decoys.map(([id, , t]) => [id, t])) };
+}
+const FERRY = {
+  work: '流氷フェリーの船員', short: '流氷フェリー', rounds: 3, outdoor: true,
+  intro: '流氷の 海を 走る フェリーの 船員に なります。① 出港の 準備（ライフジャケット → もやい綱 → ブリッジに 合図）② 甲板の 氷とり（手袋 → 氷を わる → すべり止めの 砂）③ 流氷の 見張り（双眼鏡で 見て、方向を 報告）の 順です。',
+  defect: '手順ちがい・水を まく・流氷の 方向の まちがい',
+  round() { return ferryRound(state.session ? state.session.roundIndex : 0); },
+};
 //   苗木の 育成（森林組合）：ハウスの 作業台で、苗床の 小さな 苗木を セルトレイ（コンテナ）に 植えかえる（写真の とおり）。
 //   1 回 = トレイの 1 列（3 つの 穴）。培土を 入れる → 元気な 苗を ぬく → 左の 穴から 順に 植える（×3）→ じょうろで 水。4 回で 1 トレイ 完成
 const NURSERY_COLS = 3; const NURSERY_ROWS = 4;
@@ -1000,7 +1039,7 @@ JOBS.forEach((job) => {
   if (job.id === 'craft') { job.variants.summer = OMA_PROCS.slice(); job.variants.winter = [Object.assign(job.variants.winter[0], { short: 'しめ飾り' })].concat(OMA_PROCS); }
   if (job.id === 'office') { job.variants.summer[0].short = '仕分け'; job.variants.winter[0].short = '年賀状'; job.variants.summer.push(DATA_ENTRY); job.variants.winter.push(DATA_ENTRY); }
   if (job.id === 'forest') { job.variants.summer[0].short = '植えつけ'; job.variants.winter[0].short = '薪'; job.variants.summer.unshift(NURSERY); job.variants.winter.push(NURSERY); } // 夏は 育成 → 植えつけ の 順
-  if (job.id === 'fish') { job.variants.summer[0].short = '仕分け'; job.variants.winter[0].short = '仕分け'; job.variants.summer.push(FISHING); job.variants.winter.push(FISHING); }
+  if (job.id === 'fish') { job.variants.summer[0].short = '仕分け'; job.variants.winter[0].short = '仕分け'; job.variants.summer.push(FISHING); job.variants.winter.push(FERRY); } // 冬は 流氷の 海で フェリーの 船員
   if (job.id === 'rice') {
     const base = { work: job.work, short: '苗受け', intro: job.intro, defect: job.defect, round: job.round };
     job.variants = { summer: [base, RICE_PLANT], winter: [base, RICE_PLANT] }; // 冬は お休み（田んぼは 夏だけ）
@@ -1922,6 +1961,42 @@ function tree(x, z, kind) {
     const name = new Board(1.4, 0.24, 300); name.draw((ctx, w, h) => { ctx.fillStyle = '#f4f4f0'; ctx.fillRect(0, 0, w, h); ctx.fillStyle = '#2d6fa3'; ctx.font = '700 ' + Math.round(h * 0.7) + 'px ' + FONT_DISPLAY; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('第一 しごと丸', w / 2, h * 0.55); });
     name.mesh.position.set(0.4, -0.12, 1.11); g.add(name.mesh);
     FIELDS.boat = { g, work, yaw: 0, stand: [0.35, 0.21, 0.05] };
+  })();
+  // 流氷フェリー（冬だけ。ビーチの 東・漁村の 西の 北の 海）。まわりの 海に 流氷。ローカルの -z が 沖（北）、+z が 岸。甲板の 高さは D
+  (() => {
+    const c = toWorld(470, 92); const g = new THREE.Group(); g.position.set(c.x, 0, c.z); g.visible = false; scene.add(g);
+    const work = new THREE.Group(); g.add(work); const D = 1.06;
+    const put = (geo, color, x, y, z, ex) => { const o = new THREE.Mesh(geo, ex ? mat(color, ex) : cmat(color)); o.position.set(x, y, z); g.add(o); return o; };
+    put(new THREE.BoxGeometry(9, 1.4, 3.4), '#f4f4f0', -0.5, 0.35, 0); // 船体
+    const bow = put(new THREE.CylinderGeometry(1.963, 1.963, 1.4, 3), '#f4f4f0', 4.59, 0.35, 0); bow.rotation.y = Math.PI / 2; bow.scale.set(1, 1, 0.6); // へさき
+    put(new THREE.BoxGeometry(9.02, 0.3, 3.42), '#c0392b', -0.5, -0.2, 0); // 砕氷船の 赤い 船底
+    put(new THREE.BoxGeometry(9.02, 0.1, 3.44), '#2d6fa3', -0.5, 0.55, 0); // 青い 線
+    put(new THREE.BoxGeometry(8.9, 0.04, 3.24), '#c9cdd2', -0.5, D - 0.02, 0); // 甲板
+    const bd = put(new THREE.CylinderGeometry(1.86, 1.86, 0.04, 3), '#c9cdd2', 4.59, D - 0.02, 0); bd.rotation.y = Math.PI / 2; bd.scale.set(1, 1, 0.6);
+    [[-2.2, -1.1, 1.2, 0.5], [2.9, 0.9, 0.9, 0.4], [3.6, -0.9, 0.6, 0.5]].forEach(([x, z, w, d]) => put(new THREE.BoxGeometry(w, 0.012, d), '#f4f7f9', x, D + 0.006, z)); // 甲板の すみの 雪
+    // 手すり（北・南・うしろ）
+    [-1, 1].forEach((sd) => { for (let x = -4.9; x <= 4.21; x += 0.6) put(new THREE.BoxGeometry(0.04, 0.9, 0.04), '#e9ecef', x, D + 0.45, sd * 1.64); put(new THREE.BoxGeometry(9.2, 0.05, 0.05), '#e9ecef', -0.35, D + 0.9, sd * 1.64); put(new THREE.BoxGeometry(9.2, 0.03, 0.03), '#e9ecef', -0.35, D + 0.45, sd * 1.64); });
+    put(new THREE.BoxGeometry(0.05, 0.05, 3.3), '#e9ecef', -4.95, D + 0.9, 0);
+    // ブリッジ（操舵室）・えんとつ・マスト
+    put(new THREE.BoxGeometry(2.4, 1.7, 2.9), '#f4f4f0', -3.6, D + 0.85, 0);
+    put(new THREE.BoxGeometry(2.42, 0.42, 2.92), '#2f4a63', -3.6, D + 1.3, 0, { roughness: 0.2, emissive: '#16303f', emissiveIntensity: 0.3 }); // まど
+    put(new THREE.BoxGeometry(2.6, 0.1, 3.1), '#2d6fa3', -3.6, D + 1.75, 0);
+    put(new THREE.CylinderGeometry(0.32, 0.36, 1.0, 14), '#d0453a', -4.2, D + 2.3, 0); put(new THREE.CylinderGeometry(0.33, 0.33, 0.12, 14), '#2b2f33', -4.2, D + 2.84, 0);
+    put(new THREE.CylinderGeometry(0.03, 0.03, 1.6, 6), '#c9ced6', -3.0, D + 2.55, 0); put(new THREE.BoxGeometry(0.02, 0.28, 0.42), '#2d6fa3', -3.0, D + 3.2, 0.22); // マストと 旗
+    [-1, 1].forEach((sd) => { const nb = new Board(2.4, 0.3, 300); nb.draw((ctx, w, h) => { ctx.fillStyle = '#f4f4f0'; ctx.fillRect(0, 0, w, h); ctx.fillStyle = '#2d6fa3'; ctx.font = '700 ' + Math.round(h * 0.68) + 'px ' + FONT_DISPLAY; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('流氷フェリー しごと号', w / 2, h * 0.55); });
+      nb.mesh.position.set(0.5, 0.25, sd * 1.712); if (sd < 0) nb.mesh.rotation.y = Math.PI; g.add(nb.mesh); });
+    // 流氷（平たい 氷が 海に うかぶ。船と 岸の まわりは あける）
+    const floeGeo = new THREE.CylinderGeometry(1, 1.06, 0.18, 7); const floeMat = mat('#eef6fa', { flatShading: true, roughness: 0.6 });
+    let sd0 = 7; const rnd = () => { sd0 = (sd0 * 16807) % 2147483647; return sd0 / 2147483647; };
+    for (let k = 0, n = 0; k < 400 && n < 85; k++) {
+      const a = rnd() * Math.PI * 2; const r = 5 + Math.sqrt(rnd()) * 32; const x = Math.cos(a) * r; const z = Math.sin(a) * r;
+      if (Math.abs(x) < 7 && Math.abs(z) < 3.4) continue; // 船
+      if (x > -2 && x < 4 && z > 1.4 && z < 7) continue; // 岸壁
+      const [mx, my] = toMap(c.x + x, c.z + z); if ([[0, 0], [14, 0], [-14, 0], [0, 14], [0, -14]].some(([ox, oy]) => insideIsland(mx + ox, my + oy))) continue; // 島の 上には 置かない
+      const f = new THREE.Mesh(floeGeo, floeMat); const s = 0.5 + rnd() * 1.5; f.scale.set(s * (0.7 + rnd() * 0.6), 1, s * (0.7 + rnd() * 0.6)); f.rotation.y = rnd() * Math.PI * 2;
+      f.position.set(x, -0.3, z); g.add(f); n++;
+    }
+    FIELDS.ferry = { g, work, yaw: 0, D };
   })();
   // 植林地（森林組合の 西の 林の 中の あき地）。まん中に 植える ところ。ローカルの +z に 立って -z を 見る
   (() => {
@@ -3602,6 +3677,7 @@ function applySeason() {
   seasonal.runs.forEach((m) => { m.visible = winter; });
   seasonal.treeSnow.forEach((m) => { m.visible = winter; }); // 木の 上の 雪
   if (FIELDS.paddy && FIELDS.paddy.decor) FIELDS.paddy.decor.visible = !winter; // 田んぼの 苗は 夏だけ
+  if (FIELDS.ferry) FIELDS.ferry.g.visible = winter; // 北の 海の 流氷と フェリーは 冬だけ
   const target = winter ? 'ski' : 'hut';
   seasonal.trail.mesh.userData.boothIndex = booths.findIndex((b) => b.job.id === target);
   seasonal.trail.draw((ctx, W, H) => {
@@ -3722,14 +3798,15 @@ function clearWork() {
   b.inField = false; b.away = false;
   clearWear(); // 身に つけた ものは 1 回ごとに はずす（つぎの 回も 自分で つける）
   if (FIELDS.wind && FIELDS.wind.g.visible) FIELDS.wind.pendingHide = true; // 見に いった 風車は 白く なって から かくす
+  if (FIELDS.snow && FIELDS.snow.g.visible) FIELDS.snow.pendingHide = true; // 雪かきの 前庭も
   if (b.guests) b.guests.forEach((p) => { p.visible = true; }); // 倉庫整理の 間は お客さんを 出さない
   applyRoomMode(b); // 部屋の ようすを 作業に 合わせて もどす
   if (b.counter.userData.base) b.counter.material.color.copy(b.counter.userData.base);
 }
 // 外の 作業：指示モニター（ボタンつき）を 畑へ 持って いき、自分も その 場所へ 行く
-function goField(b, f, stand, pitch, panelAt) {
+function goField(b, f, stand, pitch, panelAt, yaw) {
   f.g.add(b.panel); b.panel.position.set(panelAt[0], 0, panelAt[1]); b.panel.rotation.y = panelAt[2]; b.panelOut = true; b.inField = true;
-  moveRig(f.g.localToWorld(stand.clone()), f.yaw, pitch, b.fieldArrived ? 700 : undefined); b.fieldArrived = true;
+  moveRig(f.g.localToWorld(stand.clone()), f.yaw + (yaw || 0), pitch, b.fieldArrived ? 700 : undefined); b.fieldArrived = true;
 }
 // 田んぼの 苗植え
 function seedlingMesh(wilt) {
@@ -4202,6 +4279,129 @@ function startFishing(b, def) {
   state.feedback = { text: '', kind: '' };
   drawWorkBoard(); renderHud();
   if (state.withSupport) speak('ブイの ところに つきました。ローラーで 網を 上げましょう。');
+}
+// 流氷フェリーの 船員：甲板に 道具を おいて 1 工程ずつ。① は 岸壁（南）を 向き、②③ は 沖（北）を 向く
+function ferryFloe() { // 見張りで 見つける 大きな 流氷（アザラシが のっている）
+  const g = new THREE.Group();
+  part(g, new THREE.CylinderGeometry(2.6, 2.8, 0.4, 8), '#f4fbff', 0, 0.05, 0, { flatShading: true, roughness: 0.6 }).scale.set(1, 1, 0.7);
+  part(g, new THREE.IcosahedronGeometry(0.7, 0), '#e4f1f8', -1.1, 0.35, -0.3, { flatShading: true }).scale.set(1.4, 0.6, 1);
+  const seal = new THREE.Group(); seal.position.set(0.6, 0.25, 0.3); g.add(seal);
+  part(seal, ball(0.5, 14, 10), '#8a8f96', 0, 0.25, 0).scale.set(1.5, 0.55, 0.65);
+  part(seal, ball(0.24, 12, 10), '#9aa0a6', 0.75, 0.42, 0);
+  [-1, 1].forEach((sd) => part(seal, ball(0.035, 6, 5), '#1f2a33', 0.92, 0.48, sd * 0.09));
+  return g;
+}
+function startFerry(b, def) {
+  const F = FIELDS.ferry; const W = F.work; const D = F.D; const slots = []; const stage = def.stage;
+  F.g.visible = true;
+  const idx = (id) => def.items.findIndex((it) => it.id === id);
+  const add = (id, obj, at, label, o) => { // 甲板に おいた 道具（えらぶと 動作）
+    o = o || {}; const i = idx(id); const holder = new THREE.Group(); holder.position.set(...at); if (o.ry) holder.rotation.y = o.ry; W.add(holder); holder.add(obj);
+    obj.traverse((m) => { m.userData.slotIndex = i; });
+    const hs = o.hit || [0.45, 0.4, 0.45]; const hit = part(holder, box(...hs), '#ffffff', 0, hs[1] / 2, 0, { transparent: true, opacity: 0.01, depthWrite: false }); hit.userData.slotIndex = i; // えらびやすい 当たり
+    const ring = makeGlowRing(); ring.geometry = ring.geometry.clone().scale(o.ring || 1.8, o.ring || 1.8, 1); ring.position.y = 0.02; holder.add(ring);
+    let sp = null; if (label) { sp = labelSprite(label, { h: 0.1 }); sp.position.y = o.ly || 0.6; holder.add(sp); }
+    slots[i] = { spec: def.items[i], key: id, mesh: obj, extra: hit, ring, holder, tag: sp, done: false }; return slots[i];
+  };
+  const locker = (x, z) => { part(W, box(0.5, 0.4, 0.42), '#55626d', x, D + 0.2, z); part(W, box(0.52, 0.03, 0.44), '#3d4a54', x, D + 0.41, z); }; // 道具を のせる 箱
+  const bucket = (c, top) => { const g = new THREE.Group(); part(g, cyl(0.15, 0.12, 0.28, 18), c, 0, 0.14, 0); part(g, cyl(0.135, 0.135, 0.01, 18), top, 0, 0.26, 0); part(g, new THREE.TorusGeometry(0.14, 0.006, 6, 18, Math.PI), '#8a8f96', 0, 0.28, 0); return g; };
+  const say = (text, at) => { const t = labelSprite(text, { h: 0.11, bg: 'rgba(220,245,225,0.97)' }); t.position.copy(at); W.add(t); return t; };
+  const st = { looked: false }; let stand; let face; let pitch; let panelAt;
+  if (stage === 0) {
+    // 岸壁（南）と 係船柱。もやい綱は 甲板の クリートから 手すりを こえて 岸壁へ
+    part(W, box(4.4, 0.5, 3.8), '#b8b3a8', 1.0, 0.3, 3.6); part(W, box(4.4, 0.02, 3.8), '#f4f7f9', 1.0, 0.56, 3.6);
+    part(W, cyl(0.12, 0.15, 0.3, 12), '#3d4a54', 0.6, 0.72, 2.25);
+    locker(-0.15, 0.35);
+    const jk = SHAPE_MODELS.lifejacket({ color: '#f39a2b', size: 'L' }); jk.scale.setScalar(2.2);
+    add('vest', jk, [-0.15, D + 0.42, 0.35], 'ライフジャケット', { ly: 0.42 });
+    const cleat = new THREE.Group(); part(cleat, box(0.3, 0.04, 0.1), '#55626d', 0, 0.02, 0); [-1, 1].forEach((sd) => part(cleat, cyl(0.025, 0.025, 0.1, 8), '#55626d', sd * 0.1, 0.07, 0));
+    const ropeMat = '#d9b36a'; const seg = (a, b2) => { const m = part(cleat, cyl(0.018, 0.018, 1, 6), ropeMat, 0, 0, 0); m.position.copy(a).add(b2).multiplyScalar(0.5); m.scale.y = a.distanceTo(b2); m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), b2.clone().sub(a).normalize()); return m; };
+    const p0 = new THREE.Vector3(0, 0.1, 0); const p1 = new THREE.Vector3(0, 0.92, 0.74); const p2 = new THREE.Vector3(0, 0.72 - D, 1.35); // クリート → 手すりの 上 → 岸壁の 係船柱（holder の ローカル）
+    const ropes = [seg(p0, p1), seg(p1, p2)];
+    add('rope', cleat, [0.6, D, 0.9], 'もやい綱', { ly: 0.5, hit: [0.4, 0.3, 0.4] });
+    const call = new THREE.Group(); part(call, cyl(0.03, 0.03, 1.2, 8), '#8a8f96', 0, 0.6, 0); part(call, box(0.26, 0.34, 0.1), '#2d6fa3', 0, 1.25, 0);
+    part(call, cyl(0.05, 0.05, 0.04, 14), '#d0453a', 0, 1.2, -0.06, { emissive: '#7a1a10', emissiveIntensity: 0.4 }).rotation.x = Math.PI / 2; part(call, box(0.16, 0.06, 0.02), '#1f2a33', 0, 1.34, -0.055);
+    add('horn', call, [-0.95, D, 1.05], 'ブリッジへの 連絡', { ly: 1.6, hit: [0.4, 1.5, 0.4] });
+    const rg = SM.ring('#f39a2b'); rg.rotation.x = Math.PI / 2; rg.position.y = 0.3;
+    add('ring', rg, [1.9, D + 0.3, 1.5], '浮き輪', { ly: 0.75, ring: 1.4 });
+    stand = [0.6, -0.7]; face = Math.PI; pitch = 0.4; panelAt = [-1.9, -0.4];
+    state.round = { def, slots, pos: 0, lastActionAt: performance.now(), hintShown: false, mistakeThisRound: false,
+      onPick(slot, ok) {
+        if (!ok) { flashWrong(slot); return; }
+        if (slot.tag) slot.tag.visible = false;
+        if (slot.key === 'rope') { ropes.forEach((m) => { m.visible = false; }); const coil = SM.rope(); coil.scale.setScalar(0.8); coil.position.set(0.25, 0, 0); cleat.add(coil); }
+        if (slot.key === 'horn') { playSfx('horn'); say('ブリッジ：了解。出港します！', new THREE.Vector3(-0.95, D + 1.95, 1.05)); state.round.finishWait = 1900; }
+      } };
+  } else if (stage === 1) {
+    locker(1.75, 0.1);
+    add('gloves', SM.gloves(), [1.75, D + 0.42, 0.1], '手袋', { ly: 0.4, ring: 1.5 });
+    // 甲板の 氷（スコップが そばに ある）
+    const ice = new THREE.Group(); const pieces = [];
+    [[-0.25, -0.05, 0.42, 0.3], [0.15, 0.1, 0.36, 0.26], [0.3, -0.15, 0.28, 0.22], [-0.05, 0.2, 0.3, 0.2], [0.05, -0.2, 0.26, 0.2]].forEach(([x, z, sx, sz], k) => {
+      const m = part(ice, cyl(1, 1, 0.025, 7), '#d6eef8', x, 0.013, z, { transparent: true, opacity: 0.85, roughness: 0.15 }); m.scale.set(sx, 1, sz); m.rotation.y = k; m.userData.s = [sx, sz]; pieces.push(m); });
+    const sh = SM.shovel(); sh.position.set(-0.55, 0, 0.15); sh.rotation.y = 0.6; ice.add(sh);
+    add('chip', ice, [0.5, D, -0.7], '甲板の 氷', { ly: 0.42, ring: 3.4, hit: [1.0, 0.12, 0.7] });
+    const sand = bucket('#d0453a', '#c9a46a'); add('sand', sand, [-0.6, D, -0.2], 'すべり止めの 砂', { ly: 0.55 });
+    const wat = bucket('#3c7fc4', '#6fa9c9'); add('water', wat, [1.4, D, -1.0], 'バケツの 水', { ly: 0.55 });
+    stand = [0.8, 0.7]; face = 0; pitch = 0.5; panelAt = [2.7, 0.2];
+    state.round = { def, slots, pos: 0, lastActionAt: performance.now(), hintShown: false, mistakeThisRound: false,
+      onPick(slot, ok) {
+        if (!ok) { flashWrong(slot); return; }
+        if (slot.tag) slot.tag.visible = false;
+        if (slot.key === 'chip') { // 氷が われて 小さく なる
+          sh.rotation.set(0.5, 0.2, 0); sh.position.set(-0.1, 0.25, 0.1); setTimeout(() => { sh.rotation.set(0, 0.6, 0); sh.position.set(-0.55, 0, 0.15); }, 450);
+          anims.push({ kind: 'fill', from: 1, to: 0.25, set: (u) => pieces.forEach((m) => m.scale.set(m.userData.s[0] * u, 1, m.userData.s[1] * u)), t0: performance.now() });
+          slot.ring.visible = false;
+        }
+        if (slot.key === 'sand') { // バケツを かたむけて 砂を まく
+          sand.rotation.z = 0.9; setTimeout(() => { sand.rotation.z = 0; }, 700);
+          for (let k = 0; k < 60; k++) part(W, box(0.02, 0.006, 0.02), '#a07a4a', 0.5 + (Math.random() - 0.5) * 0.9, D + 0.03, -0.7 + (Math.random() - 0.5) * 0.6);
+          state.round.slowFinish = true;
+        }
+      } };
+  } else {
+    locker(1.75, 0.1);
+    const bn = new THREE.Group(); [-1, 1].forEach((sd) => { part(bn, cyl(0.045, 0.05, 0.14, 14), '#2b2f33', sd * 0.055, 0.05, 0).rotation.x = Math.PI / 2; part(bn, cyl(0.04, 0.04, 0.005, 14), '#7fb3d9', sd * 0.055, 0.05, -0.072).rotation.x = Math.PI / 2; });
+    part(bn, box(0.06, 0.03, 0.06), '#2b2f33', 0, 0.06, 0); bn.scale.setScalar(1.6);
+    const bs = add('binoc', bn, [1.75, D + 0.42, 0.1], '双眼鏡', { ly: 0.4, ring: 1.5 });
+    // ブリッジへ 報告する マイクと ボタン（左・正面・右）
+    const px = -0.5; const pz = -0.5; const ry = Math.atan2(0.8 - px, 0.7 - pz);
+    const post = new THREE.Group(); post.position.set(px, D, pz); post.rotation.y = ry; W.add(post);
+    part(post, cyl(0.03, 0.03, 1.15, 8), '#8a8f96', 0, 0.58, -0.05); part(post, box(1.2, 0.3, 0.05), '#2b2f33', 0, 1.25, -0.04);
+    const head = labelSprite('ブリッジへ 報告（マイク）', { h: 0.09 }); head.position.set(0, 1.55, 0); post.add(head);
+    ['left', 'front', 'right'].forEach((d, k) => {
+      const i = idx('d_' + d); const holder = new THREE.Group(); holder.position.set(-0.38 + k * 0.38, 1.25, -0.01); post.add(holder);
+      const plate = textPlate(FERRY_DIRS[d][0] + 'に 流氷', 0.34, 0.14, '#2d6fa3', '#ffffff'); holder.add(plate); plate.userData.slotIndex = i;
+      const ring = makeGlowRing(); ring.rotation.x = 0; ring.scale.set(1.5, 0.75, 1); ring.position.z = 0.005; holder.add(ring);
+      slots[i] = { spec: def.items[i], key: 'd_' + d, mesh: plate, ring, holder, done: false };
+    });
+    // 見つける 大きな 流氷（双眼鏡で 見ると 見える）
+    const big = ferryFloe(); big.position.set(...FERRY_DIRS[def.dir][1]); big.rotation.y = Math.random() * TAU; big.visible = false; W.add(big);
+    const bigTag = labelSprite('大きな 流氷（アザラシが いる）', { h: 0.6, bg: 'rgba(255,240,200,0.95)' }); bigTag.position.y = 1.8; big.add(bigTag);
+    stand = [0.8, 0.7]; face = 0; pitch = 0.1; panelAt = [2.7, 0.2];
+    state.round = { def, slots, pos: 0, lastActionAt: performance.now(), hintShown: false, mistakeThisRound: false,
+      onPick(slot, ok) {
+        if (!ok) { flashWrong(slot); return; }
+        if (slot.key === 'binoc') { // 目の 前に 持ちあげて 海を 見る
+          if (bs.tag) bs.tag.visible = false; st.looked = true;
+          anims.push({ kind: 'box', obj: bs.holder, from: bs.holder.position.clone(), to: new THREE.Vector3(stand[0] + 0.1, D + 1.45, stand[1] - 0.35), t0: performance.now() });
+          setTimeout(() => { if (state.round && state.round.def === def) { bs.holder.visible = false; big.visible = true; } }, 700);
+          state.feedback = { text: '大きな 流氷が 見えた！', kind: 'ok' };
+          if (state.withSupport) setTimeout(() => speak('大きな 流氷が 見えました。どちらの 方向か、ブリッジに 報告しましょう。'), 900);
+          renderHud(); return;
+        }
+        playSfx('horn'); say('ブリッジ：了解。流氷を よけて 進みます', new THREE.Vector3(px, D + 1.9, pz)); state.round.finishWait = 1900;
+      } };
+  }
+  const r = state.round;
+  r.ngText = (slot) => (stage === 2 && !st.looked ? 'さきに 双眼鏡で 海を 見よう' : def.ng[slot.key] || null);
+  r.status = () => (stage === 0 ? '出港 前。岸壁に とまって いる。甲板で 準備を しよう' : stage === 1 ? '甲板が こおって すべりやすい' : !st.looked ? '流氷の 海を 進んで いる。まわりの 海を 見はろう' : '大きな 流氷を 見つけた！ どちらの 方向？');
+  const rot = Math.atan2(stand[0] - panelAt[0], stand[1] - panelAt[1]); // 指示モニターは 立つ ところの 方へ 向ける
+  goField(b, { g: F.g, yaw: face }, new THREE.Vector3(stand[0], D, stand[1]), pitch, [panelAt[0], panelAt[1], rot]);
+  b.panel.position.y = D - 0.3;
+  state.feedback = { text: '', kind: '' };
+  drawWorkBoard(); renderHud();
+  if (state.withSupport) speak(def.title + '。最初は、' + stepLabel(def.need[0]) + '。');
 }
 // 漁協の 仕分け（リアス式海岸の 魚）：作業台の 手前に ものさしの 板と とれた 魚。奥に 工程ごとの カード・箱を 出す
 //   ① 種類の カード（絵と 見分けかた）を えらぶ → ② 大きい・小さい の 札を えらぶ → ③ A・B × 大・小 の 箱に 入れる
@@ -4778,13 +4978,14 @@ Object.assign(STAGES, {
 STAGES['羽の氷とかしと点検'] = STAGES['風車の点検'];
 // ---- 身につける もの：えらぶと まず 必要物品として 手に 持って 見せ、それから 頭・こし・手に つける。つけた ものは 目の はしに 見える
 const HAND_AT = new THREE.Vector3(0.12, -0.15, -0.42); // 手に 持つ ところ（目から 見て 右下）
-const WEAR_AT = { helmet: new THREE.Vector3(0, 0.38, 0.05), harness: new THREE.Vector3(0, -0.75, -0.1), gloves: new THREE.Vector3(0, -0.45, -0.3) };
-const WEAR_NAME = { helmet: 'ヘルメット', harness: '安全帯', gloves: '手袋' };
-const WEAR_DONE = { helmet: 'ヘルメットを かぶりました', harness: '安全帯を つけました', gloves: '手袋を はめました' };
+const WEAR_AT = { helmet: new THREE.Vector3(0, 0.38, 0.05), harness: new THREE.Vector3(0, -0.75, -0.1), gloves: new THREE.Vector3(0, -0.45, -0.3), vest: new THREE.Vector3(0, -0.6, -0.15) };
+const WEAR_NAME = { helmet: 'ヘルメット', harness: '安全帯', gloves: '手袋', vest: 'ライフジャケット' };
+const WEAR_DONE = { helmet: 'ヘルメットを かぶりました', harness: '安全帯を つけました', gloves: '手袋を はめました', vest: 'ライフジャケットを 着ました' };
 const WEAR_TILT = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.35, 0, 0)); // 手の 上で 正面を こちらに、少し 上を 見せる
 const smooth = (u) => u * u * (3 - 2 * u);
 const wornGroup = new THREE.Group(); camera.add(wornGroup);
 function wearKind(slot) {
+  if (state.round && state.round.def.layout === 'ferry') return { vest: 'vest', gloves: 'gloves' }[slot.key] || null; // 流氷フェリー
   const job = state.booth && state.booth.job; const t = (slot.spec.label && job && actionText(job, slot.spec)) || '';
   if (slot.key === 'helmet' || /ヘルメットを かぶる/.test(t)) return 'helmet';
   if (/安全帯を つける/.test(t)) return 'harness';
@@ -4859,6 +5060,7 @@ function addWorn(kind) {
   const half = Math.tan(camera.fov * Math.PI / 360); const g = new THREE.Group(); g.userData.wear = kind; wornGroup.add(g);
   if (kind === 'helmet') { const z = 0.2; part(g, box(0.6, 0.03, 0.14), '#f2c230', 0, z * half - 0.006, -z).rotation.x = 0.3; }
   if (kind === 'harness') { const z = 0.26; [-1, 1].forEach((sd) => { part(g, box(0.025, 0.05, 0.008), '#e0662f', sd * 0.07, -z * half + 0.008, -z).rotation.z = sd * 0.3; }); part(g, box(0.04, 0.025, 0.01), '#8a8f96', 0, -z * half + 0.004, -z, { metalness: 0.5 }); }
+  if (kind === 'vest') { const z = 0.26; [-1, 1].forEach((sd) => { part(g, box(0.06, 0.05, 0.01), '#f39a2b', sd * 0.1, -z * half + 0.012, -z).rotation.z = sd * 0.25; part(g, box(0.06, 0.008, 0.011), '#e9edf0', sd * 0.1, -z * half + 0.02, -z); }); }
   if (kind === 'gloves') { const z = 0.3; [-1, 1].forEach((sd) => { const gl = new THREE.Group(); gl.position.set(sd * 0.14, -z * half + 0.018, -z); gl.rotation.set(0.5, 0, sd * -0.4); g.add(gl); part(gl, box(0.075, 0.03, 0.09), '#d0453a', 0, 0, 0); for (let i = 0; i < 4; i++) part(gl, box(0.016, 0.026, 0.045), '#d0453a', -0.027 + i * 0.018, 0, -0.06); part(gl, box(0.08, 0.034, 0.03), '#ffffff', 0, 0, 0.055); }); }
 }
 function clearWear() {
@@ -5317,6 +5519,7 @@ function nextRound() {
   if (def.layout === 'tomato') return startTomato(b, def);
   if (def.layout === 'nursery') return startNursery(b, def);
   if (def.layout === 'fishing') return startFishing(b, def);
+  if (def.layout === 'ferry') return startFerry(b, def);
   if (def.layout === 'fishsort') return startFishSort(b, def);
   if (def.layout === 'strawberry') return startStrawberry(b, def);
   if (def.layout === 'cafe') return startCafe(b, def);
@@ -6378,26 +6581,19 @@ const CLEAN_LAYOUTS = {
     const things = MOP_ROOMS[(state.session ? state.session.roundIndex : 0) % MOP_ROOMS.length];
     things.forEach((o) => roomThing(W, o));
     const surf = dirtSurface(W, 0, (ROOM.z0 + ROOM.z1) / 2, ROOM.x1 - ROOM.x0, ROOM.z1 - ROOM.z0, 0.106, (c, w, h) => {
-      c.fillStyle = def.winter ? 'rgba(120,160,190,0.45)' : 'rgba(130,100,70,0.42)'; c.fillRect(0, 0, w, h);
-      for (let k = 0; k < 40; k++) { c.fillStyle = def.winter ? 'rgba(90,140,180,0.5)' : 'rgba(95,70,45,0.55)'; c.beginPath(); c.ellipse(Math.random() * w, Math.random() * h, 8 + Math.random() * 26, 6 + Math.random() * 16, Math.random() * 3, 0, Math.PI * 2); c.fill(); }
+      c.fillStyle = 'rgba(130,100,70,0.42)'; c.fillRect(0, 0, w, h);
+      for (let k = 0; k < 40; k++) { c.fillStyle = 'rgba(95,70,45,0.55)'; c.beginPath(); c.ellipse(Math.random() * w, Math.random() * h, 8 + Math.random() * 26, 6 + Math.random() * 16, Math.random() * 3, 0, Math.PI * 2); c.fill(); }
     });
     things.forEach((o) => surf.exclude(o.x - o.w / 2, o.z - o.d / 2, o.x + o.w / 2, o.z + o.d / 2));
-    // モップの ヘッドが どこからも 届かない 床（家具と かべの すきま など）は 数えない
-    //（立ち位置から 歩いて 行ける ところだけ：0.1m の ます目を たどる）
-    const S = 0.1; const ok = (i, j) => { const x = i * S; const z = STAFF_Z + j * S; return mopFree(x, z) && !mopHits(things, x, z); };
-    const seen = new Set(['0,0']); const todo = [[0, 0]];
-    while (todo.length) {
-      const [i, j] = todo.pop(); const x = i * S; const z = STAFF_Z + j * S;
-      for (let a = 0; a < 24; a++) { const hd = mopHead(things, x, z, Math.sin(a / 24 * TAU), Math.cos(a / 24 * TAU)); if (!hd.blocked) surf.markReach(hd.x, hd.z, 0.28); }
-      [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([di, dj]) => { const k = (i + di) + ',' + (j + dj); if (!seen.has(k) && ok(i + di, j + dj)) { seen.add(k); todo.push([i + di, j + dj]); } });
-    }
-    surf.keepReachable();
+    const hits = (x, z) => mopHits(things, x, z); const head = (px, pz, dx, dz) => mopHead(things, px, pz, dx, dz);
+    coverReach(surf, mopFree, hits, head, 0, STAFF_Z, 0.28); // モップの ヘッドが どこからも 届かない 床（家具と かべの すきま など）は 数えない
     // モップ（店員の 前の ゆかに ヘッド、手もとへ 柄）
     const mop = new THREE.Group(); W.add(mop);
     part(mop, box(0.5, 0.05, 0.14), '#3d6f85', 0, 0.03, 0);
     for (let k = 0; k < 10; k++) part(mop, box(0.035, 0.05, 0.12), '#e8eef2', -0.22 + k * 0.049, 0.01, 0);
     const handle = part(mop, cyl(0.016, 0.016, 1.2, 8), '#c9a46a', 0, 0.55, -0.3); handle.rotation.x = -0.55;
-    ctx.cover = { kind: 'mop', surf, things, mop, pos: { x: 0, z: STAFF_Z }, lastBump: 0, mark: hintMark(W, 0.28) };
+    ctx.cover = { kind: 'mop', walk: true, surf, space: b.group, free: mopFree, hits, head, tool: mop, toolY: 0.1, r: 0.28, pos: { x: 0, z: STAFF_Z }, lastBump: 0, mark: hintMark(W, 0.28), markY: 0.11,
+      back: () => moveRig(b.group.localToWorld(new THREE.Vector3(0, 0, STAFF_Z)), b.yaw + Math.PI, 0.55, 500) };
     // 店員の 立ち位置から はじめる
     moveRig(b.group.localToWorld(new THREE.Vector3(0, 0, STAFF_Z)), b.yaw + Math.PI, 0.55, 400);
   },
@@ -6429,27 +6625,145 @@ const CLEAN_LAYOUTS = {
     moveRig(b.group.localToWorld(new THREE.Vector3(cx - fc.x * dist, 0, cz - fc.z * dist)), b.yaw + Math.atan2(-fc.x, -fc.z), Math.atan2(1.6 - topY, dist) * 0.95, s.roundIndex ? 900 : undefined);
     ctx.cover = { kind: 'wipe', surf, cloth, topY, bounds: { x0: cx - TW / 2 + 0.08, x1: cx + TW / 2 - 0.08, z0: cz - TD / 2 + 0.06, z1: cz + TD / 2 - 0.06 }, face: fc, left: lf, mark: hintMark(W, 0.1) };
   },
+  // 家の 前の 雪かき（冬）：前庭に 出て、スコップで 雪を どけながら 歩く。どけた ところは 敷石が 見え、雪は 道の わきに つもる
+  snow(ctx, def) {
+    const b = ctx.b; const F = snowField(); const W = F.work; const S = SNOWY; const side = def.part === 1;
+    F.g.visible = true; F.pendingHide = false;
+    const paintSnow = (c, w, h) => {
+      c.fillStyle = '#f6f9fb'; c.fillRect(0, 0, w, h);
+      for (let k = 0; k < 260; k++) { c.fillStyle = k % 3 ? 'rgba(222,232,240,0.6)' : 'rgba(255,255,255,0.9)'; c.beginPath(); c.ellipse(Math.random() * w, Math.random() * h, 3 + Math.random() * 9, 2 + Math.random() * 4, Math.random() * 3, 0, TAU); c.fill(); }
+    };
+    const surf = side ? dirtSurface(W, 0, (S.walk[0] + S.walk[1]) / 2, 2 * S.walkX, S.walk[1] - S.walk[0], 0.19, paintSnow)
+      : dirtSurface(W, 0, (S.fence - 0.1 + S.porch) / 2, 2 * S.path, S.porch - S.fence + 0.1, 0.19, paintSnow);
+    S.things.forEach((o) => surf.exclude(o.x - o.w / 2, o.z - o.d / 2, o.x + o.w / 2, o.z + o.d / 2));
+    const hits = (x, z) => mopHits(S.things, x, z); const head = shovelHead;
+    const start = side ? { x: -2.2, z: -2.65 } : { x: 0, z: 0.35 };
+    coverReach(surf, snowFree, hits, head, start.x, start.z, 0.25);
+    // まだ かいていない ところの 雪（1 回めの 歩道・2 回めの 歩道の はし）
+    const snowBox = (w, h, d, x, z) => part(W, box(w, h, d), '#f4f8fb', x, 0.1 + h / 2, z, { roughness: 0.95 });
+    if (!side) snowBox(2 * S.side + 0.4, 0.09, S.walk[1] - S.walk[0], 0, (S.walk[0] + S.walk[1]) / 2);
+    else [-1, 1].forEach((sd) => snowBox(S.side + 0.2 - S.walkX, 0.09, S.walk[1] - S.walk[0], sd * (S.walkX + (S.side + 0.2 - S.walkX) / 2), (S.walk[0] + S.walk[1]) / 2));
+    // どけた 雪の 山（かくほど 大きく なる）。通路は 両わき、歩道は 両はし
+    const mound = (x, z, sx, sz) => { const m = part(W, ball(1, 16, 8, ), '#f4f8fb', x, 0.2, z, { roughness: 0.95 }); m.scale.set(sx, 0.02, sz); return m; };
+    const pathPiles = [-1, 1].map((sd) => mound(sd * (S.path + 0.3), (S.fence + 0.3 + S.porch - 0.3) / 2, 0.26, 1.15));
+    const walkPiles = side ? [-1, 1].map((sd) => mound(sd * (S.side + 0.05), (S.walk[0] + S.walk[1]) / 2, 0.32, 0.5)) : [];
+    if (side) pathPiles.forEach((m) => { m.scale.y = 0.3; });
+    const grow = (u) => (side ? walkPiles : pathPiles).forEach((m) => { m.scale.y = 0.02 + 0.32 * u; });
+    // スコップ（雪を おす 先が ひろい もの）。先は 前の 足もと、柄は 手もとへ
+    const tool = new THREE.Group(); W.add(tool);
+    part(tool, box(0.5, 0.03, 0.36), '#e0662f', 0, 0.02, 0);
+    part(tool, box(0.5, 0.13, 0.03), '#e0662f', 0, 0.075, -0.18);
+    [-1, 1].forEach((sd) => part(tool, box(0.03, 0.1, 0.36), '#e0662f', sd * 0.25, 0.06, 0));
+    part(tool, box(0.42, 0.05, 0.26), '#f6f9fb', 0, 0.055, 0.02); // のった 雪
+    const handle = part(tool, cyl(0.016, 0.016, 1.1, 8), '#c9a46a', 0, 0.5, -0.45); handle.rotation.x = -0.75;
+    part(tool, box(0.18, 0.03, 0.03), '#2b2b2b', 0, 0.9, -0.83); // にぎり
+    ctx.cover = { kind: 'shovel', walk: true, surf, space: F.g, free: snowFree, hits, head, tool, toolY: 0.12, r: 0.25, pos: { x: start.x, z: start.z }, lastBump: 0, mark: hintMark(W, 0.25), markY: 0.22,
+      sfx: 'snow', doneWord: '雪を どけた ところ', hintText: 'ヒント：まだ 雪が のこって いる ところが 光っています', hintSay: 'まだ 雪が のこって いる ところが あります。', grow };
+    // 1 回めは 玄関の 前で 門の 方を、2 回めは 歩道の 左はしで 右を 向く。指示モニターは 前の 少し 左（右）に 立てる
+    goField(b, F, new THREE.Vector3(start.x, 0, start.z), 0.55, side ? [1.2, -5.0, -0.95] : [-2.2, -5.0, 0.4], side ? -Math.PI / 2 : 0);
+  },
 };
+// ---- 家の 前の 雪かき（清掃の 冬）：利用者さんの 家の 前庭。ローカルの +z が 家、-z が 道路。
+//   玄関（z = porch）から 門（z = fence）までの 通路（はば 2 × path）と、門の 前の 歩道（z = walk）。前庭と 歩道の 外は 柵と 家
+const SNOWY = { at: [274, 324], porch: 0.95, fence: -2.0, gate: 0.7, side: 2.9, path: 0.65, walk: [-3.2, -2.1], walkX: 2.8,
+  things: [{ kind: 'planter', x: 1.5, z: -0.5, w: 0.55, d: 0.55 }, { kind: 'mailbox', x: -1.1, z: -1.6, w: 0.3, d: 0.3 }, { kind: 'bike', x: -1.9, z: 0.25, w: 0.4, d: 1.2 }, { kind: 'pole', x: 2.0, z: -3.0, w: 0.3, d: 0.3 }] };
+// 自分が 立てる ところ（前庭・門・歩道。柵と 家の 手前で 止まる）
+const snowFree = (x, z) => (Math.abs(x) < SNOWY.side - 0.3 && z > SNOWY.fence + 0.3 && z < SNOWY.porch - 0.25)
+  || (Math.abs(x) < SNOWY.gate - 0.3 && z > SNOWY.fence - 0.4 && z < SNOWY.fence + 0.4)
+  || (Math.abs(x) < SNOWY.side - 0.3 && z > SNOWY.walk[0] + 0.25 && z < SNOWY.fence - 0.3);
+// スコップの 先（柵・家・ものの 手前で 止める）
+function shovelHead(px, pz, dx, dz) {
+  const S = SNOWY; const HR = 0.2;
+  const bad = (x, z) => !((Math.abs(x) < S.side - HR && z > S.fence + 0.1 && z < S.porch) || (Math.abs(x) < S.gate - HR && z > S.fence - 0.25 && z < S.fence + 0.25) || (Math.abs(x) < S.side - HR && z > S.walk[0] + 0.05 && z < S.fence - 0.1))
+    || S.things.some((o) => x > o.x - o.w / 2 - HR && x < o.x + o.w / 2 + HR && z > o.z - o.d / 2 - HR && z < o.z + o.d / 2 + HR);
+  let reach = 0.85;
+  while (reach > 0.15 && bad(px + dx * reach, pz + dz * reach)) reach -= 0.05;
+  const x = px + dx * reach; const z = pz + dz * reach;
+  return { x, z, blocked: bad(x, z) };
+}
+// 家・柵・敷石・道路（はじめて 使う ときに 建てる。作業の あいだだけ 見せる）
+function snowField() {
+  if (FIELDS.snow) return FIELDS.snow;
+  const S = SNOWY; const g = new THREE.Group(); g.position.copy(toWorld(...S.at)); g.visible = false; scene.add(g); g.updateMatrixWorld(true); // すぐに 前庭へ 行けるよう 位置を 確定
+  const work = new THREE.Group(); g.add(work);
+  const white = '#f4f8fb'; const snowy = { roughness: 0.95 };
+  // 前庭の 雪（通路の 両わき）・敷石の 通路・歩道・縁石・道路
+  [-1, 1].forEach((sd) => part(g, box(S.side + 0.3 - S.path, 0.1, S.porch - S.fence + 0.35), white, sd * (S.path + (S.side + 0.3 - S.path) / 2), 0.15, (S.porch + 0.35 + S.fence) / 2, snowy));
+  part(g, box(2 * S.path, 0.02, S.porch - S.fence + 0.2), '#8f969c', 0, 0.11, (S.porch + S.fence - 0.2) / 2);
+  for (let z = S.fence + 0.2; z < S.porch; z += 0.5) part(g, box(2 * S.path, 0.004, 0.02), '#7a8187', 0, 0.122, z); // 敷石の 目地
+  part(g, box(2 * S.side + 0.6, 0.02, S.walk[1] - S.walk[0] + 0.1), '#9aa1a7', 0, 0.11, (S.walk[0] + S.walk[1]) / 2);
+  part(g, box(2 * S.side + 0.6, 0.1, 0.12), '#c9ced3', 0, 0.13, S.walk[0] - 0.06);
+  part(g, box(2 * S.side + 0.8, 0.02, 1.3), '#62686e', 0, 0.105, S.walk[0] - 0.75);
+  [-1, 1].forEach((sd) => part(g, box(2 * S.side + 0.8, 0.012, 0.18), '#9aa1a7', 0, 0.118, S.walk[0] - 0.75 + sd * 0.32)); // 車の わだち
+  // 柵（前と 横）と 門の 柱
+  const wood = '#8a6a46';
+  [-1, 1].forEach((sd) => {
+    for (let x = S.gate + 0.1; x <= S.side + 0.31; x += 0.42) part(g, box(0.06, 0.8, 0.06), wood, sd * x, 0.5, S.fence);
+    [0.42, 0.78].forEach((y) => { part(g, box(S.side + 0.3 - S.gate, 0.06, 0.04), wood, sd * (S.gate + (S.side + 0.3 - S.gate) / 2), y, S.fence); part(g, box(S.side + 0.3 - S.gate, 0.03, 0.06), white, sd * (S.gate + (S.side + 0.3 - S.gate) / 2), y + 0.045, S.fence); });
+    [0.42, 0.78].forEach((y) => part(g, box(0.04, 0.06, S.porch - S.fence + 0.35), wood, sd * (S.side + 0.3), y, (S.porch + 0.35 + S.fence) / 2));
+    part(g, box(0.14, 1.1, 0.14), '#6b4a2a', sd * (S.gate + 0.07), 0.65, S.fence); part(g, box(0.18, 0.06, 0.18), white, sd * (S.gate + 0.07), 1.23, S.fence);
+  });
+  // 家（玄関と まど。屋根に 雪、のきに つらら）
+  const D = 2.6; const z0 = S.porch + 0.35; const zc = z0 + D / 2;
+  part(g, box(4.4, 2.6, D), '#f1e4d0', 0, 1.4, zc);
+  const tri = new THREE.Shape(); tri.moveTo(-D / 2 - 0.05, 0); tri.lineTo(D / 2 + 0.05, 0); tri.lineTo(0, 0.9); tri.closePath();
+  [-1, 1].forEach((sd) => { const m = part(g, new THREE.ShapeGeometry(tri), '#f1e4d0', sd * 2.2, 2.7, zc, { side: THREE.DoubleSide }); m.rotation.y = Math.PI / 2; });
+  const slope = Math.hypot(D / 2 + 0.3, 0.9); const ang = Math.atan2(0.9, D / 2 + 0.3);
+  [-1, 1].forEach((sd) => {
+    const r = part(g, box(4.8, 0.16, slope), white, 0, 3.14, zc + sd * (D / 2 + 0.3) / 2, snowy); r.rotation.x = sd * ang;
+    const e = part(g, box(4.82, 0.08, slope), '#5a6f8a', 0, 3.05, r.position.z); e.rotation.x = sd * ang;
+  });
+  for (let x = -2.0; x <= 2.01; x += 0.36) { const ic = part(g, new THREE.ConeGeometry(0.025, 0.14 + ((x * 7) % 3 + 3) % 3 * 0.06, 6), '#e3f2fb', x, 2.6, z0 - 0.28, { transparent: true, opacity: 0.85, roughness: 0.2 }); ic.rotation.x = Math.PI; }
+  part(g, box(0.95, 2.0, 0.06), '#8a5a3c', 0, 1.1, z0 + 0.01); part(g, ball(0.035, 10, 8), '#d9a42c', 0.33, 1.1, z0 - 0.04);
+  [-1.45, 1.45].forEach((x) => { part(g, box(0.92, 0.72, 0.04), '#ffe6a8', x, 1.55, z0, { emissive: '#ffcf6a', emissiveIntensity: 0.45 }); part(g, box(1.0, 0.06, 0.08), white, x, 1.94, z0 - 0.02); });
+  part(g, box(1.6, 0.14, 0.4), '#c9ced3', 0, 0.17, S.porch + 0.17); // 玄関の 段
+  const plate = textPlate('利用者さんの 家', 0.5, 0.12, '#6b4a2e', '#fffaf0'); plate.position.set(-0.75, 1.7, z0 - 0.03); plate.rotation.y = Math.PI; g.add(plate);
+  // ぶつからないように する もの（植木・郵便受け・自転車・電柱）
+  S.things.forEach((o) => {
+    const t = new THREE.Group(); t.position.set(o.x, 0.1, o.z); g.add(t);
+    if (o.kind === 'planter') { part(t, cyl(0.24, 0.19, 0.34, 16), '#b9573f', 0, 0.17, 0); part(t, new THREE.IcosahedronGeometry(0.3, 0), '#3f7a3a', 0, 0.6, 0, { flatShading: true }); part(t, ball(0.27, 12, 6), white, 0, 0.74, 0, snowy).scale.y = 0.45; }
+    else if (o.kind === 'mailbox') { part(t, box(0.07, 1.0, 0.07), '#55626d', 0, 0.5, 0); part(t, box(0.3, 0.26, 0.24), '#c8463d', 0, 1.1, 0); part(t, box(0.32, 0.05, 0.26), white, 0, 1.25, 0); }
+    else if (o.kind === 'bike') {
+      [-0.42, 0.42].forEach((z) => part(t, new THREE.TorusGeometry(0.28, 0.025, 8, 24), '#2b2f33', 0, 0.3, z).rotation.y = Math.PI / 2);
+      const fr = part(t, cyl(0.02, 0.02, 0.9, 8), '#3c7fc4', 0, 0.48, 0); fr.rotation.x = Math.PI / 2;
+      part(t, box(0.08, 0.04, 0.22), '#2b2f33', 0, 0.78, -0.2); part(t, box(0.42, 0.03, 0.03), '#55626d', 0, 0.85, 0.38); part(t, cyl(0.015, 0.015, 0.4, 6), '#55626d', 0, 0.62, 0.36);
+      part(t, box(0.12, 0.03, 0.8), white, 0, 0.87, 0, snowy);
+    } else if (o.kind === 'pole') { part(t, cyl(0.12, 0.15, 5.0, 12), '#a7adb3', 0, 2.5, 0); part(t, box(1.0, 0.08, 0.08), '#7a8187', 0, 4.6, 0); part(t, cyl(0.12, 0.12, 0.05, 12), white, 0, 5.02, 0); }
+  });
+  FIELDS.snow = { g, work, yaw: 0 };
+  return FIELDS.snow;
+}
+// 立ち位置から 歩いて 行ける ところ（0.1m の ます目を たどる）で、道具の 先が 届く ところだけを 数える
+function coverReach(surf, free, hits, head, x0, z0, R) {
+  const S = 0.1; const ok = (i, j) => { const x = x0 + i * S; const z = z0 + j * S; return free(x, z) && !hits(x, z); };
+  const seen = new Set(['0,0']); const todo = [[0, 0]];
+  while (todo.length) {
+    const [i, j] = todo.pop(); const x = x0 + i * S; const z = z0 + j * S;
+    for (let a = 0; a < 24; a++) { const hd = head(x, z, Math.sin(a / 24 * TAU), Math.cos(a / 24 * TAU)); if (!hd.blocked) surf.markReach(hd.x, hd.z, R); }
+    [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([di, dj]) => { const k = (i + di) + ',' + (j + dj); if (!seen.has(k) && ok(i + di, j + dj)) { seen.add(k); todo.push([i + di, j + dj]); } });
+  }
+  surf.keepReachable();
+}
 function startCleaning(b, def) {
   const ctx = { b, W: b.workArea, slots: [] };
   CLEAN_LAYOUTS[def.layout](ctx, def);
-  if (def.layout === 'mop') look.pitch = 0.55; // ゆかが 見えるように 下を 向く（台ふきは 家具の 前で きめる）
+  if (def.layout === 'mop') look.pitch = 0.55; // ゆかが 見えるように 下を 向く（台ふきは 家具の 前、雪かきは 前庭で きめる）
   state.round = { def, slots: ctx.slots, pos: 0, lastActionAt: performance.now(), hintShown: false, mistakeThisRound: false, clean: ctx, cover: ctx.cover || null };
   state.feedback = { text: '', kind: '' };
   drawWorkBoard();
   renderHud();
   if (state.withSupport) speak(def.title + '。');
 }
-// 清掃（モップ・台ふき）：毎フレーム。ふいた ところを 消し、ぜんぶ きれいに なったら つぎへ
+// 清掃（モップ・台ふき・雪かき）：毎フレーム。ふいた（どけた）ところを 消し、ぜんぶ きれいに なったら つぎへ
 const coverTmp = new THREE.Vector3();
-function coverLocalDir(b) { camera.getWorldDirection(coverTmp); const d = coverTmp.clone().applyQuaternion(b.group.quaternion.clone().invert()); d.y = 0; return d.lengthSq() < 1e-6 ? null : d.normalize(); }
+function coverLocalDir(g) { camera.getWorldDirection(coverTmp); const d = coverTmp.clone().applyQuaternion(g.quaternion.clone().invert()); d.y = 0; return d.lengthSq() < 1e-6 ? null : d.normalize(); }
 function coverProgress(r, n, now) {
-  if (n > 0) { r.lastActionAt = now; if (!r.cover.lastSfx || now - r.cover.lastSfx > 220) { r.cover.lastSfx = now; playSfx('wipe'); } if (r.cover.mark.visible && !r.cover.surf.isDirty(r.cover.mark.position.x, r.cover.mark.position.z)) r.cover.mark.visible = false; }
+  if (n > 0) { r.lastActionAt = now; if (!r.cover.lastSfx || now - r.cover.lastSfx > 220) { r.cover.lastSfx = now; playSfx(r.cover.sfx || 'wipe'); } if (r.cover.mark.visible && !r.cover.surf.isDirty(r.cover.mark.position.x, r.cover.mark.position.z)) r.cover.mark.visible = false; if (r.cover.grow) r.cover.grow(r.cover.surf.ratio()); }
   const pct = Math.floor(r.cover.surf.ratio() * 100);
   if (pct !== r.cover.pct) { r.cover.pct = pct; if (!r.cover.lastDraw || now - r.cover.lastDraw > 250 || r.cover.surf.ratio() >= 0.97) { r.cover.lastDraw = now; drawWorkBoard(); renderHud(); } }
   if (r.cover.surf.ratio() >= 0.97 && !r.cover.done) {
     r.cover.done = true; r.cover.surf.clearAll(); r.cover.mark.visible = false;
-    if (r.cover.kind === 'mop') { const b = state.booth; moveRig(b.group.localToWorld(new THREE.Vector3(0, 0, STAFF_Z)), b.yaw + Math.PI, 0.55, 500); }
+    if (r.cover.back) r.cover.back();
     finishRound();
   }
 }
@@ -6479,23 +6793,23 @@ function stepCover(dt, now) {
     }
     return;
   }
-  // モップ：自分で 歩いて ゆかを ふく（パソコン：W A S D・矢印、スマホ：右下の ボタン、VR：左スティック）
+  // モップ・雪かき：自分で 歩いて ゆかを ふく・雪を どける（パソコン：W A S D・矢印、スマホ：右下の ボタン、VR：左スティック）
   if (tween) return;
   if (turn && !renderer.xr.isPresenting) look.yaw -= turn * 1.8 * dt;
-  const dir = coverLocalDir(b); if (!dir) return;
-  const free = mopFree; const hits = (x, z) => mopHits(cv.things, x, z);
+  const dir = coverLocalDir(cv.space); if (!dir) return;
+  const free = cv.free; const hits = cv.hits;
   if (fwd || strafe) {
     const sp = 1.3 * dt; const dx = (dir.x * fwd - dir.z * strafe) * sp; const dz = (dir.z * fwd + dir.x * strafe) * sp;
     const nx = cv.pos.x + dx; const nz = cv.pos.z + dz;
     if (hits(nx, nz)) {
       if (now - cv.lastBump > 1200) { cv.lastBump = now; playSfx('bump'); state.session.defects++; r.mistakeThisRound = true; state.feedback = { text: 'ものに ぶつかりました。よけて 進もう', kind: 'ng' }; if (state.withSupport) speak('ぶつかりました。よけて 進もう。'); drawWorkBoard(); renderHud(); }
     } else if (free(nx, nz)) { cv.pos.x = nx; cv.pos.z = nz; } else if (free(nx, cv.pos.z) && !hits(nx, cv.pos.z)) cv.pos.x = nx; else if (free(cv.pos.x, nz) && !hits(cv.pos.x, nz)) cv.pos.z = nz;
-    const w = b.group.localToWorld(new THREE.Vector3(cv.pos.x, 0, cv.pos.z)); rig.position.x = w.x; rig.position.z = w.z;
+    const w = cv.space.localToWorld(new THREE.Vector3(cv.pos.x, 0, cv.pos.z)); rig.position.x = w.x; rig.position.z = w.z;
   }
-  // モップの ヘッドは 前の ゆかへ。家具や かべに 当たる ときは その 手前で 止める（すり抜けない）
-  const hd = mopHead(cv.things, cv.pos.x, cv.pos.z, dir.x, dir.z);
-  cv.mop.position.set(hd.x, 0.1, hd.z); cv.mop.rotation.y = Math.atan2(dir.x, dir.z);
-  if (!hd.blocked) coverProgress(r, cv.surf.erase(hd.x, hd.z, 0.28), now);
+  // 道具の 先は 前の ゆかへ。家具や かべ・柵に 当たる ときは その 手前で 止める（すり抜けない）
+  const hd = cv.head(cv.pos.x, cv.pos.z, dir.x, dir.z);
+  cv.tool.position.set(hd.x, cv.toolY, hd.z); cv.tool.rotation.y = Math.atan2(dir.x, dir.z);
+  if (!hd.blocked) coverProgress(r, cv.surf.erase(hd.x, hd.z, cv.r), now);
 }
 
 
@@ -6543,7 +6857,7 @@ function drawWorkBoard() {
       y += Math.ceil(r.def.need.length / cols) * rowH + 10;
     } else if (r.cover) {
       ctx.font = '700 40px ' + FONT_BODY; ctx.fillStyle = '#33404a';
-      ctx.fillText('きれいに なった ところ ' + Math.floor(r.cover.surf.ratio() * 100) + '%', 48, y); y += 56;
+      ctx.fillText((r.cover.doneWord || 'きれいに なった ところ') + ' ' + Math.floor(r.cover.surf.ratio() * 100) + '%', 48, y); y += 56;
     } else if (r.status) { // 何工程めかを 書く（答えは 書かない）
       ctx.font = '700 38px ' + FONT_BODY; ctx.fillStyle = job.color;
       wrapLines(ctx, r.status(), W - 96).slice(0, 2).forEach((l) => { ctx.fillText(l, 48, y); y += 50; }); y += 6;
@@ -6654,10 +6968,10 @@ function fmtDuration(sec) { const m = Math.floor(sec / 60); const s = sec % 60; 
 function useHint(auto) {
   const r = state.round; if (!r || state.phase !== 'work') return;
   if (r.cover) {
-    const cv = r.cover; const from = cv.kind === 'mop' ? cv.mop.position : cv.cloth.position; const t = cv.surf.nearestDirty(from.x, from.z); if (!t) return;
+    const cv = r.cover; const from = cv.walk ? cv.tool.position : cv.cloth.position; const t = cv.surf.nearestDirty(from.x, from.z); if (!t) return;
     if (auto) state.session.promptCount++; else state.session.questionCount++;
-    cv.mark.position.set(t.x, (cv.kind === 'mop' ? 0.11 : cv.topY + 0.01), t.z); cv.mark.visible = true; r.hintShown = true; r.lastActionAt = performance.now();
-    state.feedback = { text: 'ヒント：まだ ふいていない ところが 光っています', kind: 'ok' }; speak('まだ ふいていない ところが あります。');
+    cv.mark.position.set(t.x, (cv.walk ? cv.markY : cv.topY + 0.01), t.z); cv.mark.visible = true; r.hintShown = true; r.lastActionAt = performance.now();
+    state.feedback = { text: cv.hintText || 'ヒント：まだ ふいていない ところが 光っています', kind: 'ok' }; speak(cv.hintSay || 'まだ ふいていない ところが あります。');
     drawWorkBoard(); renderHud(); return;
   }
   const key = nextTargetKey(); const slot = r.slots.find((s) => s.key === key && !s.done);
@@ -6853,8 +7167,10 @@ const SFX = {
   coin() { [2400, 3400].forEach((f) => tone(f, 0.25, { vol: 0.09 })); [2700, 3900].forEach((f) => tone(f, 0.3, { vol: 0.08, at: 0.08 })); }, // チャリン
   person() { tone(880, 0.25, { vol: 0.15 }); tone(1320, 0.35, { vol: 0.13, at: 0.1 }); }, // ポロン（お客さま・利用者さんに わたす）
   wipe() { hiss(0.12, { f: 1400, q: 0.8, vol: 0.12, attack: 0.03 }); }, // キュッ（ふく）
+  snow() { hiss(0.18, { filter: 'lowpass', f: 1300, to: 500, vol: 0.32, attack: 0.01 }); }, // ザッ（雪を どける）
   bump() { tone(120, 0.12, { vol: 0.35 }); hiss(0.06, { filter: 'lowpass', f: 600, vol: 0.4 }); }, // ゴツン
   pop() { tone(660, 0.1, { vol: 0.2 }); }, // ポン（ほかに 合う 音が ない とき）
+  horn() { [147, 185].forEach((f) => tone(f, 0.9, { type: 'triangle', vol: 0.22, attack: 0.08 })); }, // ボーッ（汽笛・ブリッジへの 連絡）
 };
 function playSfx(kind) {
   if (!sfxOn || !SFX[kind] || !sfxCtx()) return;
@@ -6889,6 +7205,7 @@ function sfxKind(slot) {
   if (lay === 'library') return LIB.genres[id] ? 'wood' : 'book';
   if (lay === 'stock') return 'cardboard';
   if (lay === 'fishing') return id === '網' ? 'rope' : id === 'はずす' ? 'fish' : 'water';
+  if (lay === 'ferry') return { vest: 'cloth', rope: 'rope', horn: 'horn', ring: 'plastic', gloves: 'cloth', chip: 'ice', sand: 'soil', water: 'water', binoc: 'plastic' }[id] || 'beep';
   if (lay === 'fishsort') return spec.step === 1 ? 'fish' : spec.step === 2 ? 'wood' : 'cardboard';
   if (lay === 'wallShelf') return id === 'すきま' ? 'plastic' : 'wood';
   if (lay === 'omamori') { const k = SFX_OMA[id]; if (k === 'paper' && r.def.proc && r.def.proc.kind === 'fold') return 'cloth'; if (k) return k; if (id === 'short' || id === 'long') return r.def.proc && r.def.proc.kind === 'fold' ? 'cloth' : 'sticky'; }
@@ -7263,7 +7580,7 @@ function renderHud() {
   if (state.withSupport && r.def.ordered && !r.def.hideSteps) {
     steps = '<ol>' + r.def.need.map((k, n) => '<li class="' + (n < r.pos ? 'done' : n === r.pos ? 'now' : '') + '">' + esc(stepLabel(k)) + '</li>').join('') + '</ol>';
   } else if (r.cover) {
-    steps = '<div>きれいに なった ところ ' + Math.floor(r.cover.surf.ratio() * 100) + '%' + (r.cover.kind === 'mop' ? '（W A S D・矢印 ／ 右下の ボタン ／ VR は 左スティックで 動く）' : '（台ふきを つかんで 動かす ／ VR は トリガーを 押したまま）') + '</div>';
+    steps = '<div>' + (r.cover.doneWord || 'きれいに なった ところ') + ' ' + Math.floor(r.cover.surf.ratio() * 100) + '%' + (r.cover.walk ? '（W A S D・矢印 ／ 右下の ボタン ／ VR は 左スティックで 動く）' : '（台ふきを つかんで 動かす ／ VR は トリガーを 押したまま）') + '</div>';
   } else if (state.withSupport && !r.def.hideSteps) {
     steps = '<div>のこり ' + remainingKeys().length + ' こ</div>';
   }
@@ -7779,6 +8096,7 @@ renderer.setAnimationLoop((now) => {
   if (tween) stepTween(now);
   else if (whiteout.visible) whiteout.visible = false;
   const WF = FIELDS.wind; if (WF && WF.pendingHide && (!tween || (tween.fade && tween.snapped))) { WF.pendingHide = false; WF.g.visible = false; hillMills.forEach((m) => { m.visible = true; }); }
+  const SF = FIELDS.snow; if (SF && SF.pendingHide && (!tween || (tween.fade && tween.snapped))) { SF.pendingHide = false; SF.g.visible = false; }
   if (!renderer.xr.isPresenting) { camera.rotation.y = look.yaw; camera.rotation.x = -look.pitch; }
   walkStep(dt);
   stepFurn(dt);
