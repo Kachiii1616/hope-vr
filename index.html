@@ -1571,6 +1571,7 @@ function building(x, z, w, d, h, color, extra) {
   m.position.set(x, h / 2, z); scene.add(m); return m;
 }
 const windRotors = []; // 風車の羽（ループで回す）
+const hillMills = []; // 風の丘の 風車（点検で 大きな 風車を 見に いく 間は かくす）
 const NEON = ['#ff5a7a', '#ffc53d', '#3ddcff', '#9b6bff', '#5cff9d', '#ff8a3d'];
 function neonSign(x, z, h, w) {
   const s = new THREE.Mesh(new THREE.BoxGeometry(0.5, Math.min(4, h * 0.4), 0.5), new THREE.MeshBasicMaterial({ color: NEON[Math.floor(rand() * NEON.length)] }));
@@ -1708,14 +1709,53 @@ function tree(x, z, kind) {
   [[0, 0], [-1.9, -1.5], [1.6, 1.9]].forEach(([dx, dz], k) => {
     const x = hill.x + dx; const z = hill.z + dz; const base = HH * Math.sqrt(Math.max(0, 1 - (dx * dx + dz * dz) / (HR * HR)));
     const H = 6 + (k === 0 ? 1 : 0);
-    addCyl(x, base + H / 2, z, 0.1, 0.18, H, '#f4f6f8', 10);
-    const head = new THREE.Group(); head.position.set(x, base + H, z); head.rotation.y = -Math.PI * 0.75; scene.add(head); // 北西の風に向く
+    hillMills.push(addCyl(x, base + H / 2, z, 0.1, 0.18, H, '#f4f6f8', 10));
+    const head = new THREE.Group(); head.position.set(x, base + H, z); head.rotation.y = -Math.PI * 0.75; scene.add(head); hillMills.push(head); // 北西の風に向く
     head.add(new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.34, 0.8), cmat('#f4f6f8')));
     const rotor = new THREE.Group(); rotor.position.z = 0.48; head.add(rotor);
     const blade = new THREE.BoxGeometry(0.16, 2.4, 0.04); blade.translate(0, 1.2, 0);
     for (let n = 0; n < 3; n++) { const b = new THREE.Mesh(blade, cmat('#f4f6f8')); b.rotation.z = n * Math.PI * 2 / 3; rotor.add(b); }
     rotor.userData.phase = k * 0.7; windRotors.push(rotor);
   });
+  // 風車の 点検で 見に いく 風車（ふだんは かくして おく）。点検の 間だけ 丘の 風車を この 大きな 風車に して、ナセル（羽の うしろの 箱）の 屋根の 足場に 立つ。
+  // ローカルの +z に 立って -z（北西の 風上・羽の ある ほう）を 見る。足場の 床が y=0
+  (() => {
+    const DECK = 14; const g = new THREE.Group(); g.position.set(hill.x, DECK, hill.z); g.rotation.y = Math.PI / 4; g.visible = false; scene.add(g);
+    const work = new THREE.Group(); g.add(work);
+    const put = (geo, color, x, y, z, ex, parent) => { const o = new THREE.Mesh(geo, ex ? mat(color, ex) : cmat(color)); o.position.set(x, y, z); (parent || g).add(o); return o; };
+    const TH = DECK - HH - 1.6; put(new THREE.CylinderGeometry(0.55, 0.95, TH, 24), '#f4f6f8', 0, -1.6 - TH / 2, 0.6); // 塔
+    put(new THREE.BoxGeometry(1.9, 1.6, 3.5), '#eef1f3', 0, -0.8, 0.9); // ナセル
+    put(new THREE.CylinderGeometry(0.5, 0.55, 0.45, 20), '#e2e6e9', 0, -0.8, -1.05).rotation.x = Math.PI / 2; // 軸
+    put(new THREE.BoxGeometry(2.9, 0.06, 2.7), '#9aa4ab', 0, -0.03, 0.75); // 屋根の 足場
+    for (let x = -1.4; x <= 1.41; x += 0.7) put(new THREE.BoxGeometry(0.04, 1.1, 0.04), '#f2c230', x, 0.55, 2.08); // 手すり（うしろ）
+    [-1.42, 1.42].forEach((x) => { for (let z = -0.55; z <= 2.1; z += 0.66) put(new THREE.BoxGeometry(0.04, 1.1, 0.04), '#f2c230', x, 0.55, z); put(new THREE.BoxGeometry(0.04, 0.05, 2.7), '#f2c230', x, 1.1, 0.75); put(new THREE.BoxGeometry(0.03, 0.03, 2.7), '#f2c230', x, 0.6, 0.75); }); // 手すり（左右）
+    put(new THREE.BoxGeometry(2.88, 0.05, 0.04), '#f2c230', 0, 1.1, 2.08); put(new THREE.BoxGeometry(2.88, 0.05, 0.04), '#f2c230', 0, 0.75, -0.6); // 前は 低い 手すり
+    put(new THREE.BoxGeometry(0.5, 0.06, 0.5), '#55626d', 0.95, 0.03, 1.6); // 塔から 上がって きた ハッチ
+    put(new THREE.BoxGeometry(0.42, 0.72, 1.7), '#d0453a', -0.95, 0.36, 0.55); put(new THREE.BoxGeometry(0.44, 0.03, 1.72), '#55626d', -0.95, 0.735, 0.55); // 左の 道具箱（上に 道具を ならべる）
+    const tank = new THREE.Group(); tank.position.set(0.95, 0, -0.3); tank.rotation.y = -0.5; g.add(tank); // 右前の 歯車箱の オイル タンク（のぞき窓を こちらに）
+    put(new THREE.BoxGeometry(0.42, 0.9, 0.32), '#8a8f96', 0, 0.45, 0, null, tank); put(new THREE.CylinderGeometry(0.05, 0.05, 0.08, 12), '#2b2f36', 0, 0.94, 0, null, tank);
+    put(new THREE.BoxGeometry(0.1, 0.42, 0.01), '#e9edf0', 0, 0.55, 0.165, null, tank);
+    const oil = put(new THREE.BoxGeometry(0.07, 0.26, 0.012), '#c98a1e', 0, 0.48, 0.166, { emissive: '#5a3a00', emissiveIntensity: 0.3 }, tank);
+    [0.39, 0.69].forEach((y) => put(new THREE.BoxGeometry(0.12, 0.008, 0.014), '#d0453a', 0, y, 0.17, null, tank)); // 下限・上限の 線
+    put(new THREE.ConeGeometry(0.72, 1.3, 24), '#f4f6f8', 0, -0.8, -1.85).rotation.x = -Math.PI / 2; // ハブ（先の とがった おおい）
+    const rotor = new THREE.Group(); rotor.position.set(0, -0.8, -1.75); g.add(rotor);
+    for (let n = 0; n < 3; n++) {
+      const arm = new THREE.Group(); arm.rotation.z = n * Math.PI * 2 / 3; rotor.add(arm);
+      put(new THREE.CylinderGeometry(0.3, 0.32, 0.5, 18), '#e2e6e9', 0, 0.6, 0, null, arm); // 羽の 根もと
+      put(new THREE.BoxGeometry(0.5, 7.2, 0.12), '#f8f9fa', 0, 4.45, 0, null, arm);
+      put(new THREE.BoxGeometry(0.3, 0.9, 0.11), '#f8f9fa', 0, 8.4, 0, null, arm); // 先は ほそく
+    }
+    // 上を 向いた 羽（0 ばん）に つける 点検の しるし：キズ・根もとの ボルト・氷
+    const up = rotor.children[0];
+    const scratch = new THREE.Group(); scratch.position.set(0.04, 2.7, 0.065); up.add(scratch);
+    [[-0.04, 0.4], [0.03, -0.3], [0.0, 0.1]].forEach(([dy, rz]) => { const s = put(new THREE.BoxGeometry(0.2, 0.014, 0.004), '#55626d', 0, dy, 0, { emissive: '#000000' }, scratch); s.rotation.z = rz; });
+    const bolts = []; for (let n = 0; n < 10; n++) { const a = n / 10 * Math.PI * 2 + Math.PI / 2; bolts.push(put(new THREE.CylinderGeometry(0.03, 0.03, 0.06, 6), '#8a8f96', Math.cos(a) * 0.36, 0.75, Math.sin(a) * 0.36, { metalness: 0.5, roughness: 0.4 }, up)); }
+    put(new THREE.CylinderGeometry(0.42, 0.42, 0.04, 24), '#c9ced3', 0, 0.72, 0, null, up); // ボルトの フランジ（ハブの おおいの 外）
+    const loose = bolts[0]; // 手前（+z）の 1 本が ゆるんで 出ている
+    const ice = new THREE.Group(); up.add(ice);
+    [[0.12, 1.6, 0.09, 0.16], [-0.14, 2.1, 0.08, 0.13], [0.05, 2.6, 0.1, 0.18], [-0.08, 3.1, 0.08, 0.12], [0.15, 3.5, 0.07, 0.1], [-0.2, 1.3, 0, 0.11], [0.24, 2.9, 0, 0.12]].forEach(([x, y, z, r]) => { const m = put(new THREE.IcosahedronGeometry(r, 0), '#e8f6ff', x, y, z, { transparent: true, opacity: 0.85, flatShading: true, roughness: 0.2 }, ice); m.scale.set(1, 1.4, 0.6); });
+    FIELDS.wind = { g, work, rotor, scratch, loose, ice, oil, tank, yaw: Math.PI / 4 };
+  })();
   // 首都のオフィス街
   scatter(255, 455, 75, 55, 9, 2.4, (x, z) => building(x, z, 3.4, 3.4, 5 + rand() * 6, pick(['#e6e2da', '#d6dbe0', '#ece4d4'])));
 
@@ -3642,6 +3682,8 @@ function clearWork() {
   Object.values(FIELDS).forEach((f) => { while (f.work.children.length) f.work.remove(f.work.children[0]); });
   if (b.panelOut) { b.group.add(b.panel); b.panel.position.set(0, 0, PANEL_Z); b.panel.rotation.y = Math.PI; b.panel.scale.setScalar(1); b.panelOut = false; } // 指示モニターを お店に もどす
   b.inField = false; b.away = false;
+  clearWear(); // 身に つけた ものは 1 回ごとに はずす（つぎの 回も 自分で つける）
+  if (FIELDS.wind && FIELDS.wind.g.visible) FIELDS.wind.pendingHide = true; // 見に いった 風車は 白く なって から かくす
   if (b.guests) b.guests.forEach((p) => { p.visible = true; }); // 倉庫整理の 間は お客さんを 出さない
   applyRoomMode(b); // 部屋の ようすを 作業に 合わせて もどす
   if (b.counter.userData.base) b.counter.material.color.copy(b.counter.userData.base);
@@ -4682,6 +4724,134 @@ Object.assign(STAGES, {
     byKey: (spec) => (/列め$/.test(spec.label) ? 'rack' : null), rack: [[0.45, 0.75, 2.95], [0, 0.75, 2.95], [-0.45, 0.75, 2.95], [-0.9, 0.75, 2.95]], rackModel: (spec) => { const m = makeItemMesh(spec); m.scale.setScalar(1.8); return m; } },
 });
 STAGES['羽の氷とかしと点検'] = STAGES['風車の点検'];
+// ---- 身につける もの：えらぶと まず 必要物品として 手に 持って 見せ、それから 頭・こし・手に つける。つけた ものは 目の はしに 見える
+const HAND_AT = new THREE.Vector3(0.12, -0.15, -0.42); // 手に 持つ ところ（目から 見て 右下）
+const WEAR_AT = { helmet: new THREE.Vector3(0, 0.38, 0.05), harness: new THREE.Vector3(0, -0.75, -0.1), gloves: new THREE.Vector3(0, -0.45, -0.3) };
+const WEAR_NAME = { helmet: 'ヘルメット', harness: '安全帯', gloves: '手袋' };
+const WEAR_DONE = { helmet: 'ヘルメットを かぶりました', harness: '安全帯を つけました', gloves: '手袋を はめました' };
+const WEAR_TILT = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.35, 0, 0)); // 手の 上で 正面を こちらに、少し 上を 見せる
+const smooth = (u) => u * u * (3 - 2 * u);
+const wornGroup = new THREE.Group(); camera.add(wornGroup);
+function wearKind(slot) {
+  const job = state.booth && state.booth.job; const t = (slot.spec.label && job && actionText(job, slot.spec)) || '';
+  if (slot.key === 'helmet' || /ヘルメットを かぶる/.test(t)) return 'helmet';
+  if (/安全帯を つける/.test(t)) return 'harness';
+  if (/手袋を はめる/.test(t)) return 'gloves';
+  return null;
+}
+function handModel() { // 手のひらを 上に した 右手（そでつき）
+  const g = new THREE.Group(); const skin = '#f1c9a5';
+  part(g, new THREE.SphereGeometry(1, 16, 10), skin, 0, 0, 0, { roughness: 0.6 }).scale.set(0.045, 0.014, 0.052); // 手のひら
+  for (let i = 0; i < 4; i++) { const f = part(g, cyl(0.0095, 0.009, 0.055 - Math.abs(i - 1.5) * 0.008, 8), skin, -0.029 + i * 0.0195, 0.006, -0.068, { roughness: 0.6 }); f.rotation.x = Math.PI / 2 - 0.25; } // 指（少し まげる）
+  const th = part(g, cyl(0.011, 0.01, 0.045, 8), skin, -0.05, 0.01, -0.012, { roughness: 0.6 }); th.rotation.set(Math.PI / 2, 0, 0.9); // おや指
+  part(g, cyl(0.04, 0.042, 0.12, 14), '#3c7fc4', 0, -0.004, 0.1).rotation.x = Math.PI / 2; // そで
+  return g;
+}
+function wearItem(slot, kind) {
+  const obj = slot.mesh; slot.ring.visible = false;
+  scene.attach(obj); slot.holder.visible = false;
+  const size = new THREE.Box3().setFromObject(obj).getSize(new THREE.Vector3());
+  const s0 = obj.scale.x; const sH = s0 * Math.min(2, 0.16 / Math.max(size.x, size.y, size.z, 0.01));
+  const hand = handModel(); hand.position.set(HAND_AT.x, HAND_AT.y - 0.16, HAND_AT.z); hand.rotation.x = 0.35; camera.add(hand);
+  const tag = labelSprite('手に もった：' + WEAR_NAME[kind], { h: 0.032, bg: 'rgba(255,240,200,0.95)' }); tag.position.set(HAND_AT.x, HAND_AT.y + 0.1, HAND_AT.z); tag.visible = false; camera.add(tag);
+  anims.push({ kind: 'wear', wear: kind, obj, hand, tag, from: obj.position.clone(), q0: obj.quaternion.clone(), s0, sH, round: state.round, t0: performance.now() });
+}
+function stepWear(a, t) {
+  const T1 = reduceMotion ? 0.01 : 0.55; const T2 = T1 + 1.0; const T3 = T2 + (reduceMotion ? 0.01 : 0.6);
+  camera.updateMatrixWorld();
+  const qc = camera.getWorldQuaternion(new THREE.Quaternion()); const qh = qc.clone().multiply(WEAR_TILT);
+  const hw = camera.localToWorld(HAND_AT.clone()); const o = a.obj; const handY = HAND_AT.y - 0.03;
+  if (t < T1) {
+    const e = smooth(t / T1); o.position.lerpVectors(a.from, hw, e); o.quaternion.copy(a.q0).slerp(qh, e); o.scale.setScalar(a.s0 + (a.sH - a.s0) * e);
+    a.hand.position.y = handY - 0.13 * (1 - e);
+  } else if (t < T2) { // 手に 持って 見せる
+    o.position.copy(hw); o.position.y += Math.sin((t - T1) * 5) * 0.004; o.quaternion.copy(qh); o.scale.setScalar(a.sH); a.hand.position.y = handY; a.tag.visible = true;
+  } else if (t < T3) { // 身に つける
+    const e = smooth((t - T2) / (T3 - T2)); const ww = camera.localToWorld(WEAR_AT[a.wear].clone());
+    o.position.lerpVectors(hw, ww, e); o.quaternion.copy(qh).slerp(qc, e); o.scale.setScalar(a.sH * (1 + 0.6 * e));
+    a.hand.position.y = handY - 0.15 * e; a.tag.visible = false;
+  } else {
+    endWear(a);
+    if (state.round === a.round && state.phase !== 'result') { addWorn(a.wear); if (state.phase === 'work') { state.feedback = { text: WEAR_DONE[a.wear], kind: 'ok' }; drawWorkBoard(); renderHud(); } }
+    return true;
+  }
+  return false;
+}
+function endWear(a) { if (a.obj.parent) a.obj.parent.remove(a.obj); camera.remove(a.hand); camera.remove(a.tag); }
+// つけた ものを 目の はしに：ヘルメットの つばは 上、安全帯の ベルトは 下、手袋は 左右の 下
+function addWorn(kind) {
+  wornGroup.children.filter((c) => c.userData.wear === kind).forEach((c) => wornGroup.remove(c));
+  const half = Math.tan(camera.fov * Math.PI / 360); const g = new THREE.Group(); g.userData.wear = kind; wornGroup.add(g);
+  if (kind === 'helmet') { const z = 0.2; part(g, box(0.6, 0.03, 0.14), '#f2c230', 0, z * half - 0.006, -z).rotation.x = 0.3; }
+  if (kind === 'harness') { const z = 0.26; [-1, 1].forEach((sd) => { part(g, box(0.025, 0.05, 0.008), '#e0662f', sd * 0.07, -z * half + 0.008, -z).rotation.z = sd * 0.3; }); part(g, box(0.04, 0.025, 0.01), '#8a8f96', 0, -z * half + 0.004, -z, { metalness: 0.5 }); }
+  if (kind === 'gloves') { const z = 0.3; [-1, 1].forEach((sd) => { const gl = new THREE.Group(); gl.position.set(sd * 0.14, -z * half + 0.018, -z); gl.rotation.set(0.5, 0, sd * -0.4); g.add(gl); part(gl, box(0.075, 0.03, 0.09), '#d0453a', 0, 0, 0); for (let i = 0; i < 4; i++) part(gl, box(0.016, 0.026, 0.045), '#d0453a', -0.027 + i * 0.018, 0, -0.06); part(gl, box(0.08, 0.034, 0.03), '#ffffff', 0, 0, 0.055); }); }
+}
+function clearWear() {
+  for (let i = anims.length - 1; i >= 0; i--) if (anims[i].kind === 'wear') { endWear(anims[i]); anims.splice(i, 1); }
+  while (wornGroup.children.length) wornGroup.remove(wornGroup.children[0]);
+}
+// ---- 風車の点検：停止スイッチで 風車を 止めたら、塔の はしごを 上がって 本物の 風車（ナセルの 上の 足場）へ 見に いく。
+//   道具箱に のこりの 道具が ならぶ。見る ところ（羽の キズ・ボルト・オイル・氷）は 光る わで しめす
+const WIND_TARGET = { 'ライト': 'scratch', 'スパナ': 'loose', 'オイルゲージ': 'oil', 'ヒーター': 'ice' };
+const WIND_WHAT = { scratch: '羽の キズ', loose: 'ボルトの ゆるみ', oil: 'オイルの 量', ice: '羽の 氷' };
+const WIND_AT = { scratch: [0.04, 1.9, -1.68], loose: [0, -0.02, -1.39], ice: [0, 1.7, -1.62] }; // 羽が 止まった ときの 場所（足場の ローカル）
+const WIND_RESULT = { scratch: 'キズが ありました → 点検表に 書く', loose: 'ボルトを しめました', oil: 'オイルは ちょうど よい 量です', ice: '氷が とけました' };
+function windAfter(b, W, def) {
+  const r = state.round; const F = FIELDS.wind; if (!F) return;
+  const tgt = WIND_TARGET[def.need.find((k) => WIND_TARGET[k])];
+  r.onPick = (slot, ok) => {
+    if (!ok) { flashWrong(slot); return; }
+    if (slot.key === '停止スイッチ') {
+      slot.holder.children.forEach((c) => { if (c.isSprite) c.visible = false; });
+      const tag = labelSprite('風車を 止めました → 見に いく', { h: 0.09, bg: 'rgba(255,240,200,0.95)' }); tag.position.set(0, 0.85, 0); slot.holder.add(tag);
+      r.visitAt = performance.now() + (reduceMotion ? 300 : 1000); return;
+    }
+    if (WIND_TARGET[slot.key]) { useWindTool(slot, F, r); return; }
+    animateDone(slot); r.slowFinish = true; // 点検表に 書く
+  };
+  r.gate = () => (r.visitAt && !r.arrived ? '風車へ 上がって います' : null);
+  r.tick = (now) => {
+    if (r.visitAt && !r.arrived && now >= r.visitAt) { r.arrived = true; goWindmill(b, F, r, tgt); }
+    if (!F.g.visible) return;
+    const u = F.stopT0 ? Math.min(1, Math.max(0, (now - F.stopT0) / 2600)) : 1; // 回って いた 羽が ゆっくり 止まる
+    F.rotor.rotation.z = reduceMotion ? 0 : Math.PI * 1.4 * (1 - u) * (1 - u);
+    if (r.windRing) { r.windRing.visible = u >= 1 && !r.effect; r.windTag.visible = u >= 1 || !!r.effect; const k = 1 + Math.sin(now / 180) * 0.08; r.windRing.scale.set(k, k, k); }
+    const ef = r.effect; if (!ef || now < ef.t0) return;
+    const e = smooth(Math.min(1, (now - ef.t0) / 1400));
+    if (!ef.shown) { ef.shown = true; F.work.remove(r.windTag); r.windTag = labelSprite(WIND_RESULT[ef.tgt], { h: 0.09, bg: 'rgba(220,245,225,0.95)' }); r.windTag.position.copy(r.windAt).add(new THREE.Vector3(0, 0.45, 0.1)); F.work.add(r.windTag); }
+    if (ef.tgt === 'scratch' && r.beam) r.beam.material.opacity = 0.55 * e;
+    if (ef.tgt === 'loose') { F.loose.position.y = 0.82 - 0.07 * e; F.loose.scale.y = 2.2 - 1.2 * e; F.loose.rotation.y = e * Math.PI * 3; }
+    if (ef.tgt === 'oil') F.oil.material.emissiveIntensity = 0.3 + 0.5 * Math.abs(Math.sin(now / 200)) * (1 - e);
+    if (ef.tgt === 'ice') F.ice.children.forEach((m) => { m.scale.set(1 - e * 0.9, (1 - e * 0.9) * 1.4, (1 - e * 0.9) * 0.6); m.material.opacity = 0.85 * (1 - e); m.visible = e < 1; });
+  };
+}
+function goWindmill(b, F, r, tgt) {
+  F.g.visible = true; F.pendingHide = false; hillMills.forEach((m) => { m.visible = false; });
+  F.scratch.visible = tgt === 'scratch'; F.loose.position.y = tgt === 'loose' ? 0.82 : 0.75; F.loose.scale.y = tgt === 'loose' ? 2.2 : 1; F.loose.rotation.y = 0;
+  F.ice.visible = tgt === 'ice'; F.ice.children.forEach((m) => { m.scale.set(1, 1.4, 0.6); m.material.opacity = 0.85; m.visible = true; }); F.oil.material.emissiveIntensity = 0.3;
+  F.stopT0 = performance.now() + (reduceMotion ? 0 : 400);
+  const at = tgt === 'oil' ? F.g.worldToLocal(F.tank.localToWorld(new THREE.Vector3(0, 0.55, 0.2))) : new THREE.Vector3(...WIND_AT[tgt]); r.windAt = at;
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(tgt === 'loose' || tgt === 'oil' ? 0.17 : 0.32, 0.012, 8, 40), new THREE.MeshBasicMaterial({ color: '#ffd23f', transparent: true, depthTest: false }));
+  ring.renderOrder = 9; ring.position.copy(at); if (tgt === 'oil') ring.rotation.y = F.tank.rotation.y; ring.visible = false; F.work.add(ring); r.windRing = ring;
+  const tag = labelSprite('点検：' + WIND_WHAT[tgt], { h: 0.09, bg: 'rgba(255,240,200,0.95)' }); tag.position.copy(at).add(new THREE.Vector3(0, 0.45, 0.1)); tag.visible = false; F.work.add(tag); r.windTag = tag;
+  const rest = r.slots.filter((s) => !s.done); // のこりの 道具を 足場の 道具箱の 上へ
+  rest.forEach((s, k) => { F.work.add(s.holder); s.holder.position.set(-0.95, 0.76, rest.length > 1 ? -0.1 + k * (1.3 / (rest.length - 1)) : 0.55); s.holder.rotation.y = Math.PI / 2; s.holder.visible = true; });
+  b.fieldArrived = false; goField(b, F, new THREE.Vector3(0, 0, 1.4), 0.2, [1.3, 0.6, -0.96]); // 前に 羽と ハブ、左に 道具箱、右に 指示
+  state.feedback = { text: '風車の 上に 来ました', kind: 'ok' }; r.lastActionAt = performance.now(); drawWorkBoard(); renderHud();
+  if (state.withSupport) speak('風車の 上に 来ました。' + WIND_WHAT[tgt] + 'を 見ます。つぎは、' + stepLabel(nextTargetKey()) + '。');
+}
+// えらんだ 道具を 見る ところへ 持って いき、その 結果を 見せる
+function useWindTool(slot, F, r) {
+  slot.holder.children.forEach((c) => { if (c.isSprite) c.visible = false; });
+  const to = r.windAt.clone().add(new THREE.Vector3(0.12, -0.12, 0.3));
+  anims.push({ kind: 'box', obj: slot.holder, from: slot.holder.position.clone(), to, t0: performance.now() });
+  const tgt = WIND_TARGET[slot.key];
+  if (tgt === 'scratch') { // ライトの 光が 羽に あたる
+    const beam = new THREE.Mesh(new THREE.CircleGeometry(0.28, 32), new THREE.MeshBasicMaterial({ color: '#fff3a0', transparent: true, opacity: 0, depthWrite: false })); beam.position.copy(r.windAt).add(new THREE.Vector3(0, 0, 0.012)); F.work.add(beam); r.beam = beam;
+  }
+  r.effect = { tgt, t0: performance.now() + (reduceMotion ? 0 : 600) };
+}
+STAGES['風車の点検'].after = windAfter;
 // 屋台：のれんに はった 作り方（できあがりの 絵と 手順）を 見ながら、台の 手前で つくって、台の 向こうの お客さまに わたす（カフェと 同じ 流れ）
 const YATAI = { spot: [-0.15, 0.906, 1.85], sheet: { x: 0.72, y: 1.56, w: 0.5, h: 0.66 }, hand: [-0.62, 1.0, 3.1] };
 const YATAI_SYRUP = { 'いちご シロップ': '#e0455a', 'メロン シロップ': '#6fcf73', 'レモン シロップ': '#f6dc5a' };
@@ -4881,7 +5051,8 @@ function startStage(b, def, st) {
     if (!to) { animateDone(slot); return; }
     anims.push({ kind: 'box', obj: slot.holder, from: slot.holder.position.clone(), to: new THREE.Vector3(...to), t0: performance.now() });
   };
-  moveRig(b.group.localToWorld(new THREE.Vector3(st.stand[0], 0, st.stand[1])), b.yaw + Math.PI, st.pitch, state.session.roundIndex ? 500 : undefined);
+  const standAt = b.group.localToWorld(new THREE.Vector3(st.stand[0], 0, st.stand[1])); // 遠くから（見に いった 風車から）もどる ときは 白く なって もどる
+  moveRig(standAt, b.yaw + Math.PI, st.pitch, state.session.roundIndex && rig.position.distanceTo(standAt) < WHITEOUT_DIST ? 500 : undefined);
   state.feedback = { text: '', kind: '' };
   drawWorkBoard(); renderHud();
   if (state.withSupport) speak(def.title + '。' + (def.ordered ? '最初は、' + stepLabel(def.need[0]) + '。' : ''));
@@ -6114,7 +6285,9 @@ function onSelectItem(slotIndex) {
   if (ok) {
     slot.done = true; if (r.def.ordered) r.pos++;
     slot.ring.visible = false; r.hintShown = false;
-    if (r.def.layout === 'picking') { if (slot.key === 'お客さま') handOverCrate(r); else dropIntoBox(slot, r.inBox++); r.paintSlip(); } else if (r.stock) { shelveBox(r.stock, slot); } else if (r.onPick) r.onPick(slot, true); else animateDone(slot);
+    const wk = wearKind(slot);
+    if (wk) wearItem(slot, wk); // 身につける ものは 手に 持って 見せてから つける
+    else if (r.def.layout === 'picking') { if (slot.key === 'お客さま') handOverCrate(r); else dropIntoBox(slot, r.inBox++); r.paintSlip(); } else if (r.stock) { shelveBox(r.stock, slot); } else if (r.onPick) r.onPick(slot, true); else animateDone(slot);
     state.feedback = { text: 'OK！', kind: 'ok' };
     if (remainingKeys().length === 0) return finishRound();
     if (state.withSupport && r.def.ordered && !r.def.hideSteps) speak('つぎは、' + stepLabel(nextTargetKey()) + '。');
@@ -6254,6 +6427,8 @@ function stepAnims(now) {
       a.obj.position.lerpVectors(a.from, a.to, e); a.obj.position.y += Math.sin(Math.PI * e) * 0.25;
       a.obj.rotation.y = a.r0 + (a.r1 - a.r0) * e; a.obj.scale.setScalar(a.s0 + (a.s1 - a.s0) * e);
       if (u >= 1) anims.splice(i, 1);
+    } else if (a.kind === 'wear') {
+      if (stepWear(a, t)) anims.splice(i, 1);
     } else if (a.kind === 'fill') {
       const u = Math.min(1, t / 0.6); a.set(a.from + (a.to - a.from) * u);
       if (u >= 1) anims.splice(i, 1);
@@ -6747,6 +6922,7 @@ function renderHud() {
   }
   if (r.slide) steps += '<div>◀ ▶ で 通路を 歩けます（かごも いっしょ。VR は 左スティック）</div>';
   const stat = r.status || (r.fishing && r.fishing.status); if (stat) steps += '<div>' + esc(stat()) + '</div>';
+  const worn = wornGroup.children.map((c) => WEAR_NAME[c.userData.wear]); if (worn.length) steps += '<div>身に つけている：' + esc(worn.join('・')) + '</div>';
   el.innerHTML = '<span class="tag">' + esc(job.name) + '・' + (state.withSupport ? '配慮あり' : '配慮なし') + '</span>' +
     '<h2>' + esc(state.withSupport ? r.def.title : r.def.shortTitle) + '</h2>' +
     (r.def.carryText ? '<div>' + esc(r.def.carryText) + '</div>' : '') + steps +
@@ -7255,6 +7431,7 @@ renderer.setAnimationLoop((now) => {
   const dt = Math.min(0.1, (now - lastFrame) / 1000); lastFrame = now;
   if (tween) stepTween(now);
   else if (whiteout.visible) whiteout.visible = false;
+  const WF = FIELDS.wind; if (WF && WF.pendingHide && (!tween || (tween.fade && tween.snapped))) { WF.pendingHide = false; WF.g.visible = false; hillMills.forEach((m) => { m.visible = true; }); }
   if (!renderer.xr.isPresenting) { camera.rotation.y = look.yaw; camera.rotation.x = -look.pitch; }
   walkStep(dt);
   stepFurn(dt);
