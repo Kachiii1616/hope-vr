@@ -780,7 +780,7 @@ const WINTER = {
     },
   },
   farm: {
-    work: 'いちごの収穫', rounds: 3, intro: 'ハウスの 中の こしの 高さの いちごの 台から、赤く じゅくした いちごだけを とって、足もとの かごに 入れます。白い いちごは のこします。', defect: '白い いちごを とる',
+    work: 'いちごの収穫', rounds: 3, intro: 'ハウスの 中の こしの 高さの いちごの 台から、赤く じゅくした いちごだけを とって、足もとの かごに 入れます。白い いちごは のこします。1 回ごとに となりの 列へ 移ります。', defect: '白い いちごを とる',
     round() {
       const n = 3 + Math.floor(Math.random() * 2); const items = [];
       for (let i = 0; i < n; i++) items.push({ label: '', id: 'red' + i, shape: 'strawberry', color: '#d6283a' });
@@ -3928,10 +3928,11 @@ function startOrchard(b, def) {
   drawWorkBoard(); renderHud();
   if (state.withSupport) speak(def.title + '。');
 }
-// いちごの 収穫（ハウスの 中）：こしの 高さの 台（高設）に 株が ならび、実は 台の 前の ふちから さがる。かごは 右の 足もと
-const BERRY = { z: 2.15, d: 0.4, top: 0.9, len: 2.2, stand: 0.4, basket: [-1.1, 1.75] };
-function berryBench(W) {
-  const { z, d, top, len } = BERRY; const zf = z - d / 2;
+// いちごの 収穫（ハウスの 中）：こしの 高さの 台（高設）が 3 列 ならび、実は 台の 前の ふちから さがる。
+// 1 回ごとに ちがう 列の 前の 通路へ 移って とる。かごは 通路の 右の 足もと（台の 足に かからない ところ）
+const BERRY = { rows: [1.2, 2.4, 3.6], d: 0.4, top: 0.9, len: 2.2, stand: -1.0, basket: [-0.5, -0.3] }; // stand・basket：列の 中心からの 位置
+function berryBench(W, z) {
+  const { d, top, len } = BERRY; const zf = z - d / 2;
   part(W, box(len, 0.22, d), '#e8ecef', 0, 0.1 + top - 0.11, z);                          // 台（発泡の 箱）
   part(W, box(len - 0.04, 0.02, d - 0.04), '#5a4636', 0, 0.1 + top + 0.005, z);              // 土
   [-1, 1].forEach((sx) => [-1, 1].forEach((sz) => part(W, box(0.04, top - 0.22, 0.04), '#8a8f96', sx * (len / 2 - 0.1), 0.1 + (top - 0.22) / 2, z + sz * (d / 2 - 0.05)))); // 足
@@ -3945,13 +3946,15 @@ function startStrawberry(b, def) {
   const W = b.workArea; const s = state.session; const slots = [];
   s.harvestKind = 'strawberry'; s.harvest = s.harvest || 0;
   b.counter.visible = false;
-  berryBench(W);
-  const basket = harvestBasket(W, new THREE.Vector3(BERRY.basket[0], 0.1, BERRY.basket[1]), 'strawberry', s.harvest, false);
-  const bkTag = labelSprite('とった いちごを 入れる かご', { h: 0.09, bg: 'rgba(255,240,200,0.95)' }); bkTag.position.set(BERRY.basket[0], 0.62, BERRY.basket[1]); W.add(bkTag);
+  const rz = BERRY.rows[s.roundIndex % BERRY.rows.length]; // この 回に とる 列
+  BERRY.rows.forEach((z) => berryBench(W, z));
+  const bp = new THREE.Vector3(BERRY.basket[0], 0.1, rz + BERRY.basket[1]);
+  const basket = harvestBasket(W, bp, 'strawberry', s.harvest, false);
+  const bkTag = labelSprite('とった いちごを 入れる かご', { h: 0.09, bg: 'rgba(255,240,200,0.95)' }); bkTag.position.set(bp.x, 0.6, bp.z - 0.2); W.add(bkTag);
   // 実は 台の 前の ふちから さがる（8 か所の うち いくつか）
-  const xs = shuffle([0, 1, 2, 3, 4, 5, 6, 7].map((k) => -0.9 + k * 0.26));
+  const xs = shuffle([0, 1, 2, 3, 4, 5, 6, 7].map((k) => -0.84 + k * 0.24));
   def.items.forEach((spec, idx) => {
-    const holder = new THREE.Group(); holder.position.set(xs[idx % xs.length], 0.1 + BERRY.top + 0.01, BERRY.z - BERRY.d / 2 - 0.03); W.add(holder);
+    const holder = new THREE.Group(); holder.position.set(xs[idx % xs.length], 0.1 + BERRY.top + 0.01, rz - BERRY.d / 2 - 0.03); W.add(holder);
     const mesh = new THREE.Group(); const bm = makeItemMesh(spec); bm.position.y = -0.2; mesh.add(bm); // holder の 0.14 下が いちごの 中心
     const stem = part(mesh, cyl(0.004, 0.004, 0.1, 5), '#4f8a34', 0, -0.05, 0); holder.userData.stem = stem;
     holder.add(mesh); mesh.traverse((o) => { o.userData.slotIndex = idx; });
@@ -3965,10 +3968,11 @@ function startStrawberry(b, def) {
       const [x, y, z] = harvestSpot(s.harvest++);
       anims.push({ kind: 'box', obj: h, from: h.position.clone(), to: basket.position.clone().add(new THREE.Vector3(x, y + 0.14, z)), t0: performance.now() });
     } };
-  moveRig(b.group.localToWorld(new THREE.Vector3(0, 0, BERRY.stand)), b.yaw + Math.PI, 0.32, s.roundIndex ? 600 : undefined); // 台の いちごと 足もとの かごが 見える ところ
+  // 列の 前の 通路に 立つ（2 回目からは となりの 列へ 歩いて 移る）
+  moveRig(b.group.localToWorld(new THREE.Vector3(0, 0, rz + BERRY.stand)), b.yaw + Math.PI, 0.55, s.roundIndex ? 900 : undefined); // 台の いちごと 足もとの かごが 見える ところ
   state.feedback = { text: '', kind: '' };
   drawWorkBoard(); renderHud();
-  if (state.withSupport) speak(def.title + '。');
+  if (state.withSupport) speak((s.roundIndex ? (s.roundIndex + 1) + 'ばんめの 列です。' : '') + def.title + '。');
 }
 // トマトの 収穫（ハウスの 中）：通路に 立ち、かごを かかえて 前の 列の 株から 赤い トマトを とる
 function startTomato(b, def) {
