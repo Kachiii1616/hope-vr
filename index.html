@@ -4741,11 +4741,9 @@ function yataiCook(b, W, def) {
   const go = (obj, to) => anims.push({ kind: 'box', obj, from: obj.position.clone(), to: to.clone(), t0: performance.now() });
   const later = (ms, fn) => setTimeout(() => { if (state.round === r && state.phase === 'work') fn(); }, ms);
   // 入れものの 中身（はじめは かくす）。入れものの モデルの 大きさの まま 中に 足す
-  let dome = null; let spoon = null; let fill = null;
+  let dome = null; let fill = null;
   if (base.key === 'かき氷の カップ') {
     dome = part(bm, new THREE.SphereGeometry(0.052, 18, 10, 0, TAU, 0, Math.PI / 2), '#f4fbff', 0, 0.068, 0, { roughness: 0.9 }); dome.scale.set(1, 1.15, 1); dome.visible = false;
-    spoon = new THREE.Group(); bm.add(spoon); spoon.position.set(0.015, 0.1, 0.01); spoon.rotation.z = -0.5; spoon.visible = false;
-    part(spoon, box(0.006, 0.09, 0.012), '#3c7fc4', 0, 0.02, 0); part(spoon, box(0.016, 0.02, 0.016), '#3c7fc4', 0, -0.03, 0);
   } else if (base.key === '紙コップ' || base.key === 'おわん') {
     const cup = base.key === '紙コップ';
     fill = new THREE.Group(); bm.add(fill); fill.visible = false; fill.position.y = cup ? 0.08 : 0.048;
@@ -4769,14 +4767,19 @@ function yataiCook(b, W, def) {
       const home = slot.holder.position.clone(); go(slot.holder, spot.clone().add(new THREE.Vector3(0.1, 0.25, 0)));
       later(600, () => { slot.holder.rotation.z = 1.9; dome.material.color.set(YATAI_SYRUP[k]); });
       later(1100, () => { slot.holder.rotation.z = 0; go(slot.holder, home); });
-    } else if (k === 'スプーン') { animateDone(slot); spoon.visible = true; }
+    } else if (k === 'スプーン') { // スプーンを カップの 上へ → さきを 下に 向ける → 氷に さす（さしたまま わたす）
+      const sp = slot.holder; const above = spot.clone().add(new THREE.Vector3(0.02, 0.42, 0)); const inIce = spot.clone().add(new THREE.Vector3(0.02, 0.24, 0));
+      go(sp, above); parts.push(sp);
+      later(550, () => anims.push({ kind: 'fill', set: (u) => { sp.rotation.z = u; }, from: 0, to: -1.25, t0: performance.now() }));
+      later(1150, () => anims.push({ kind: 'fill', set: (u) => { sp.position.lerpVectors(above, inIce, u); }, from: 0, to: 1, t0: performance.now() }));
+    }
     else if (k === '焼きいも') { slot.holder.scale.setScalar(0.85); go(slot.holder, spot.clone().add(new THREE.Vector3(0, 0.12, 0))); later(560, () => { slot.holder.rotation.z = 1.2; }); parts.push(slot.holder); }
     else if (k === '甘酒' || k === 'おしるこ') { // なべの よこへ 入れものを 持っていって よそう → 手前に もどす
       go(ch, slot.holder.position.clone().add(new THREE.Vector3(0.25, 0, -0.3)));
       later(600, () => { fill.visible = true; });
       later(1100, () => go(ch, spot));
     } else animateDone(slot);
-    if (nextTargetKey() === 'お客さま') { r.handing = true; later(k === 'かき氷器' || k === '甘酒' || k === 'おしるこ' ? 1500 : 900, () => { state.feedback = { text: 'できあがり！ お客さまに わたそう', kind: 'ok' }; drawWorkBoard(); }); }
+    if (nextTargetKey() === 'お客さま') { r.handing = true; later(k === 'スプーン' ? 1800 : k === 'かき氷器' || k === '甘酒' || k === 'おしるこ' ? 1500 : 900, () => { state.feedback = { text: 'できあがり！ お客さまに わたそう', kind: 'ok' }; drawWorkBoard(); }); }
   };
 }
 // 屋台の やね（紅白の のれん）と ちょうちん
