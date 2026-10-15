@@ -815,8 +815,7 @@ const WINTER = {
     work: '薪づくり', intro: '冬の 山の しごと。安全の 準備を してから、丸太を 切って 薪を わり、つみます。', defect: '手順ちがい（ヘルメット・手袋を 後に する など）',
     round() {
       const items = [['ヘルメット', '#f2c230'], ['手袋', '#d0453a'], ['のこぎり', '#c9cdd2'], ['おの', '#8a8f96'], ['薪だな', '#8a6a46'], ['スコップ', '#8a8f96'], ['じょうろ', '#4f8fd1']].map(([label, color]) => ({ label, color, shape: label === 'ヘルメット' ? 'helmet' : undefined }));
-      return { title: '薪を つくる', shortTitle: '薪を つくる', items: shuffle(items), need: ['ヘルメット', '手袋', 'のこぎり', 'おの', '薪だな'], ordered: true,
-        paper: [['とどけ先', '山小屋'], ['もの', '薪 1たば'], ['つくりかた', '切る → わる']] }; // 手に 持つ 注文票
+      return { title: '薪を つくる', shortTitle: '薪を つくる', items: shuffle(items), need: ['ヘルメット', '手袋', 'のこぎり', 'おの', '薪だな'], ordered: true };
     },
   },
   wind: {
@@ -4829,7 +4828,7 @@ const STAGES = {
   //   右の 手前に おのを うちこんだ 割り台、右おくに 薪だな
   '薪づくり': {
     field: 'maki', counter: false, stand: [0, 0.65], pitch: 0.55, panelAt: [0, 3.55, Math.PI],
-    decor(W, def) { heldPaper(W, '注文票', null, def.paper); W.userData.held.position.set(-0.08, 1.16, 1.02); W.userData.held.rotation.x = 0.75; W.userData.held.scale.setScalar(0.72); // 手に 持つ 注文票 part(W, cyl(2.9, 2.9, 0.006, 40), '#eef3f6', 0, 0.104, 2.0, { roughness: 0.95 }); // 雪の 地面
+    decor(W) { part(W, cyl(2.9, 2.9, 0.006, 40), '#eef3f6', 0, 0.104, 2.0, { roughness: 0.95 }); // 雪の 地面
       part(W, cyl(0.26, 0.3, 0.42, 16), '#8a6a46', 0, 0.31, 2.05); part(W, cyl(0.25, 0.25, 0.005, 16), '#d9b98a', 0, 0.523, 2.05);
       part(W, cyl(0.17, 0.19, 0.34, 14), '#7a5a3a', -0.55, 0.27, 1.55); part(W, cyl(0.165, 0.165, 0.005, 14), '#d9b98a', -0.55, 0.443, 1.55); // おのの 割り台
       for (let k = 0; k < 3; k++) { const lg = part(W, cyl(0.12, 0.12, 0.9, 12), '#8a6a46', -0.1 + k * 0.05, 0.22 + k * 0.2, 2.9); lg.rotation.z = Math.PI / 2; W.userData.topLog = lg; }
