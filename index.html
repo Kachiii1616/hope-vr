@@ -4548,10 +4548,10 @@ const STAGES = {
   '薪づくり': {
     counter: false, stand: [0, 0.65], pitch: 0.55,
     decor(W) { part(W, box(SHOP_W - 0.1, 0.004, 3.2), '#e8edf0', 0, 0.104, 2.4); part(W, cyl(0.26, 0.3, 0.42, 16), '#8a6a46', 0, 0.31, 2.05); part(W, cyl(0.25, 0.25, 0.005, 16), '#d9b98a', 0, 0.523, 2.05);
-      for (let k = 0; k < 3; k++) { const lg = part(W, cyl(0.12, 0.12, 0.9, 12), '#8a6a46', -0.1 + k * 0.05, 0.22 + k * 0.2, 2.9); lg.rotation.z = Math.PI / 2; }
+      for (let k = 0; k < 3; k++) { const lg = part(W, cyl(0.12, 0.12, 0.9, 12), '#8a6a46', -0.1 + k * 0.05, 0.22 + k * 0.2, 2.9); lg.rotation.z = Math.PI / 2; W.userData.topLog = lg; }
       part(W, box(0.4, 0.04, 1.2), '#8a6a46', 0.95, 0.48, 2.6); [2.1, 3.1].forEach((z) => part(W, box(0.35, 0.44, 0.04), '#6b4a2a', 0.95, 0.24, z)); },
     spots: { 'ヘルメット': [0.95, 0.5, 2.2, { model: () => SM.helmet() }], '手袋': [0.95, 0.5, 2.6, { model: () => SM.gloves() }], 'のこぎり': [0.95, 0.5, 3.0, { model: () => SM.saw(), ly: 0.12 }],
-      'おの': [0.05, 0.53, 2.05, { model: () => SM.axe(), ry: 0.5 }], '薪だな': [-0.85, 0.11, 2.35, { model: () => SM.woodRack() }], 'スコップ': [-0.4, 0.11, 1.75, { model: () => SM.shovel(), ry: -0.5 }], 'じょうろ': [0.45, 0.11, 1.7, { model: () => SM.can() }] },
+      'おの': [-0.5, 0.11, 2.3, { model: () => SM.axe(), ry: 0.4 }], '薪だな': [-0.85, 0.11, 2.35, { model: () => SM.woodRack() }], 'スコップ': [-0.4, 0.11, 1.75, { model: () => SM.shovel(), ry: -0.5 }], 'じょうろ': [0.45, 0.11, 1.7, { model: () => SM.can() }] },
   },
   // ---- 事務所：つくえ（パソコン・ペン立て）。奥に 書類トレーが 4 つ。手に 書類を 持って いる
   '書類の仕分け': {
@@ -4600,7 +4600,7 @@ Object.assign(SM, {
       part(g, box(0.075, 0.14, 0.04), '#2b2b2b', x, len * 0.4, 0.02); part(g, box(0.075, 0.05, 0.04), '#d0453a', x, len * 0.5, 0.02); });
     return g; },
   skiSlot(spec) { const g = new THREE.Group(); [-1, 1].forEach((sd) => part(g, box(0.04, 1.3, 0.04), '#6b6f75', sd * 0.17, 0.65, -0.08)); part(g, box(0.38, 0.04, 0.25), '#6b6f75', 0, 0.02, 0); part(g, box(0.38, 0.04, 0.06), '#6b6f75', 0, 0.9, -0.08);
-    [-0.06, 0.06].forEach((x) => { const sk = part(g, box(0.07, 1.25, 0.02), spec.color, x, 0.66, 0.02); sk.rotation.x = -0.08; });
+    part(g, box(0.38, 0.03, 0.065), spec.color, 0, 0.94, -0.08); // 色の 帯（板は あずかった ものを ここに 立てる）
     const t = textPlate(spec.label.replace('の たな', ''), 0.26, 0.11, '#ffffff', '#1f2a33'); t.position.set(0, 1.12, -0.05); g.add(t); return g; },
   dryer() { const g = new THREE.Group(); part(g, box(0.6, 1.4, 0.4), '#c9ced6', 0, 0.7, 0, { metalness: 0.3, roughness: 0.45 }); part(g, box(0.5, 0.8, 0.01), '#ffb26b', 0, 0.85, 0.205, { emissive: '#ff7a1a', emissiveIntensity: 0.5 });
     [-0.12, 0.12].forEach((x) => part(g, box(0.1, 0.14, 0.04), '#d0453a', x, 0.9, 0.23)); const t = textPlate('乾燥室', 0.3, 0.09, '#d0453a', '#ffffff'); t.position.set(0, 1.32, 0.205); g.add(t); return g; },
@@ -4638,12 +4638,12 @@ Object.assign(STAGES, {
     decor(W) { part(W, box(0.9, 0.03, 0.5), '#6b4a2a', 0, 0.915, 2.2); part(W, box(0.02, 0.06, 0.5), '#6b4a2a', 0, 0.94, 2.2); part(W, box(0.9, 0.06, 0.02), '#6b4a2a', 0, 0.94, 2.2); part(W, box(0.18, 0.12, 0.14), '#2b2f36', -0.85, 0.96, 2.1); handTray(W); },
     byIndex: [[0.22, 0.93, 2.08, { s: 1.5 }], [-0.22, 0.93, 2.08, { s: 1.5 }], [0.22, 0.93, 2.32, { s: 1.5, ly: 0.08 }], [-0.22, 0.93, 2.32, { s: 1.5, ly: 0.08 }]] },
   // 山小屋（冬）：ロッジの 台所。左に 器、まん中の コンロに なべ、右に スプーン・はし。台の 向こうに お客さま
-  'ロッジの食事': { counter: '#c9ced6', stand: [0, 0.85], pitch: 0.32,
+  'ロッジの食事': { counter: '#c9ced6', stand: [0, 0.85], pitch: 0.32, after: (b, W, def) => lodgeAfter(b, W, def),
     decor(W) { part(W, box(1.3, 0.04, 0.4), '#3d4a54', 0, 0.92, 2.45); [-0.42, 0, 0.42].forEach((x) => part(W, new THREE.TorusGeometry(0.09, 0.012, 6, 16), '#ff7a3a', x, 0.945, 2.45, { emissive: '#ff5a1a', emissiveIntensity: 0.5 }).rotation.x = Math.PI / 2); part(W, cyl(0.05, 0.05, 0.12, 12), '#c9cdd2', -0.95, 0.96, 2.05); },
     spots: { 'お皿': [0.95, 0.906, 2.05, { s: 1.6 }], 'おわん': [0.65, 0.906, 2.05, { s: 1.6 }], 'マグカップ': [0.38, 0.906, 2.05, { s: 1.6 }], 'カレー': [0.42, 0.94, 2.45, { s: 1.6 }], '豚汁': [0, 0.94, 2.45, { s: 1.6 }], 'ココア': [-0.42, 0.94, 2.45, { s: 1.6 }],
       'スプーン': [-0.45, 0.906, 2.02, { s: 1.6 }], 'はし': [-0.75, 0.906, 2.02, { s: 1.6 }], 'お客さま': GUEST('#d0453a') } },
   // 山小屋（冬）：スキーの 預かり。台は なし。奥に 番号の 板たな、左に 乾燥室、右に 返却口
-  'スキーの預かり': { counter: false, stand: [0, 0.6], pitch: 0.1,
+  'スキーの預かり': { counter: false, stand: [0, 0.6], pitch: 0.1, after: skiKeepAfter,
     decor(W) { part(W, box(SHOP_W - 0.1, 0.004, 3.4), '#9aa4ab', 0, 0.104, 2.4); },
     spots: { '乾燥室': [1.35, 0.1, 2.35, { model: () => SM.dryer() }], '返却口': [-1.35, 0.1, 2.0, { model: () => SM.returnBox() }] },
     byKey: (spec) => (/番の たな$/.test(spec.label) ? 'rack' : null), rack: [[0.5, 0.1, 2.75], [0, 0.1, 2.75], [-0.5, 0.1, 2.75]], rackModel: (spec) => SM.skiSlot(spec) },
@@ -4681,7 +4681,7 @@ Object.assign(STAGES, {
       };
     } },
   // スケート場（冬）：スケートの 受付。台の 上の たなに スケートぐつ（サイズの 札）、手前に ヘルメット・手袋・マフラー
-  'スケートの受付': { counter: '#3a87b5', stand: [0, 0.8], pitch: 0.26, decor(W) { counterRack(W, '#c9ced6'); },
+  'スケートの受付': { counter: '#3a87b5', stand: [0, 0.8], pitch: 0.26, decor(W) { counterRack(W, '#c9ced6'); handTray(W); }, onPick: handOverPick(),
     spots: { 'スケートぐつ 20': [0.85, 1.21, 2.45, { model: (sp) => SM.skateCubby(sp) }], 'スケートぐつ 22': [0.3, 1.21, 2.45, { model: (sp) => SM.skateCubby(sp) }], 'スケートぐつ 24': [-0.3, 1.21, 2.45, { model: (sp) => SM.skateCubby(sp) }], 'スケートぐつ 26': [-0.85, 1.21, 2.45, { model: (sp) => SM.skateCubby(sp) }],
       'ヘルメット': [0.6, 0.906, 2.02, { model: () => SM.helmet() }], '手袋': [0, 0.906, 2.02, { model: () => SM.gloves() }], 'マフラー': [-0.6, 0.906, 2.02, { s: 2 }] } },
   // 屋台（夏）：紅白の のれんの 屋台。左に カップ、まん中に かき氷器、右に シロップ。台の 向こうに お客さま
@@ -4726,7 +4726,7 @@ Object.assign(STAGES, {
     decor(W) { part(W, box(SHOP_W - 0.1, 0.004, 3.4), '#7a9a5a', 0, 0.104, 2.4); part(W, box(1.9, 0.5, 0.6), '#d0453a', -0.22, 0.5, 3.2); [-1.0, 0.55].forEach((x) => part(W, cyl(0.28, 0.28, 0.14, 18), '#2b2f36', x, 0.3, 3.55).rotation.z = Math.PI / 2);
       part(W, box(0.7, 0.04, 0.5), '#3d5a80', -1.0, 0.5, 2.1); [-1, 1].forEach((a) => [-1, 1].forEach((c) => part(W, cyl(0.06, 0.06, 0.04, 12), '#2b2f33', -1.0 + a * 0.28, 0.15, 2.1 + c * 0.18).rotation.z = Math.PI / 2)); part(W, box(0.04, 0.4, 0.5), '#3d5a80', -1.0 - 0.35, 0.7, 2.1); },
     spots: { '苗箱': [-0.85, 0.52, 2.1, { s: 1.8 }], 'しおれた 苗箱': [-1.12, 0.52, 2.1, { s: 1.8, ly: 0.1 }], '空き箱': [-1.55, 0.11, 2.75, { s: 1.8 }], '肥料': [-0.35, 0.11, 2.2, { s: 2.2 }] },
-    byKey: (spec) => (/列め$/.test(spec.label) ? 'rack' : null), rack: [[0.45, 0.75, 2.95], [0, 0.75, 2.95], [-0.45, 0.75, 2.95], [-0.9, 0.75, 2.95]], rackModel: (spec) => { const m = makeItemMesh(spec); m.scale.setScalar(1.8); return m; } },
+    byKey: (spec) => (/列め$/.test(spec.label) ? 'rack' : null), rack: [[0.45, 0.75, 2.95], [0, 0.75, 2.95], [-0.45, 0.75, 2.95], [-0.9, 0.75, 2.95]], rackModel: (spec) => { const m = makeItemMesh(spec); m.scale.setScalar(1.8); return m; }, after: riceAfter },
 });
 STAGES['羽の氷とかしと点検'] = STAGES['風車の点検'];
 // ---- 身につける もの：えらぶと まず 必要物品として 手に 持って 見せ、それから 頭・こし・手に つける。つけた ものは 目の はしに 見える
@@ -4782,6 +4782,29 @@ function stepWear(a, t) {
   }
   return false;
 }
+// 手に 持って 見る もの（点検表 など）：目の 前に 持ち上げ、書いて（use）、もとの 場所に もどす
+const HOLD_AT = new THREE.Vector3(0, -0.12, -0.58);
+const HOLD_TILT = new THREE.Quaternion().setFromEuler(new THREE.Euler(1.15, 0, 0)); // 上の 面を こちらに 向ける
+function holdUp(slot, use, text) {
+  const obj = slot.holder; slot.ring.visible = false; obj.children.forEach((c) => { if (c.isSprite) c.visible = false; });
+  const parent = obj.parent; const p0 = obj.position.clone(); const r0 = obj.rotation.clone();
+  scene.attach(obj);
+  const tag = labelSprite(text, { h: 0.03, bg: 'rgba(255,240,200,0.95)' }); tag.position.set(HOLD_AT.x, HOLD_AT.y + 0.16, HOLD_AT.z); tag.visible = false; camera.add(tag);
+  anims.push({ kind: 'hold', obj, parent, p0, r0, use, tag, from: obj.position.clone(), q0: obj.quaternion.clone(), round: state.round, t0: performance.now() });
+}
+function stepHold(a, t) {
+  const T1 = reduceMotion ? 0.01 : 0.55; const T2 = T1 + 1.6; const T3 = T2 + (reduceMotion ? 0.01 : 0.55);
+  camera.updateMatrixWorld();
+  const qh = camera.getWorldQuaternion(new THREE.Quaternion()).multiply(HOLD_TILT); const hw = camera.localToWorld(HOLD_AT.clone()); const o = a.obj;
+  if (t < T1) { const e = smooth(t / T1); o.position.lerpVectors(a.from, hw, e); o.quaternion.copy(a.q0).slerp(qh, e); }
+  else if (t < T2) { o.position.copy(hw); o.quaternion.copy(qh); a.tag.visible = true; if (a.use) a.use((t - T1) / (T2 - T1)); }
+  else if (t < T3) { // もとの 場所へ
+    if (!a.back) { a.back = true; a.tag.visible = false; a.parent.updateMatrixWorld(); a.wTo = a.parent.localToWorld(a.p0.clone()); a.qTo = a.parent.getWorldQuaternion(new THREE.Quaternion()).multiply(new THREE.Quaternion().setFromEuler(a.r0)); a.wFrom = o.position.clone(); a.qFrom = o.quaternion.clone(); }
+    const e = smooth((t - T2) / (T3 - T2)); o.position.lerpVectors(a.wFrom, a.wTo, e); o.quaternion.copy(a.qFrom).slerp(a.qTo, e);
+  } else { endHold(a); return true; }
+  return false;
+}
+function endHold(a, drop) { camera.remove(a.tag); if (a.obj.parent !== scene) return; if (drop || state.round !== a.round) scene.remove(a.obj); else { a.parent.attach(a.obj); a.obj.position.copy(a.p0); a.obj.rotation.copy(a.r0); } }
 function endWear(a) { if (a.obj.parent) a.obj.parent.remove(a.obj); camera.remove(a.hand); camera.remove(a.tag); }
 // つけた ものを 目の はしに：ヘルメットの つばは 上、安全帯の ベルトは 下、手袋は 左右の 下
 function addWorn(kind) {
@@ -4792,7 +4815,7 @@ function addWorn(kind) {
   if (kind === 'gloves') { const z = 0.3; [-1, 1].forEach((sd) => { const gl = new THREE.Group(); gl.position.set(sd * 0.14, -z * half + 0.018, -z); gl.rotation.set(0.5, 0, sd * -0.4); g.add(gl); part(gl, box(0.075, 0.03, 0.09), '#d0453a', 0, 0, 0); for (let i = 0; i < 4; i++) part(gl, box(0.016, 0.026, 0.045), '#d0453a', -0.027 + i * 0.018, 0, -0.06); part(gl, box(0.08, 0.034, 0.03), '#ffffff', 0, 0, 0.055); }); }
 }
 function clearWear() {
-  for (let i = anims.length - 1; i >= 0; i--) if (anims[i].kind === 'wear') { endWear(anims[i]); anims.splice(i, 1); }
+  for (let i = anims.length - 1; i >= 0; i--) if (anims[i].kind === 'wear' || anims[i].kind === 'hold') { if (anims[i].kind === 'wear') endWear(anims[i]); else endHold(anims[i], true); anims.splice(i, 1); }
   while (wornGroup.children.length) wornGroup.remove(wornGroup.children[0]);
 }
 // ---- 風車の点検：停止スイッチで 風車を 止めたら、塔の はしごを 上がって 本物の 風車（ナセルの 上の 足場）へ 見に いく。
@@ -4812,7 +4835,7 @@ function windAfter(b, W, def) {
       r.visitAt = performance.now() + (reduceMotion ? 300 : 1000); return;
     }
     if (WIND_TARGET[slot.key]) { useWindTool(slot, F, r); return; }
-    animateDone(slot); r.slowFinish = true; // 点検表に 書く
+    writeSheet(slot, '点検表に 書く：' + WIND_WHAT[tgt]); r.finishWait = 2300; // 点検表を 手に とって 書く
   };
   r.gate = () => (r.visitAt && !r.arrived ? '風車へ 上がって います' : null);
   r.tick = (now) => {
@@ -4846,6 +4869,20 @@ function goWindmill(b, F, r, tgt) {
   if (state.withSupport) speak('風車の 上に 来ました。' + WIND_WHAT[tgt] + 'を 見ます。つぎは、' + stepLabel(nextTargetKey()) + '。');
 }
 // えらんだ 道具を 見る ところへ 持って いき、その 結果を 見せる
+// 点検表（クリップボード）を 目の 前に 持って、ペンで 1 行ずつ 書き、さいごに ✓ を つける
+function writeSheet(slot, text) {
+  const m = slot.mesh; const ink = []; const pen = new THREE.Group(); m.add(pen); pen.visible = false;
+  part(pen, cyl(0.005, 0.005, 0.12, 8), '#2f5f9e', 0, 0.06, 0); part(pen, cyl(0.002, 0.005, 0.015, 8), '#1f2a33', 0, -0.007, 0); pen.rotation.set(0.5, 0, -0.4);
+  for (let i = 0; i < 4; i++) { const ln = part(m, box(0.1, 0.002, 0.006), '#1f3a7a', 0.02, 0.0185, -0.07 + i * 0.04 - 0.008); ln.visible = false; ink.push(ln); }
+  const chk = new THREE.Group(); chk.position.set(-0.075, 0.019, 0.09); chk.visible = false; m.add(chk);
+  part(chk, box(0.025, 0.002, 0.007), '#d0453a', -0.008, 0, 0.006).rotation.y = -0.8; part(chk, box(0.05, 0.002, 0.007), '#d0453a', 0.012, 0, -0.004).rotation.y = 0.9;
+  holdUp(slot, (u) => { // u：0 → 1（書いて いる 間）
+    const k = Math.min(4, Math.floor(u * 5.5)); const f = (u * 5.5) % 1;
+    ink.forEach((ln, i) => { ln.visible = i <= k && i < 4; if (i === k) { ln.scale.x = Math.max(0.05, f); ln.position.x = -0.03 + 0.05 * f; } else if (i < k) { ln.scale.x = 1; ln.position.x = 0.02; } });
+    pen.visible = u < 0.95; if (k < 4) pen.position.set(-0.03 + 0.1 * f, 0.02, -0.078 + k * 0.04); else pen.position.set(-0.075, 0.02, 0.09);
+    chk.visible = k >= 4;
+  }, text);
+}
 function useWindTool(slot, F, r) {
   slot.holder.children.forEach((c) => { if (c.isSprite) c.visible = false; });
   const to = r.windAt.clone().add(new THREE.Vector3(0.12, -0.12, 0.3));
@@ -4857,6 +4894,44 @@ function useWindTool(slot, F, r) {
   r.effect = { tgt, t0: performance.now() + (reduceMotion ? 0 : 600) };
 }
 STAGES['風車の点検'].after = windAfter;
+// 薪づくり：のこぎりで 丸太の はしを 切る → 切った 玉を 切りかぶに 立てる → おのを ふりあげて わる → わった 薪を 薪だなに つむ
+const MAKI = { stump: [0, 0.523, 2.05], cut: 0.25 };
+function makiAfter(b, W) {
+  const r = state.round; const log = W.userData.topLog; const lp = log.position.clone(); // 上の 丸太（x：-0.45〜0.45）
+  const halves = new THREE.Group(); halves.visible = false; W.add(halves); // 切った 玉（2 つに わる 半月）
+  const hv = [0, Math.PI].map((th) => { const m = part(halves, new THREE.CylinderGeometry(0.11, 0.11, 0.2, 14, 1, false, th, Math.PI), '#a0784a', 0, 0, 0, { side: THREE.DoubleSide });
+    part(m, new THREE.PlaneGeometry(0.2, 0.2), '#e3c99a', 0, 0, 0, { side: THREE.DoubleSide }).rotation.y = Math.PI / 2; return m; }); // 切り口（われ目）
+  r.onPick = (slot, ok) => {
+    if (!ok) { flashWrong(slot); return; }
+    slot.holder.children.forEach((c) => { if (c.isSprite) c.visible = false; });
+    const h = slot.holder; const home = h.position.clone(); const r0 = [h.rotation.x, h.rotation.y, h.rotation.z];
+    if (slot.key === 'のこぎり') { // 刃を たてて 丸太に あて、前後に ひいて 切る
+      h.rotation.order = 'YXZ'; const yaw = Math.PI * 1.5 - 0.6; const dir = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)); // 刃の 向き（自分から 見えるよう 少し ななめ）
+      const top = lp.y + 0.12; const at = new THREE.Vector3(MAKI.cut, top + 0.07, lp.z).addScaledVector(dir, -0.08);
+      motion(h, [{ d: 550, p: at.clone().add(new THREE.Vector3(0, 0.15, 0)), r: [Math.PI / 2, yaw, 0], lift: 0.12 },
+        { d: 250, p: at },
+        { d: 1500, p: at.clone().add(new THREE.Vector3(0, -0.2, 0)), osc: { p: [dir.x * 0.08, 0, dir.z * 0.08], n: 5 }, at: () => { // 切れた
+          log.scale.y = (MAKI.cut + 0.45) / 0.9; log.position.x = lp.x - (0.45 - MAKI.cut) / 2;
+          halves.visible = true; halves.position.set(MAKI.cut + 0.1, lp.y, lp.z); halves.rotation.set(0, 0, Math.PI / 2);
+          motion(halves, [{ d: 300, p: [MAKI.cut + 0.16, lp.y - 0.02, lp.z], r: [0, 0, Math.PI / 2 - 0.3] }, { d: 650, p: [MAKI.stump[0], MAKI.stump[1] + 0.1, MAKI.stump[2]], r: [0, 0, 0], lift: 0.3 }]); } },
+        { d: 600, p: home, r: r0, lift: 0.15, at: () => { h.rotation.order = 'XYZ'; } }]);
+    } else if (slot.key === 'おの') { // 両手で ふりあげて、切りかぶの 上の 玉に ふりおろす
+      h.rotation.order = 'YZX'; slot.mesh.rotation.x = Math.PI / 2; // 刃を たてる
+      const up = [0, 1.15, MAKI.stump[2] - 0.45]; const hit = [0, MAKI.stump[1] + 0.24, MAKI.stump[2] - 0.3];
+      motion(h, [{ d: 550, p: [0.3, 0.9, MAKI.stump[2] - 0.6], r: [0, Math.PI * 1.5, 0.3], lift: 0.1 },
+        { d: 500, p: up, r: [0, Math.PI * 1.5, 1.4] },
+        { d: 170, p: hit, r: [0, Math.PI * 1.5, -0.1], at: () => { playSfx('wood'); // われる
+          hv.forEach((m, k) => motion(m, [{ d: 380, p: [(k ? -1 : 1) * 0.1, -0.05, 0], r: [0, 0, (k ? 1 : -1) * 1.3] }])); } },
+        { d: 450 },
+        { d: 650, p: home, r: r0, lift: 0.15, at: () => { h.rotation.order = 'XYZ'; slot.mesh.rotation.x = 0; } }]);
+    } else if (slot.key === '薪だな') { // わった 薪を 1 つずつ 薪だなの 上に つむ
+      const rk = slot.holder.position;
+      hv.forEach((m, k) => { W.attach(m); motion(m, [{ d: 300 + k * 250 }, { d: 650, p: [rk.x - 0.1 + k * 0.2, rk.y + 0.6, rk.z], r: [Math.PI / 2, 0, k ? Math.PI : 0], lift: 0.25 }]); });
+      r.finishWait = 1400;
+    }
+  };
+}
+STAGES['薪づくり'].after = makiAfter;
 // 屋台：のれんに はった 作り方（できあがりの 絵と 手順）を 見ながら、台の 手前で つくって、台の 向こうの お客さまに わたす（カフェと 同じ 流れ）
 const YATAI = { spot: [-0.15, 0.906, 1.85], sheet: { x: 0.72, y: 1.56, w: 0.5, h: 0.66 }, hand: [-0.62, 1.0, 3.1] };
 const YATAI_SYRUP = { 'いちご シロップ': '#e0455a', 'メロン シロップ': '#6fcf73', 'レモン シロップ': '#f6dc5a' };
@@ -4957,13 +5032,113 @@ function yataiCook(b, W, def) {
     if (nextTargetKey() === 'お客さま') { r.handing = true; later(k === 'スプーン' ? 1800 : k === 'かき氷器' || k === '甘酒' || k === 'おしるこ' ? 1500 : 900, () => { state.feedback = { text: 'できあがり！ お客さまに わたそう', kind: 'ok' }; drawWorkBoard(); }); }
   };
 }
+// 田植えの 苗受け：軽トラの 苗箱を 両手で 受けとり、その 列の 苗のせ台に 苗（マット）を すべらせて のせる。空いた 箱は 空き箱の 上に かさねる
+const RICE_HOLD = [0.35, 0.72, 1.45]; // 手もと（列の 番号を かくさない よう 左下）
+function riceAfter(b, W) {
+  const r = state.round; let held = null;
+  r.onPick = (slot, ok) => {
+    if (!ok) { flashWrong(slot); return; }
+    slot.holder.children.forEach((c) => { if (c.isSprite) c.visible = false; });
+    const k = slot.key;
+    if (k === '苗箱') { held = slot; motion(slot.holder, [{ d: 700, p: RICE_HOLD, lift: 0.1 }]); } // 手もとに 持つ
+    else if (/列め$/.test(k) && held) { // 台の かたむきに 合わせて おき、苗だけ のこして 箱を 手もとに もどす
+      const h = held.holder; const at = slot.holder.position.clone().add(new THREE.Vector3(0, 0.19, 0));
+      const mat = new THREE.Group(); held.mesh.add(mat); held.mesh.children.slice(1).forEach((c) => { if (c !== mat) mat.add(c); });
+      motion(h, [{ d: 650, p: at.clone().add(new THREE.Vector3(0, 0.1, -0.1)), r: [0.35, Math.PI, 0], lift: 0.08 }, { d: 300, p: at, at: () => W.attach(mat) },
+        { d: 350, p: at.clone().add(new THREE.Vector3(0, 0.05, -0.12)) }, { d: 600, p: RICE_HOLD, r: [0, Math.PI, 0] }]);
+    } else if (k === '空き箱' && held) { // 空いた 箱を かさねる
+      const top = slot.holder.position.clone().add(new THREE.Vector3(0, 0.165, 0));
+      motion(held.holder, [{ d: 700, p: top.clone().add(new THREE.Vector3(0, 0.08, 0)), lift: 0.12 }, { d: 200, p: top }]);
+      r.finishWait = 1100;
+    } else animateDone(slot);
+  };
+}
+// スキーの 預かり：あずかった 板（足もとに 立てかけて ある）と ぬれた 手袋（台の 上）を 運ぶ。
+//   板は 番号の たなへ 持って いって 立て、手袋は 乾燥室の 中の さおに かける
+function skiKeepAfter(b, W) {
+  const r = state.round;
+  part(W, box(0.4, 0.45, 0.32), '#8a6a46', 0.75, 0.33, 1.15); // 手袋を のせる 台
+  const gloves = ITEM_MODELS['手袋'](); gloves.scale.setScalar(1.8); gloves.position.set(0.75, 0.565, 1.15); gloves.rotation.y = Math.PI; W.add(gloves);
+  const skis = SM.skiUpright(1.1, pick(['#3c7fc4', '#e0662f', '#4f9a45'])); skis.position.set(-0.75, 0.1, 1.1); skis.rotation.set(0, Math.PI, 0); W.add(skis); // 足もとに 立てて 持って いる
+  r.onPick = (slot, ok) => {
+    if (!ok) { flashWrong(slot); return; }
+    slot.holder.children.forEach((c) => { if (c.isSprite) c.visible = false; });
+    const at = slot.holder.position;
+    if (/番の たな$/.test(slot.key)) // 板を 持ちあげて たなへ 運び、まっすぐ 立てる
+      motion(skis, [{ d: 350, p: skis.position.clone().add(new THREE.Vector3(0, 0.12, 0)), r: [0, Math.PI, 0] }, { d: 900, p: at.clone().add(new THREE.Vector3(0, 0.16, -0.02)) }, { d: 250, p: at.clone().add(new THREE.Vector3(0, 0.04, -0.02)), r: [0.08, Math.PI, 0] }]);
+    else if (slot.key === '乾燥室') { // 手袋を 乾燥室の 前へ → 中の さおに かけるように おくへ 入れる
+      const door = at.clone().add(new THREE.Vector3(0, 0.95, -0.32));
+      motion(gloves, [{ d: 750, p: door, r: [-1.2, Math.PI, 0], lift: 0.15 }, { d: 350, osc: { r: [0.15, 0, 0], n: 1 } }, { d: 450, p: door.clone().add(new THREE.Vector3(0, 0, 0.3)), at: () => { gloves.visible = false; } }]);
+    } else animateDone(slot);
+    r.finishWait = 1500;
+  };
+}
+// ロッジの 食事：器を 手前に おき、なべから おたまで よそう（ココアは ポットを かたむけて そそぐ）。スプーン・はしを そえて、お客さまに わたす
+const LODGE = { spot: [0.1, 0.906, 1.9], hand: [-0.62, 1.0, 3.1] };
+function lodgeAfter(b, W, def) {
+  const r = state.round; const spot = new THREE.Vector3(...LODGE.spot); const parts = [];
+  const base = r.slots.find((x) => x.key === def.need[0]); const bm = base.mesh; parts.push(base.holder);
+  const later = (ms, fn) => setTimeout(() => { if (state.round === r && state.phase === 'work') fn(); }, reduceMotion ? 0 : ms);
+  // 器の 中身（はじめは かくす）
+  const fill = new THREE.Group(); fill.visible = false; bm.add(fill);
+  if (base.key === 'お皿') { part(bm, ball(0.045, 14, 8), '#fbfaf4', 0.025, 0.016, 0).scale.set(1, 0.4, 1.2); part(fill, cyl(0.05, 0.05, 0.008, 18), '#c98a2e', -0.022, 0.02, 0); } // ごはんは はじめから
+  else if (base.key === 'おわん') { fill.position.y = 0.057; part(fill, cyl(0.053, 0.053, 0.004, 20), '#b98a4a', 0, 0, 0); [[-0.02, 0.012, '#e07b39'], [0.022, -0.01, '#f1e9d0'], [0.005, 0.025, '#6aa04a']].forEach(([x, z, c]) => part(fill, box(0.016, 0.008, 0.016), c, x, 0.003, z)); }
+  else { fill.position.y = 0.0915; part(fill, cyl(0.036, 0.036, 0.003, 18), '#7a4a30', 0, 0, 0); }
+  const grow = () => { fill.visible = true; anims.push({ kind: 'fill', set: (u) => fill.scale.set(u, 1, u), from: 0.2, to: 1, t0: performance.now() }); };
+  // おたま
+  const ladle = new THREE.Group(); ladle.visible = false; W.add(ladle);
+  part(ladle, new THREE.SphereGeometry(0.035, 14, 8, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), '#c9c9c9', 0, 0.035, 0, { side: THREE.DoubleSide, metalness: 0.5, roughness: 0.3 });
+  const hd = part(ladle, cyl(0.005, 0.005, 0.28, 8), '#c9c9c9', 0.05, 0.16, 0, { metalness: 0.5, roughness: 0.3 }); hd.rotation.z = -0.35;
+  const over = spot.clone().add(new THREE.Vector3(0, 0.13, 0));
+  r.onPick = (slot, ok) => {
+    if (!ok) { flashWrong(slot); return; }
+    slot.holder.children.forEach((c) => { if (c.isSprite) c.visible = false; });
+    const h = slot.holder; const k = slot.key; const home = h.position.clone(); const r0 = [h.rotation.x, h.rotation.y, h.rotation.z];
+    if (k === 'お客さま') { // 台の 向こうの お客さまの 手もとへ
+      ladle.visible = false;
+      parts.forEach((o) => motion(o, [{ d: 750, p: new THREE.Vector3(...LODGE.hand).add(o.position.clone().sub(spot)), lift: 0.2 }]));
+      r.finishWait = 1100; return;
+    }
+    if (slot === base) motion(h, [{ d: 600, p: spot, lift: 0.15 }]); // 器を 手前に
+    else if (k === 'カレー' || k === '豚汁') { // おたまで すくって 器に うつす
+      const pot = h.position; ladle.visible = true; ladle.position.copy(pot).add(new THREE.Vector3(0, 0.3, 0)); ladle.rotation.set(0, 0, 0);
+      motion(ladle, [{ d: 350, p: pot.clone().add(new THREE.Vector3(0, 0.05, 0)) }, { d: 250, osc: { p: [0.03, 0, 0], n: 1 } }, { d: 300, p: pot.clone().add(new THREE.Vector3(0, 0.25, 0)) },
+        { d: 650, p: over.clone().add(new THREE.Vector3(0, 0.05, 0)), lift: 0.05 }, { d: 300, r: [0, 0, 1.1], at: grow }, { d: 300 }, { d: 600, p: pot.clone().add(new THREE.Vector3(0, 0.08, 0)), r: [0, 0, 0], at: () => { ladle.visible = false; } }]);
+    } else if (k === 'ココア') { // ポットを 持ちあげ、器の 上で かたむけて そそぐ
+      motion(h, [{ d: 600, p: spot.clone().add(new THREE.Vector3(-0.14, 0.17, 0)), lift: 0.1 }, { d: 350, r: [r0[0], r0[1], 0.9], at: grow }, { d: 450 }, { d: 300, r: r0 }, { d: 600, p: home, lift: 0.1 }]);
+    } else if (k === 'スプーン') { motion(h, [{ d: 600, p: spot.clone().add(new THREE.Vector3(0.18, 0.004, 0)), r: [0, Math.PI / 2, 0], lift: 0.12 }]); parts.push(h); } // 器の よこに たてに
+    else if (k === 'はし') { motion(h, [{ d: 600, p: spot.clone().add(new THREE.Vector3(0, 0.004, 0.16)), lift: 0.12 }]); parts.push(h); } // 器の 向こう（お客さまの 手前）に よこに
+    else animateDone(slot);
+  };
+}
 // 屋台の やね（紅白の のれん）と ちょうちん
 function yataiFrame(W) {
   [-1.45, 1.45].forEach((x) => part(W, box(0.08, 1.8, 0.08), '#8a6a46', x, 1.0, 2.65));
   for (let i = 0; i < 10; i++) part(W, box(0.29, 0.3, 0.02), i % 2 ? '#ffffff' : '#c9302c', -1.305 + i * 0.29, 1.78, 2.66);
   [-1.1, 1.1].forEach((x) => part(W, ball(0.12, 12, 10), '#e0503a', x, 1.5, 2.6, { emissive: '#ff7a3a', emissiveIntensity: 0.4 }));
 }
-STAGES['しめ飾りづくり'] = Object.assign({}, STAGES['お守りづくり'], {
+// しめ飾り：わらを 手の 上で なって 台に おき、ひもを まきつけ、紙垂を 下げ、だいだいを のせて、できた ものを 検品かごへ
+const SHIME_AT = [0.05, 0.91, 2.14];
+function shimeAfter(b, W) {
+  const r = state.round; const spot = new THREE.Vector3(...SHIME_AT); const parts = [];
+  const at = (x, y, z) => spot.clone().add(new THREE.Vector3(x, y, z));
+  r.onPick = (slot, ok) => {
+    if (!ok) { flashWrong(slot); return; }
+    slot.holder.children.forEach((c) => { if (c.isSprite) c.visible = false; });
+    const h = slot.holder; const k = slot.key; const T = Math.PI * 4;
+    if (k === 'わら') motion(h, [{ d: 500, p: at(0, 0.16, -0.05), lift: 0.08 }, { d: 1100, r: [T, Math.PI, 0] }, { d: 400, p: spot }]); // 手の 上で ねじって なう
+    else if (k === 'ひも') motion(h, [{ d: 500, p: at(0, 0.14, 0), r: [0, Math.PI, Math.PI / 2], s: 0.45, lift: 0.08 }, { d: 800, p: at(0, 0.03, 0), r: [T, Math.PI, Math.PI / 2] }]); // わらに まきつける
+    else if (k === '紙垂') motion(h, [{ d: 550, p: at(0, 0.05, -0.08), lift: 0.1 }, { d: 350, p: at(0, 0.004, -0.08), osc: { r: [0.2, 0, 0], n: 2 } }]); // わらの 手前に 下げる
+    else if (k === 'だいだい') motion(h, [{ d: 550, p: at(0, 0.06, 0), lift: 0.12 }, { d: 260, p: at(0, 0.035, 0), lift: 0.03 }]); // まん中に のせる
+    else if (k === '検品かご') { // できた しめ飾りを まとめて かごの 中へ
+      const bk = h.position; const n = parts.length;
+      parts.forEach((o) => { const off = o.position.clone().sub(spot).multiplyScalar(0.6); motion(o, [{ d: 750, p: bk.clone().add(new THREE.Vector3(0, 0.05, 0)).add(off), s: o.scale.x * 0.6, lift: 0.2 }]); });
+      if (n) r.finishWait = 1100; return;
+    }
+    parts.push(h);
+  };
+}
+STAGES['しめ飾りづくり'] = Object.assign({}, STAGES['お守りづくり'], { after: shimeAfter,
   spots: { 'わら': [0.55, 0.915, 2.42, { s: 1.6 }], 'ひも': [0.15, 0.915, 2.42, { s: 1.6 }], '紙垂': [-0.25, 0.915, 2.42, { s: 1.6 }], 'だいだい': [-0.62, 0.906, 2.42, { s: 1.5, ly: 0.1 }],
     'ハサミ': [-0.15, 0.906, 1.98, { s: 1.6, ly: 0.05 }], 'のり': [-0.45, 0.906, 2.02, { s: 1.5 }], '検品かご': [-1.0, 0.906, 2.25, { s: 1.5, ly: 0.12 }] },
 });
@@ -6314,7 +6489,7 @@ function finishRound() {
   if (state.withSupport) speak('できました。');
   state.phase = 'between';
   const lay = state.round && state.round.def.layout;
-  const wait = lay === 'wallShelf' || lay === 'cafe' || lay === 'care' || lay === 'library' ? 1400 : state.round && state.round.slowFinish ? 1200 : 900; // たなに 入る ところ・お客さまに わたす ところを 見せる
+  const wait = state.round && state.round.finishWait ? state.round.finishWait : lay === 'wallShelf' || lay === 'cafe' || lay === 'care' || lay === 'library' ? 1400 : state.round && state.round.slowFinish ? 1200 : 900; // たなに 入る ところ・お客さまに わたす ところを 見せる
   setTimeout(() => {
     if (!state.session || state.session !== s) return;
     if (s.roundIndex >= s.target) showResult(); else nextRound();
@@ -6384,7 +6559,39 @@ function useHint(auto) {
 
 // 動き
 const anims = [];
-function animateDone(slot) { anims.push({ kind: 'done', slot, t0: performance.now() }); }
+// 動きの 決まって いない ものは、その 場で 持ち上げて 置きなおす（遠くへ 飛ばしたり 消したり しない）
+function animateDone(slot) {
+  slot.ring.visible = false; slot.holder.children.forEach((c) => { if (c.isSprite) c.visible = false; });
+  const h = slot.holder; const r0 = [h.rotation.x, h.rotation.y, h.rotation.z];
+  motion(h, [{ d: 260, p: h.position.clone().add(new THREE.Vector3(0, 0.07, 0)), r: [r0[0] + 0.12, r0[1], r0[2]] }, { d: 300, p: h.position.clone(), r: r0 }]);
+}
+// キーフレームの 動き：keys = [{ d: ミリ秒, p: 位置, r: [x,y,z], s: 大きさ, lift: 弧の 高さ, osc: { p: [x,y,z], r: [x,y,z], n: 回数 }, at: 着いた ときに よぶ }]
+//   ぬけた 値は 前の キーの まま。手に 持って 運ぶ・使う しぐさを 1 つの 物に 順番に させる
+function motion(obj, keys) {
+  const V = (v) => (v.isVector3 ? v.clone() : new THREE.Vector3(...v));
+  let prev = { p: obj.position.clone(), r: new THREE.Vector3(obj.rotation.x, obj.rotation.y, obj.rotation.z), s: obj.scale.x }; let t = 0; const segs = [];
+  keys.forEach((k) => {
+    const n = { p: k.p ? V(k.p) : prev.p, r: k.r ? V(k.r) : prev.r, s: k.s !== undefined ? k.s : prev.s };
+    const d = reduceMotion ? 1 : (k.d || 400); segs.push({ a: prev, b: n, t0: t, t1: t + d, lift: k.lift || 0, osc: k.osc, at: k.at }); t += d; prev = n;
+  });
+  for (let i = anims.length - 1; i >= 0; i--) if (anims[i].obj === obj) anims.splice(i, 1);
+  anims.push({ kind: 'keys', obj, segs, t0: performance.now(), round: state.round });
+}
+function stepKeys(a, now) {
+  const ms = now - a.t0; const o = a.obj; let seg = null;
+  for (const sg of a.segs) {
+    if (ms >= sg.t1) { if (!sg.fired) { sg.fired = true; if (sg.at && state.round === a.round) sg.at(); } continue; }
+    seg = sg; break;
+  }
+  const sg = seg || a.segs[a.segs.length - 1]; const u = seg ? Math.max(0, (ms - sg.t0) / (sg.t1 - sg.t0)) : 1; const e = smooth(u);
+  o.position.lerpVectors(sg.a.p, sg.b.p, e); o.position.y += Math.sin(Math.PI * u) * sg.lift;
+  o.rotation.set(sg.a.r.x + (sg.b.r.x - sg.a.r.x) * e, sg.a.r.y + (sg.b.r.y - sg.a.r.y) * e, sg.a.r.z + (sg.b.r.z - sg.a.r.z) * e);
+  o.scale.setScalar(sg.a.s + (sg.b.s - sg.a.s) * e);
+  if (sg.osc && seg) { const w = Math.sin(u * Math.PI * 2 * (sg.osc.n || 1)) * Math.sin(Math.PI * u);
+    if (sg.osc.p) { o.position.x += sg.osc.p[0] * w; o.position.y += sg.osc.p[1] * w; o.position.z += sg.osc.p[2] * w; }
+    if (sg.osc.r) { o.rotation.x += sg.osc.r[0] * w; o.rotation.y += sg.osc.r[1] * w; o.rotation.z += sg.osc.r[2] * w; } }
+  return !seg;
+}
 // ひろった 品物を 段ボール箱の 中へ（箱に 入ったまま 見えている）
 function dropIntoBox(slot, k) {
   const it = slot.item; const from = slot.holder.position.clone().add(new THREE.Vector3(0, it.position.y, 0));
@@ -6414,10 +6621,11 @@ function flashWrong(slot) {
 }
 function stepAnims(now) {
   for (let i = anims.length - 1; i >= 0; i--) {
-    const a = anims[i]; const t = (now - a.t0) / 1000;
-    if (a.kind === 'done') {
-      a.slot.holder.position.y += 0.012; a.slot.holder.scale.setScalar(Math.max(0.01, 1 - t * 2));
-      if (t > 0.5) { a.slot.holder.visible = false; anims.splice(i, 1); }
+    const a = anims[i]; if (!a) continue; const t = (now - a.t0) / 1000;
+    if (a.kind === 'keys') {
+      if (stepKeys(a, now)) { const j = anims.indexOf(a); if (j >= 0) anims.splice(j, 1); } // 着いた ときの 処理で anims が かわる ことが ある
+    } else if (a.kind === 'hold') {
+      if (stepHold(a, t)) anims.splice(i, 1);
     } else if (a.kind === 'box') {
       const u = Math.min(1, t / 0.55); const e = u * u * (3 - 2 * u);
       a.obj.position.lerpVectors(a.from, a.to, e); a.obj.position.y += Math.sin(u * Math.PI) * 0.35;
