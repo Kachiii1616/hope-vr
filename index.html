@@ -5427,10 +5427,11 @@ function startWallShelf(b, def) {
   if (state.withSupport) speak(def.title + '。最初は、' + stepLabel(def.need[0]) + '。');
 }
 
-// レジ打ちと 袋づめ（コンビニの 冬）：手書きの 配置。店員から 見て 左から、レジ（画面・キー・お金の 引き出し）→ お客さまの かご →
-//   スキャンした 品物を ならべる ところ → ひろげた レジ袋 → 右はしに コードつきの ハンドスキャナー。お客さまは 台の 向こう。
+// レジ打ちと 袋づめ（コンビニの 冬）：店員から 見て 左から、お客さまの かご → スキャンした 品物を ならべる ところ →
+//   レジ（画面・キー・お金の 引き出し）→ ひろげた レジ袋 → 右はしに コードつきの ハンドスキャナー。
+//   お客さまは 台の 向こうの、かごと レジの あいだ（かごや レジの 画面と かさならない ところ）。ならんでいる 人は 出さない。
 //   品物を えらぶと かごから 出して、スキャナーが とんで きて ピッ。お金の キーで 引き出しが ひらき、おつりを わたすと しまる。
-const REGI = { y: 0.9, reg: [0.5, 2.32], basket: [-0.04, 2.42], done: [-0.06, 1.98], bag: [-0.74, 2.36], gun: [-1.14, 1.98] };
+const REGI = { y: 0.9, reg: [-0.36, 2.32], basket: [0.82, 2.4], done: [0.4, 1.98], bag: [-0.92, 2.36], gun: [-1.24, 1.98], guest: [0.22, COUNTER_Z + 1.05] };
 function textPlate(text, w, h, bg, fg) {
   const b = new Board(w, h, 900);
   b.draw((ctx, cw, ch) => { ctx.fillStyle = bg; roundRect(ctx, 0, 0, cw, ch, ch * 0.18); ctx.fill(); ctx.fillStyle = fg; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -5501,10 +5502,10 @@ function startRegister(b, def) {
   part(W, box(0.48, 0.03, 0.2), '#55626d', rx, Y + 0.175, rz - 0.06); // キーの 台
   // お客さまの かご（台の 上）
   const basket = new THREE.Group(); basket.position.copy(at(REGI.basket)); W.add(basket);
-  part(basket, box(0.42, 0.012, 0.3), '#3c7fc4', 0, 0.006, 0);
-  [-1, 1].forEach((sd) => { part(basket, box(0.42, 0.13, 0.012), '#3c7fc4', 0, 0.065, sd * 0.15, { transparent: true, opacity: 0.7 }); part(basket, box(0.012, 0.13, 0.3), '#3c7fc4', sd * 0.21, 0.065, 0, { transparent: true, opacity: 0.7 }); });
-  [-1, 1].forEach((sd) => part(basket, new THREE.TorusGeometry(0.07, 0.006, 6, 16, Math.PI), '#2b5f9a', sd * 0.21, 0.13, 0).rotation.y = Math.PI / 2);
-  const sign = labelSprite('お客さまの かご', { h: 0.07, bg: 'rgba(220,235,250,0.95)' }); sign.position.set(0, 0.2, 0.17); basket.add(sign);
+  part(basket, box(0.5, 0.012, 0.34), '#3c7fc4', 0, 0.006, 0);
+  [-1, 1].forEach((sd) => { part(basket, box(0.5, 0.13, 0.012), '#3c7fc4', 0, 0.065, sd * 0.17, { transparent: true, opacity: 0.6 }); part(basket, box(0.012, 0.13, 0.34), '#3c7fc4', sd * 0.25, 0.065, 0, { transparent: true, opacity: 0.6 }); });
+  [-1, 1].forEach((sd) => part(basket, new THREE.TorusGeometry(0.08, 0.006, 6, 16, Math.PI), '#2b5f9a', sd * 0.25, 0.13, 0).rotation.y = Math.PI / 2);
+  const sign = labelSprite('お客さまの かご', { h: 0.07, bg: 'rgba(220,235,250,0.95)' }); sign.position.set(0, 0.18, 0.2); basket.add(sign);
   // ハンドスキャナー（右はし。コードは 台の 手前から 下へ）
   const gunHome = at(REGI.gun, Y + 0.01);
   const gun = handScanner(); gun.position.copy(gunHome); gun.rotation.y = Math.PI * 0.85; W.add(gun);
@@ -5518,20 +5519,23 @@ function startRegister(b, def) {
   };
   drawCord();
   // お客さまの お札（合計を 言うと 台の 向こうに 出す）
-  const cash = new THREE.Group(); cash.position.copy(at([0.3, 2.62])); cash.visible = false; W.add(cash);
+  const cash = new THREE.Group(); cash.position.copy(at([REGI.guest[0], 2.6])); cash.visible = false; W.add(cash);
   const billMesh = textPlate(def.bill + '円', 0.2, 0.09, def.bill === 1000 ? '#8fb3d9' : '#c9b48a', '#1f2a33'); billMesh.rotation.x = -Math.PI / 2; billMesh.rotation.z = Math.PI; billMesh.position.y = 0.004; cash.add(billMesh);
   // おつり（引き出しから 出して わたす）
   const coins = new THREE.Group(); coins.visible = false; coins.position.copy(drawerOpen).add(new THREE.Vector3(0, 0.06, -0.1)); W.add(coins);
   for (let i = 0; i < 4; i++) part(coins, cyl(0.016, 0.016, 0.004, 16), i % 2 ? '#d9a42c' : '#c9c9c9', -0.05 + i * 0.033, (i % 2) * 0.004, (i % 2) * 0.02);
   // お客さま（台の 向こう）
-  const guest = new THREE.Group(); guest.position.set(0, 0.1, COUNTER_Z + 0.85); guest.rotation.y = Math.PI; W.add(guest);
+  const guest = new THREE.Group(); guest.position.set(REGI.guest[0], 0.1, REGI.guest[1]); guest.rotation.y = Math.PI; W.add(guest);
   const gm = person('#e3a33c', '#3d4a54');
   part(gm, ball(0.006, 8, 6), '#2b2b2b', -0.018, 0.31, 0.047); part(gm, ball(0.006, 8, 6), '#2b2b2b', 0.018, 0.31, 0.047);
   part(gm, new THREE.TorusGeometry(0.016, 0.003, 6, 12, Math.PI), '#9a3b3b', 0, 0.292, 0.047).rotation.z = Math.PI;
   gm.scale.setScalar(4.6); guest.add(gm);
-  const hand = new THREE.Vector3(0, 1.0, COUNTER_Z + 0.45);
+  // わたす ところは お客さまの 体（はんけい 約 0.3）より 手前。袋（おく行き 0.26）が 体に くっつかない よう 0.65 はなす
+  const hand = new THREE.Vector3(REGI.guest[0], 1.0, REGI.guest[1] - 0.65);
+  // ならんでいる 人（店の かざりの お客さん）は 奥で かごや 袋と かさなって 見えるので、レジの 間は 出さない（お店を 出ると もどる）
+  if (b.guests) b.guests.forEach((p) => { p.visible = false; });
   // レジ袋（はじめは たたんで ある。ひろげると 大きく 立つ）
-  const BAG = { w: 0.36, h: 0.3, d: 0.22 };
+  const BAG = { w: 0.42, h: 0.32, d: 0.26 };
   const bagH = new THREE.Group(); bagH.position.copy(at(REGI.bag)); W.add(bagH);
   const folded = new THREE.Group(); part(folded, box(0.24, 0.012, 0.16), '#f4f6f8', 0, 0.006, 0); part(folded, box(0.2, 0.002, 0.004), '#dfe5ea', 0, 0.013, 0.02); bagH.add(folded);
   const openBag = openRegiBag(BAG.w, BAG.h, BAG.d); openBag.visible = false; bagH.add(openBag);
@@ -5542,8 +5546,8 @@ function startRegister(b, def) {
     const k = spec.id;
     if (k.startsWith('scan:')) {
       const n = spec.good; const i = def.goods.findIndex((g) => g[0] === n); const order = scanItems.indexOf(spec);
-      const holder = new THREE.Group(); holder.position.copy(basket.position).add(new THREE.Vector3(0.12 - order * 0.12, 0.012, (order % 2) * 0.06 - 0.03)); holder.rotation.y = Math.PI; W.add(holder);
-      const mesh = fitInto(ITEM_MODELS[n]({ color: '#ffffff' }), 0.16, 0.2, 0.13); mesh.scale.multiplyScalar(1.25); holder.add(mesh);
+      const holder = new THREE.Group(); holder.position.copy(basket.position).add(new THREE.Vector3(0.15 - order * 0.15, 0.012, (order % 2) * 0.07 - 0.035)); holder.rotation.y = Math.PI; W.add(holder);
+      const mesh = fitInto(ITEM_MODELS[n]({ color: '#ffffff' }), 0.16, 0.2, 0.13); mesh.scale.multiplyScalar(1.65); holder.add(mesh);
       const g = def.goods[i];
       const sl = addSlot(spec, holder, mesh, { label: n + '（' + g[3] + 'g）', labelY: 0.3 + (order % 2) * 0.1 }); sl.good = g;
     } else if (key[k]) {
@@ -5584,7 +5588,7 @@ function startRegister(b, def) {
       if (slot.label) slot.label.visible = false;
       if (k.startsWith('scan:')) {
         // かごから 出して 台に 置き、スキャナーで ピッ。ここからは 袋に 入れる 品物
-        const h = slot.holder; const to = at([REGI.done[0] - doneN * 0.2, REGI.done[1] + (doneN % 2) * 0.06], Y);
+        const h = slot.holder; const to = at([REGI.done[0] - doneN * 0.24, REGI.done[1] + (doneN % 2) * 0.06], Y);
         anims.push({ kind: 'box', obj: h, from: h.position.clone(), to, t0: now });
         setTimeout(() => { if (state.round !== r) return; scanAt(to, () => { scr.lines.push([slot.good[0], slot.good[2]]); paintScreen(); }); }, 450);
         doneN++;
@@ -5610,9 +5614,9 @@ function startRegister(b, def) {
         anims.push({ kind: 'fill', from: 0.2, to: 1, set: (u) => openBag.scale.set(1, u, 1), t0: now });
       } else if (k.startsWith('bag:')) {
         // 重い ものから 底に（入れた 順に 少しずつ 上へ）
-        const h = slot.holder; const to = bagH.position.clone().add(new THREE.Vector3((inBag % 2) * 0.08 - 0.04 + (inBag === 2 ? 0.02 : 0), 0.01 + inBag * 0.05, (inBag % 2) * 0.03 - 0.015)); inBag++;
+        const h = slot.holder; const to = bagH.position.clone().add(new THREE.Vector3((inBag % 2) * 0.1 - 0.05 + (inBag === 2 ? 0.02 : 0), 0.01 + inBag * 0.06, (inBag % 2) * 0.03 - 0.015)); inBag++;
         anims.push({ kind: 'box', obj: h, from: h.position.clone(), to, t0: now });
-        setTimeout(() => { h.scale.setScalar(0.85); }, 560);
+        setTimeout(() => { h.scale.setScalar(0.8); }, 560);
       } else if (k === 'お客さま') {
         // 袋（中身ごと）を お客さまの 手もとへ
         const t = hand.clone();
@@ -5622,7 +5626,7 @@ function startRegister(b, def) {
       }
     } };
   state.round = r;
-  moveRig(b.group.localToWorld(new THREE.Vector3(0, 0, STAFF_Z)), b.yaw + Math.PI, 0.36, state.session.roundIndex ? 500 : undefined); // レジに 立って 台の 上を 見る
+  moveRig(b.group.localToWorld(new THREE.Vector3(0, 0, STAFF_Z)), b.yaw + Math.PI, 0.4, state.session.roundIndex ? 500 : undefined); // レジに 立って 台の 上を 見る
   state.feedback = { text: '', kind: '' };
   drawWorkBoard(); renderHud();
   if (state.withSupport) speak(def.title + '。最初は、かごの 品物を スキャン。');
