@@ -633,12 +633,11 @@ const EXTRA_ACTS = {
     'レモン シロップ': 'レモン シロップを かける', 'スプーン': 'スプーンを さす', 'お客さま': 'お客さまに わたす',
     '紙袋': '紙袋を とる', '焼きいも': '焼きいもを 入れる', '紙コップ': '紙コップを とる', '甘酒': '甘酒を そそぐ', 'おわん': 'おわんを とる', 'おしるこ': 'おしるこを よそう',
   },
-  super: { 'レジ袋': 'レジ袋を ひろげる', 'A': '商品Aを Aの たなへ', 'B': '商品Bを Bの たなへ', 'C': '商品Cを Cの たなへ', 'D': '商品Dを Dの たなへ' },
+  super: { 'A': '商品Aを Aの たなへ', 'B': '商品Bを Bの たなへ', 'C': '商品Cを Cの たなへ', 'D': '商品Dを Dの たなへ' },
   school: {
     '新聞紙': '新聞紙を しく', '下じき': '下じきを しく', '半紙': '半紙を おく', '文鎮': '文鎮で おさえる', 'すずり': 'すずりに すみを 入れる', '筆': '筆を おく', 'クレヨン': 'クレヨンを 出す',
   },
 };
-ACTIONS.super = (l) => l + 'を 入れる';
 ACTIONS.rink = (l) => l + 'を わたす';
 ACTIONS.school = (l) => l + 'の たなに もどす';
 ACTIONS.rice = (l) => ({ '元気な 苗': '元気な 苗を とる', 'しおれた 苗': 'しおれた 苗を とる', '苗箱': '苗箱を 受けとる', 'しおれた 苗箱': 'しおれた 苗箱を 受けとる', '空き箱': '空き箱を かさねる', '肥料': '肥料を まく' }[l] || (/列め$/.test(l) ? '苗を ' + l + 'に のせる' : l));
@@ -691,9 +690,16 @@ JOBS.push(
     },
   },
   {
-    id: 'super', area: '目抜き通り', name: 'スーパー', work: 'レジの袋づめ', color: '#2f9e6a', category: '実務',
-    intro: 'レジを 通った 品物を、重い ものから 順に 袋に 入れます。たまごや パンは いちばん 上に。', defect: '入れる 順番の まちがい（たまごの 上に 重い もの など）',
-    round() { return bagRound([['牛乳', 5], ['じゃがいも', 4], ['お茶', 3], ['パン', 2], ['たまご', 1]]); },
+    id: 'super', area: '目抜き通り', name: 'スーパー', work: '倉庫整理', color: '#2f9e6a', category: '実務',
+    // 倉庫整理（夏も 冬も）：台車の 箱を 上から 順に、同じ 記号（A〜D）の たなへ 置く
+    intro: '台車に つんだ 箱を 上から 順に おろし、箱の 記号（A・B・C・D）と 同じ 札の たなに 置きます。',
+    defect: 'ちがう たなに 置く',
+    round() {
+      const tiers = ['A', 'B', 'C', 'D'];
+      const cart = sample(tiers, 3); // 上から 順
+      const items = tiers.map((label) => ({ label, color: '#c49a6c' }));
+      return { title: '台車の 箱を 上から 順に、同じ 記号の たなへ', shortTitle: '箱を たなに しまう', items, need: cart, ordered: true, layout: 'stock', carryText: '台車（上から）：' + cart.map((k) => '商品' + k).join('・') };
+    },
   },
   {
     id: 'school', area: '学校エリア', name: '学校', work: '図書の整理', color: '#9a5b3c', category: '事務', rounds: 3,
@@ -733,12 +739,6 @@ function registerRound() {
     need: scans.concat(['合計', 'pay:' + bill, 'おつり', 'レジ袋'], goods.map(([n]) => 'bag:' + n), ['お客さま']), free: scans, ordered: true,
     layout: 'register', goods, total, bill,
   };
-}
-// 袋づめ：重い ものから 順に（3 こ えらんで 重さの 順）
-function bagRound(goods) {
-  const chosen = sample(goods, 3).sort((a, b) => b[1] - a[1]).map((g) => g[0]);
-  const items = [['レジ袋', 0]].concat(goods).map(([label]) => ({ label, color: '#ffffff' }));
-  return { title: '袋づめ：' + chosen.join('・') + '（重い ものを 下に）', shortTitle: '重い ものから 袋に 入れる', items: shuffle(items), need: ['レジ袋'].concat(chosen), ordered: true, carryText: 'かご：' + chosen.join('・') };
 }
 
 // ---- 冬の しごと（お店ごとに 1 つ。夏の しごとと 同じ 道具立てで、冬の 中身に かえる）
@@ -827,10 +827,6 @@ const WINTER = {
       return { title: '注文：' + r.name, shortTitle: r.name + ' を わたす', items: shuffle(items), need: r.need, ordered: true };
     },
   },
-  super: {
-    work: '鍋の材料の袋づめ', intro: 'レジを 通った 鍋の 材料を、重い ものから 順に 袋に 入れます。とうふや たまごは 上に。', defect: '入れる 順番の まちがい',
-    round() { return bagRound([['白菜', 5], ['大根', 4], ['みかん', 3], ['とうふ', 2], ['たまご', 1]]); },
-  },
   school: {
     work: '書き初めの準備', intro: '書き初めの 道具を、決まった 順番で 机に ならべます。', defect: '順番の まちがい（新聞紙の 前に 半紙 など）',
     round() {
@@ -843,22 +839,6 @@ const WINTER = {
 JOBS.forEach((job) => {
   if (job.variants || !WINTER[job.id]) return;
   job.variants = { summer: [{ work: job.work, intro: job.intro, defect: job.defect, round: job.round, rounds: job.rounds }], winter: [WINTER[job.id]] };
-});
-// スーパーの 倉庫整理（夏も 冬も）：台車の 箱を 上から 順に、同じ 記号（A〜D）の たなへ 置く。
-const STOCKROOM = {
-  work: '倉庫整理', short: '倉庫整理',
-  intro: '台車に つんだ 箱を 上から 順に おろし、箱の 記号（A・B・C・D）と 同じ 札の たなに 置きます。',
-  defect: 'ちがう たなに 置く',
-  round() {
-    const tiers = ['A', 'B', 'C', 'D'];
-    const cart = sample(tiers, 3); // 上から 順
-    const items = tiers.map((label) => ({ label, color: '#c49a6c' }));
-    return { title: '台車の 箱を 上から 順に、同じ 記号の たなへ', shortTitle: '箱を たなに しまう', items, need: cart, ordered: true, layout: 'stock', carryText: '台車（上から）：' + cart.map((k) => '商品' + k).join('・') };
-  },
-};
-JOBS.filter((job) => job.id === 'super').forEach((job) => {
-  job.variants.summer[0].short = '袋づめ'; job.variants.winter[0].short = '袋づめ';
-  job.variants.summer.push(STOCKROOM); job.variants.winter.push(STOCKROOM);
 });
 // ---- 植林（森林組合）：植林地に 出て、1本の 苗木を 3 工程で 植える（植栽手順 ②植栽・③灌水・④支柱）。1 工程 = 1 回
 //   steps：[id, 動作]。decoys は えらぶと ミスに なる もの（[id, 動作, 声かけ]）
@@ -2793,7 +2773,7 @@ function decorateInterior(b) {
     part(g, cyl(0.3, 0.3, 0.06, 20), '#c9302c', DECO_X - 0.15, 1.3, 1.4).rotation.z = Math.PI / 2; // ちょうちん
     part(g, ball(0.18, 14, 10), '#e0503a', DECO_X - 0.15, 1.3, 2.0, { emissive: '#ff7a3a', emissiveIntensity: 0.4 });
   } else if (id === 'super') {
-    // 作業で 部屋が かわる（applyRoomMode）。袋づめ＝売り場、倉庫整理＝バックヤード
+    // 作業で 部屋が かわる（applyRoomMode）。スーパーは 倉庫整理＝バックヤード
     const sales = new THREE.Group(); const back = new THREE.Group(); g.add(sales); g.add(back); b.rooms = { sales, back };
     wallShelf(sales, -1, ['牛乳', 'お茶', 'パン'], '#d0d5db');
     wallShelf(sales, 1, ['じゃがいも', 'たまご', 'みかん'], '#d0d5db');
@@ -4647,9 +4627,8 @@ Object.assign(STAGES, {
   '焼きいも・甘酒': { counter: '#c98f5a', stand: [0, 0.85], pitch: 0.3, decor(W) { yataiFrame(W); part(W, box(0.5, 0.06, 0.35), '#5a5f66', 0.6, 0.93, 2.35); for (let i = 0; i < 12; i++) part(W, ball(0.035, 8, 6), '#8a8f96', 0.42 + (i % 4) * 0.12, 0.97, 2.25 + Math.floor(i / 4) * 0.1); },
     spots: { '紙袋': [1.0, 0.906, 2.0, { s: 1.6 }], '焼きいも': [0.6, 0.99, 2.35, { s: 1.6 }], '紙コップ': [0.15, 0.906, 2.0, { s: 1.6 }], '甘酒': [0, 0.906, 2.4, { s: 1.6 }], 'おわん': [-0.45, 0.906, 2.0, { s: 1.6 }], 'おしるこ': [-0.6, 0.906, 2.4, { s: 1.6 }], 'お客さま': GUEST('#3c7fc4') } },
 });
-// ---- 第 3 弾：スーパーの 袋づめ・風力発電所・書き初め・田んぼの 苗受け --------------
+// ---- 第 3 弾：風力発電所・書き初め・田んぼの 苗受け --------------
 Object.assign(SM, {
-  bag() { const g = new THREE.Group(); part(g, box(0.36, 0.42, 0.22), '#f4f6f8', 0, 0.21, 0, { transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false }); [-0.1, 0.1].forEach((x) => part(g, new THREE.TorusGeometry(0.05, 0.008, 6, 14, Math.PI), '#f4f6f8', x, 0.42, 0)); return g; },
   harness() { const g = new THREE.Group(); [-0.06, 0.06].forEach((x) => part(g, box(0.04, 0.5, 0.02), '#e0662f', x, 0.25, 0)); part(g, box(0.3, 0.05, 0.02), '#e0662f', 0, 0.12, 0); part(g, new THREE.TorusGeometry(0.03, 0.008, 6, 12), '#8a8f96', 0, 0.42, 0.02); return g; },
   switchPanel() { const g = new THREE.Group(); part(g, box(0.5, 0.6, 0.12), '#c9ced6', 0, 0.3, 0, { metalness: 0.3, roughness: 0.4 }); part(g, cyl(0.07, 0.07, 0.05, 16), '#d0453a', 0, 0.36, 0.08, { emissive: '#7a1a10', emissiveIntensity: 0.4 }).rotation.x = Math.PI / 2; part(g, box(0.3, 0.06, 0.005), '#f2c230', 0, 0.16, 0.062);
     const t = textPlate('停止', 0.16, 0.06, '#ffffff', '#d0453a'); t.position.set(0, 0.5, 0.062); g.add(t); return g; },
@@ -4659,15 +4638,8 @@ Object.assign(SM, {
   paint() { const g = new THREE.Group(); part(g, cyl(0.08, 0.08, 0.16, 16), '#7fb3d9', 0, 0.08, 0); part(g, cyl(0.081, 0.081, 0.06, 16), '#ffffff', 0, 0.09, 0); return g; },
   heater() { const g = ITEM_MODELS['ヒーター'](); g.scale.setScalar(2.4); return g; },
 });
-// 袋づめ・書き初めは えらんだ ものが 決まった ところへ 動く（placeTo：品名・これまでに 置いた 数 → 置く 場所）
+// 書き初めは えらんだ ものが 決まった ところへ 動く（placeTo：品名・これまでに 置いた 数 → 置く 場所）
 Object.assign(STAGES, {
-  // スーパー：サッカー台（白い 台）。左に お客さまの かご（品物入り）、右に レジ袋。重い ものから 袋の 中へ つむ
-  'レジの袋づめ': { counter: '#eceae4', stand: [0, 0.95], pitch: 0.42,
-    decor(W) { const k = new THREE.Group(); k.position.set(0.2, 0.906, 2.3); W.add(k); part(k, box(0.86, 0.012, 0.5), '#d0453a', 0, 0.006, 0); [-1, 1].forEach((sd) => { part(k, box(0.86, 0.16, 0.012), '#d0453a', 0, 0.08, sd * 0.25, { transparent: true, opacity: 0.6 }); part(k, box(0.012, 0.16, 0.5), '#d0453a', sd * 0.43, 0.08, 0, { transparent: true, opacity: 0.6 }); }); },
-    byIndex: null,
-    goods: [[0.5, 0.92, 2.16], [0.2, 0.92, 2.16], [-0.1, 0.92, 2.16], [0.38, 0.92, 2.44, { ly: 0.26 }], [0.05, 0.92, 2.44, { ly: 0.26 }]],
-    spots: { 'レジ袋': [-0.7, 0.906, 2.25, { model: () => SM.bag(), ly: 0.05 }] },
-    placeTo(spec, n) { return spec.label === 'レジ袋' ? 'stay' : [-0.7 + ((n % 2) - 0.5) * 0.12, 0.92 + Math.floor((n - 1) / 2) * 0.12, 2.25]; } },
   // 風力発電所：風車の 塔の 中。奥に 停止スイッチの 盤、左の かべに ヘルメットと 安全帯、右の 台に 点検の 道具、まん中に 点検表
   '風車の点検': { counter: false, stand: [0, 0.7], pitch: 0.18,
     decor(W) { part(W, box(SHOP_W - 0.1, 0.004, 3.4), '#9aa4ab', 0, 0.104, 2.4); // 奥の 右の すみの はしご（上の 風車へ）
@@ -4691,7 +4663,6 @@ Object.assign(STAGES, {
     spots: { '苗箱': [-0.85, 0.52, 2.1, { s: 1.8 }], 'しおれた 苗箱': [-1.12, 0.52, 2.1, { s: 1.8, ly: 0.1 }], '空き箱': [-1.55, 0.11, 2.75, { s: 1.8 }], '肥料': [-0.35, 0.11, 2.2, { s: 2.2 }] },
     byKey: (spec) => (/列め$/.test(spec.label) ? 'rack' : null), rack: [[0.45, 0.75, 2.95], [0, 0.75, 2.95], [-0.45, 0.75, 2.95], [-0.9, 0.75, 2.95]], rackModel: (spec) => { const m = makeItemMesh(spec); m.scale.setScalar(1.8); return m; } },
 });
-STAGES['鍋の材料の袋づめ'] = STAGES['レジの袋づめ'];
 STAGES['羽の氷とかしと点検'] = STAGES['風車の点検'];
 // 屋台の やね（紅白の のれん）と ちょうちん
 function yataiFrame(W) {
@@ -6278,7 +6249,7 @@ function sfxKind(slot) {
   const name = String(spec.label || id || spec.name || '');
   let k = null; for (const [re, kk] of SFX_WORDS) if (re.test(name)) { k = kk; break; }
   if (!k) k = SFX_SHAPES[spec.shape] || 'pop';
-  if (k === 'liquid' && job && (job.id === 'logi' || job.id === 'super')) k = 'cardboard'; // 品物と して 運ぶ 牛乳・お茶は パック
+  if (k === 'liquid' && job && job.id === 'logi') k = 'cardboard'; // 品物と して 運ぶ 牛乳・お茶は パック
   return k;
 }
 const SFX_FURN = { plant: 'soil', rug: 'cloth', lamp: 'plastic', picture: 'wood', shelf: 'wood', sofa: 'cloth', tv: 'plastic', bed: 'cloth' };
