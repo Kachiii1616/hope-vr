@@ -3385,6 +3385,7 @@ const LEISURE = [
   { id: 'climb', name: '山に のぼる', cost: 0, ok: () => season === 'summer', go: () => startClimb() },
   { id: 'swim', name: '海で 泳ぐ', cost: 0, ok: () => season === 'summer', go: () => { goBeach(); startSwim(); } },
   { id: 'sun', name: 'ビーチで 日向ぼっこ', cost: 0, ok: () => season === 'summer', go: () => { goBeach(); startSun(); } },
+  { id: 'rehab', name: 'リハビリステーション', cost: 0, ok: () => true, go: () => openRehab() },
   { id: 'skate', name: '湖で スケート', price: 400, label: 'スケートぐつ 400円', ok: () => season === 'winter', go: () => { const c = LAKE.blk; startWalk(new THREE.Vector3(c.x, 0, c.z), 0); } },
   { id: 'ski', name: 'スキー', price: 500, label: 'リフト券 500円', ok: () => season === 'winter', go: () => startSki() },
   { id: 'cafe', name: 'カフェで のんびり', label: '300円〜', ok: () => true, go: () => openCafeOrder('in') },
@@ -7818,11 +7819,13 @@ const coverPointer = (e) => { const rect = renderer.domElement.getBoundingClient
 let wiping = false; // 台ふきを 持って 動かしている あいだ（見回しは しない）
 renderer.domElement.addEventListener('pointerdown', (e) => {
   renderer.domElement.setPointerCapture(e.pointerId);
+  if (rehabPointer(e, 'down')) { drag = null; return; } // リハビリの ボールなげ：スワイプで なげる
   const r = state.round;
   if (r && r.cover && r.cover.kind === 'wipe' && state.phase === 'work') { const p = coverPointer(e); if (p) { wiping = true; drag = null; coverMoveCloth(r, p.x, p.z, performance.now()); return; } }
   drag = { x: e.clientX, y: e.clientY, yaw: look.yaw, pitch: look.pitch, moved: 0 };
 });
 renderer.domElement.addEventListener('pointermove', (e) => {
+  if (rehabPointer(e, 'move')) return;
   const wr = state.round; const wipeNow = wr && wr.cover && wr.cover.kind === 'wipe' && state.phase === 'work';
   if (wiping || (drag && wipeNow && e.buttons)) { // 台の 外から ドラッグを はじめても、台の 上に 来たら ふける
     if (!wipeNow) { wiping = false; return; }
@@ -7835,6 +7838,7 @@ renderer.domElement.addEventListener('pointermove', (e) => {
 });
 renderer.domElement.addEventListener('pointerup', (e) => {
   if (wiping) { wiping = false; return; }
+  if (rehabPointer(e, 'up')) { drag = null; return; }
   if (drag && drag.moved < 8) {
     const rect = renderer.domElement.getBoundingClientRect();
     pointer.set(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
@@ -8068,7 +8072,7 @@ function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 function renderHud() {
   $('btn-home').hidden = !home.group;
   $('place').textContent = state.where === 'plaza' ? '島ぜんたい' : state.where === 'walk' ? '島を 歩いています' : state.where === 'home' ? profile.name + 'さんの 家（' + home.site.name + '）' : state.where === 'opening' ? 'フェリーで 入港中' : state.where === 'play' ? PLAY_NAME[state.play.kind] : state.where === 'furn' ? '家具屋（お店の 中）' : state.booth.job.area + '　' + state.booth.job.name + '・' + state.booth.job.work;
-  $('pad').hidden = !(state.where === 'walk' || state.where === 'furn' || (state.where === 'play' && state.play && !['sun', 'cafe', 'terrace', 'plaza'].includes(state.play.kind)) || (state.where === 'booth' && state.phase === 'work' && state.round && (state.round.cover || state.round.slide)));
+  $('pad').hidden = !(state.where === 'walk' || state.where === 'furn' || (state.where === 'play' && state.play && !['sun', 'cafe', 'terrace', 'plaza', 'rehab'].includes(state.play.kind)) || (state.where === 'booth' && state.phase === 'work' && state.round && (state.round.cover || state.round.slide)));
   $('btn-walk').textContent = state.where === 'walk' ? '見わたす' : '島を歩く';
   chipsEl.querySelectorAll('.chip').forEach((el, i) => el.setAttribute('aria-current', String(i === 0 ? state.where === 'plaza' : state.booth === booths[i - 1])));
   // いまの 場所の チップが 画面の外なら 見える ところまで 送る
@@ -8086,12 +8090,13 @@ function renderHud() {
   if (state.where === 'plaza') {
     el.innerHTML = '<span class="tag">Work Island</span><h2>やってみたい しごとを えらぶ</h2>' +
       '<div>島の 地域ごとに、その土地の しごとが あります。旗や お店を タップ（VR では ゆびさして トリガー）すると、その お店の前に 移動します。ドラッグで 見回せます。</div>' +
-      '<div class="row"><button type="button" class="primary" id="h-walk">島を 歩いてみる</button></div>';
-    $('h-walk').onclick = () => startWalk();
+      '<div class="row"><button type="button" class="primary" id="h-walk">島を 歩いてみる</button><button type="button" id="h-rehab">リハビリステーション</button></div>';
+    $('h-walk').onclick = () => startWalk(); $('h-rehab').onclick = openRehab;
     return;
   }
   if (state.where === 'play') {
     const k = state.play.kind;
+    if (k === 'rehab') { renderRehabHud(el); return; }
     const how = { ski: '← → で よける・▲を 押すと そのまま（Shift で 速く）。下まで すべると ゴール', climb: '▲で のぼる・▼で おりる。頂上から 島ぜんたいが 見えます', swim: '▲▼で 進む・◀▶で 向きを かえる。岸から 遠くへは 行けません', sun: 'パラソルの 下で ねころんでいます。ドラッグで 見回せます', cafe: '中の 席に すわって います。ドラッグで 見回せます', terrace: '外の テラス席に すわって います。ドラッグで 見回せます', plaza: '町の テラス席に すわって います。ドラッグで 見回せます' }[k];
     el.innerHTML = '<span class="tag">あそぶ</span><h2>' + PLAY_NAME[k] + '</h2><div>' + how + '</div><div class="row"><button type="button" class="primary" id="h-endplay">' + (k === 'sun' ? 'おきる' : k === 'swim' ? '岸に あがる' : k === 'cafe' || k === 'terrace' ? 'お店を 出る' : k === 'plaza' ? '席を たつ' : 'おわる') + '</button></div>';
     $('h-endplay').onclick = endPlay;
@@ -8195,7 +8200,7 @@ const inPoly = (poly, px, py) => { let ins = false; for (let i = 0, j = poly.len
 const onIce = (x, z) => season === 'winter' && LAKE.blk && ((x - LAKE.blk.x) / LAKE.rx) ** 2 + ((z - LAKE.blk.z) / LAKE.rz) ** 2 < 1;
 const onBeach = (x, z) => inPoly(BEACH, ...toMap(x, z));
 const skateV = new THREE.Vector3();
-const PLAY_NAME = { ski: 'スキー', climb: '山登り', swim: '海で 泳ぐ', sun: '日向ぼっこ', cafe: 'カフェで のんびり', terrace: 'カフェの テラス席', plaza: '町の テラス席' };
+const PLAY_NAME = { ski: 'スキー', climb: '山登り', swim: '海で 泳ぐ', sun: '日向ぼっこ', cafe: 'カフェで のんびり', terrace: 'カフェの テラス席', plaza: '町の テラス席', rehab: 'リハビリステーション' };
 const isCafePlay = (k) => k === 'cafe' || k === 'terrace' || k === 'plaza';
 // 左スティック（VR）
 function xrMove() {
@@ -8316,6 +8321,7 @@ function endPlay() {
   const pl = state.play; if (!pl) return;
   const m = seasonal.mount; if (towel) towel.visible = false;
   state.play = null;
+  if (pl.kind === 'rehab') { leaveRehab(pl); return; }
   if (pl.kind === 'ski') { const dir = m.runs[pl.run]; startWalk(new THREE.Vector3(m.peak.x + dir.x * (m.MR + 2.5), 0, m.peak.z + dir.z * (m.MR + 2.5)), Math.atan2(-dir.x, -dir.z)); }
   else if (pl.kind === 'climb') startWalk(seasonal.trailAt.clone().add(new THREE.Vector3(1.5, 0, 1.5)), 0);
   else if (pl.kind === 'swim') startWalk(pl.land, rig.rotation.y + Math.PI);
@@ -8324,6 +8330,7 @@ function endPlay() {
 }
 function stepPlay(dt, now) {
   const pl = state.play; if (state.where !== 'play' || !pl) return;
+  if (pl.kind === 'rehab') { stepRehab(pl, dt, now); return; }
   const m = seasonal.mount; const xr = xrMove();
   const fwd = xr ? xr.fwd : (walkKeys.fwd ? 1 : 0) - (walkKeys.back ? 1 : 0);
   const side = xr ? xr.strafe : (walkKeys.right ? 1 : 0) - (walkKeys.left ? 1 : 0);
@@ -8359,6 +8366,420 @@ function stepPlay(dt, now) {
     if (say) { pl.said++; toast(say[1]); }
   }
 }
+// ===========================================================================
+// リハビリステーション（島の 外の しずかな 庭。家の よか・介護施設の 前・島ぜんたい から 行ける）
+//   ① 犬と ボールなげ：ボールを なげると 犬（コロ）が とってきて 足もとに おく。VR では なげる 手を 指定できる（交互・右・左・どちらでも）
+//   ② 果物タッチ：前から 飛んでくる 果物に さわる。右手は りんご・左手は バナナ（入れかえも できる）
+//   VR：コントローラーの 位置で さわる・トリガーで ボールを にぎって、ふって はなすと なげる
+//   VR で ない とき：果物は 画面の「右手」「左手」ボタン（← → キー）、ボールは 画面を 上へ スワイプ（スペースキー）
+//   けっかは この 体験の きろく（profile.rehab）に のこす。hope-work の 作業体験の きろく（TrialPhase）とは べつ
+// ===========================================================================
+const REHAB = { at: new THREE.Vector3(0, 0, 640), half: 11, stand: new THREE.Vector3(0, 0, 7), g: null };
+const REHAB_GAMES = { ball: '犬と ボールなげ', fruit: '果物タッチ' };
+const REHAB_DEF = { game: 'ball', throws: 10, hand: 'alt', time: 60, speed: 'normal', swap: false, wide: false };
+const REHAB_SPEED = { slow: [2.4, 3.4, 1.3], normal: [1.7, 2.6, 0.9], fast: [1.15, 1.9, 0.6] }; // 出る 間かく・飛んでくる 時間・手の 前で まつ 時間（秒）
+const HAND_NAME = { right: '右手', left: '左手' };
+const DOG_NAME = 'コロ';
+let rehabOpt = Object.assign({}, REHAB_DEF); let rehabLog = [];
+let rehabSwipe = null;
+function rehabLoad() {
+  if (profile && profile.rehabOpt) rehabOpt = Object.assign({}, REHAB_DEF, profile.rehabOpt);
+  if (profile && profile.rehab) rehabLog = profile.rehab.slice();
+}
+function rehabSave() { if (profile) { profile.rehabOpt = rehabOpt; profile.rehab = rehabLog.slice(-30); saveProfile(); } }
+const rehabNow = () => state.where === 'play' && state.play && state.play.kind === 'rehab' ? state.play : null;
+const rehabXR = () => renderer.xr.isPresenting;
+const fruitHand = (kind, opt) => ((kind === 'apple') !== !!opt.swap ? 'right' : 'left'); // りんご → 右手（入れかえ なら 左手）
+const handFruit = (hand, opt) => (fruitHand('apple', opt) === hand ? 'りんご' : 'バナナ');
+
+function dogMesh() { // 柴犬ふうの 犬（頭が -z）
+  const g = new THREE.Group(); const C = '#c98a4a'; const W = '#f4ead8';
+  part(g, ball(0.5, 16, 12), C, 0, 0.36, 0).scale.set(0.26, 0.22, 0.52);
+  part(g, ball(0.5, 12, 10), W, 0, 0.31, -0.04).scale.set(0.2, 0.14, 0.38); // おなか
+  const head = new THREE.Group(); head.position.set(0, 0.54, -0.27); g.add(head);
+  part(head, ball(0.12, 16, 12), C, 0, 0, 0);
+  part(head, ball(0.07, 12, 8), W, 0, -0.035, -0.09).scale.set(1, 0.8, 1.2); // 口もと
+  part(head, ball(0.022, 8, 6), '#1f2a33', 0, -0.005, -0.175); // 鼻
+  [-1, 1].forEach((sd) => {
+    part(head, ball(0.018, 8, 6), '#1f2a33', sd * 0.05, 0.035, -0.1);
+    const ear = part(head, new THREE.ConeGeometry(0.045, 0.09, 6), C, sd * 0.07, 0.115, -0.01); ear.rotation.z = -sd * 0.3;
+  });
+  const legs = [[-0.08, -0.17], [0.08, -0.17], [-0.08, 0.17], [0.08, 0.17]].map(([x, z]) => {
+    const L = new THREE.Group(); L.position.set(x, 0.3, z); g.add(L);
+    part(L, cyl(0.03, 0.03, 0.28, 8), C, 0, -0.14, 0); part(L, ball(0.035, 8, 6), W, 0, -0.28, -0.01); return L;
+  });
+  const tail = new THREE.Group(); tail.position.set(0, 0.45, 0.25); g.add(tail);
+  const tl = part(tail, cyl(0.016, 0.03, 0.2, 6), C, 0, 0.09, 0.03); tl.rotation.x = 0.5;
+  const mouth = new THREE.Group(); mouth.position.set(0, -0.06, -0.17); head.add(mouth);
+  g.userData = { legs, tail, head, mouth };
+  return g;
+}
+function bananaMesh() {
+  const g = new THREE.Group();
+  const b = part(g, new THREE.TorusGeometry(0.09, 0.024, 10, 18, Math.PI * 0.75), '#f2d13a', 0, 0, 0, { roughness: 0.55 }); b.rotation.z = Math.PI * 0.62; b.scale.set(1, 1, 0.8);
+  part(g, cyl(0.008, 0.011, 0.03, 6), '#6b4a2a', -0.07, 0.065, 0).rotation.z = 0.9; // 軸
+  part(g, ball(0.012, 6, 5), '#5a4a2a', 0.083, 0.045, 0); // 先
+  return g;
+}
+function handMesh(color) { // VR で ない ときの 手（てのひらと ゆび）
+  const g = new THREE.Group();
+  part(g, box(0.085, 0.03, 0.1), color, 0, 0, 0);
+  for (let k = 0; k < 4; k++) part(g, box(0.017, 0.02, 0.065), color, -0.03 + k * 0.02, 0, -0.08);
+  part(g, box(0.02, 0.02, 0.05), color, 0.05, 0, -0.02).rotation.y = -0.6;
+  return g;
+}
+function buildRehab() {
+  if (REHAB.g) return;
+  const g = new THREE.Group(); g.position.copy(REHAB.at); scene.add(g); REHAB.g = g; const H = REHAB.half; const S = REHAB.stand;
+  g.updateMatrixWorld(true); // すぐ 下の localToWorld で 使う（はじめての 日は まだ 描いて いない）
+  REHAB.grass = part(g, box(H * 2 + 8, 0.2, H * 2 + 8), '#8fc46e', 0, -0.1, 0, { roughness: 0.95 });
+  [[0, -H - 0.4, H * 2 + 1.6, 0.8], [0, H + 0.4, H * 2 + 1.6, 0.8], [-H - 0.4, 0, 0.8, H * 2 + 1.6], [H + 0.4, 0, 0.8, H * 2 + 1.6]]
+    .forEach(([x, z, w, d]) => part(g, box(w, 1.1, d), '#4f8a3a', x, 0.55, z)); // 生けがき
+  for (let k = 0; k < 14; k++) { const a = (k / 14) * TAU; const x = Math.cos(a) * (H + 2.6); const z = Math.sin(a) * (H + 2.6);
+    part(g, cyl(0.15, 0.2, 1.6, 8), '#7a5a3a', x, 0.8, z); part(g, new THREE.ConeGeometry(1.4, 3.2, 10), '#3f7a3a', x, 3.0, z); }
+  part(g, cyl(1.1, 1.1, 0.02, 32), '#d9c9a6', S.x, 0.01, S.z); // 立つ ところ
+  // 何 m なげたか わかる 白い 線（5・10・15 m）
+  [5, 10, 15].forEach((m) => { if (S.z - m < -H) return; part(g, box(H * 2 - 1, 0.012, 0.06), '#ffffff', 0, 0.006, S.z - m);
+    const t = labelSprite(m + ' m', { h: 0.35, bg: 'rgba(255,255,255,0.85)' }); t.position.set(-H + 1.6, 0.4, S.z - m); g.add(t); });
+  // ベンチ・犬小屋・看板
+  const bench = new THREE.Group(); bench.position.set(S.x + 2.4, 0, S.z + 1.2); g.add(bench);
+  part(bench, box(1.4, 0.06, 0.42), '#b0824a', 0, 0.45, 0); part(bench, box(1.4, 0.36, 0.05), '#b0824a', 0, 0.7, 0.2);
+  [-0.6, 0.6].forEach((x) => part(bench, box(0.06, 0.45, 0.4), '#5a4a3a', x, 0.22, 0));
+  const dh = new THREE.Group(); dh.position.set(S.x - 3, 0, S.z + 0.5); dh.rotation.y = 0.5; g.add(dh);
+  part(dh, box(0.9, 0.7, 1.0), '#d9a35b', 0, 0.35, 0); part(dh, box(0.4, 0.5, 0.02), '#3d2f22', 0, 0.3, -0.51);
+  [-1, 1].forEach((sd) => { const r = part(dh, box(0.62, 0.05, 1.12), '#a8452f', sd * 0.25, 0.86, 0); r.rotation.z = sd * -0.6; });
+  const sign = textPlate('リハビリステーション', 4.2, 0.7, '#2f7d6d', '#ffffff'); sign.position.set(0, 2.4, -H + 0.05); g.add(sign);
+  [-1.9, 1.9].forEach((x) => part(g, cyl(0.06, 0.06, 2.4, 8), '#5a4a3a', x, 1.2, -H + 0.02));
+  // 犬と ボール
+  const dog = dogMesh(); g.add(dog); REHAB.dog = dog;
+  const bl = new THREE.Group(); part(bl, ball(0.07, 16, 12), '#d8e84a', 0, 0, 0, { roughness: 0.8 });
+  part(bl, new THREE.TorusGeometry(0.07, 0.006, 6, 24), '#ffffff', 0, 0, 0).rotation.y = 0.6; g.add(bl); REHAB.ball = bl;
+  // 果物と 手（体の 向きで 動くので rig に つける）
+  REHAB.fx = new THREE.Group(); rig.add(REHAB.fx); REHAB.fx.visible = false;
+  REHAB.hands = { right: handMesh('#e8c4a8'), left: handMesh('#e8c4a8') };
+  Object.entries(REHAB.hands).forEach(([h, m]) => { REHAB.fx.add(m); const t = labelSprite(HAND_NAME[h], { h: 0.035 }); t.position.y = 0.05; m.add(t); m.userData.tag = t; });
+  // VR の 手の 目じるし（さわる 果物の 色の たま）
+  REHAB.marks = REHAB_CTRLS.map((c) => { const m = part(c, ball(0.035, 12, 10), '#ffffff', 0, 0, 0, { emissive: '#333333' }); m.visible = false; return m; });
+}
+// VR の コントローラー：手の 左右・ボールを にぎる・はなす
+const REHAB_CTRLS = [0, 1].map((i) => {
+  const c = renderer.xr.getController(i);
+  c.addEventListener('connected', (e) => { c.userData.hand = e.data && e.data.handedness; });
+  c.addEventListener('disconnected', () => { c.userData.hand = null; });
+  c.addEventListener('selectstart', () => rehabGrab(c));
+  c.addEventListener('selectend', () => rehabRelease(c));
+  return c;
+});
+
+function openRehab() {
+  rehabLoad(); const o = rehabOpt;
+  if (rehabXR()) { startRehab(); return; } // VR では 画面の カードが 見えないので、前回の 設定で すぐ はじめる
+  modal.dataset.closable = '1';
+  const last = rehabLog.slice(-3).reverse().map(rehabLine).map((t) => '<li>' + esc(t) + '</li>').join('');
+  openModal('<h2>リハビリステーション</h2><p>しずかな 庭で、体を 動かす リハビリを します。VR では コントローラーを 持った 手で さわったり なげたり します。</p>' +
+    '<label class="field">メニュー</label>' + radio('rg', REHAB_GAMES, o.game) +
+    '<div id="rh-ball"><label class="field">なげる 回数</label>' + radio('rt', { 5: '5 回', 10: '10 回', 15: '15 回' }, String(o.throws)) +
+    '<label class="field">なげる 手（VR）</label>' + radio('rh', { alt: '交互（右 → 左）', right: '右手', left: '左手', any: 'どちらでも' }, o.hand) + '</div>' +
+    '<div id="rh-fruit"><label class="field">時間</label>' + radio('rtm', { 60: '1 分', 120: '2 分', 180: '3 分' }, String(o.time)) +
+    '<label class="field">速さ</label>' + radio('rs', { slow: 'ゆっくり', normal: 'ふつう', fast: 'はやい' }, o.speed) +
+    '<label class="field">手の 指定</label>' + radio('rw', { std: '右手＝りんご・左手＝バナナ', swap: '右手＝バナナ・左手＝りんご' }, o.swap ? 'swap' : 'std') +
+    '<label class="field">飛んでくる はんい</label>' + radio('rr', { narrow: '体の 前', wide: '左右に 大きく（体の まんなかを こえて 手を のばす）' }, o.wide ? 'wide' : 'narrow') + '</div>' +
+    (last ? '<label class="field">さいきんの けっか</label><ul style="margin:0;padding-left:1.2em;color:var(--ink-soft)">' + last + '</ul>' : '') +
+    '<div class="row"><button type="button" class="primary" id="rh-go">はじめる</button><button type="button" id="rh-close">やめる</button></div>',
+  (card) => {
+    const sync = () => { const gm = pickVal('rg'); $('rh-ball').hidden = gm !== 'ball'; $('rh-fruit').hidden = gm !== 'fruit'; };
+    card.querySelectorAll('input[name="rg"]').forEach((r) => { r.onchange = sync; }); sync();
+    $('rh-close').onclick = closeModal;
+    $('rh-go').onclick = () => {
+      rehabOpt = { game: pickVal('rg'), throws: Number(pickVal('rt')), hand: pickVal('rh'), time: Number(pickVal('rtm')), speed: pickVal('rs'), swap: pickVal('rw') === 'swap', wide: pickVal('rr') === 'wide' };
+      rehabSave(); closeModal(); startRehab();
+    };
+  });
+}
+function startRehab() {
+  const pl0 = rehabNow();
+  const from = pl0 ? pl0.from : state.where === 'home' ? { home: true } : state.where === 'walk' ? { pos: rig.position.clone(), yaw: rig.rotation.y + look.yaw } : {};
+  if (pl0) clearRehab();
+  leaveForPlay(); buildRehab();
+  const o = Object.assign({}, rehabOpt); const g = REHAB.g; g.visible = true;
+  REHAB.grass.material.color.set(season === 'winter' ? '#e9f0f2' : '#8fc46e');
+  rig.position.copy(g.localToWorld(REHAB.stand.clone())); rig.rotation.y = 0; look.yaw = 0; look.pitch = o.game === 'ball' ? 0.12 : 0.02;
+  const now = performance.now();
+  const pl = { kind: 'rehab', game: o.game, opt: o, t0: now, from, done: false, msg: '' };
+  state.where = 'play'; state.play = pl;
+  dogSit(true);
+  if (o.game === 'ball') {
+    pl.B = { state: 'ready', p: new THREE.Vector3(), v: new THREE.Vector3(), hist: [], ctrl: null };
+    Object.assign(pl, { throws: 0, fetches: 0, dists: [], byHand: { right: 0, left: 0 }, wrongHand: 0 });
+    REHAB.ball.visible = true; REHAB.fx.visible = false;
+    pl.msg = rehabXR() ? rehabWantText(pl) + 'で トリガーを にぎって ボールを 持ち、ふって はなすと なげます' : '画面を 上へ スワイプ（スペースキー）で なげます。強く はらうと 遠くへ';
+  } else {
+    Object.assign(pl, { list: [], next: now + 1500, end: now + o.time * 1000, ok: 0, okR: 0, okL: 0, wrong: 0, miss: 0, rt: [], streak: [null, 0] });
+    REHAB.ball.visible = false; REHAB.dog.visible = false; REHAB.fx.visible = true;
+    Object.values(REHAB.hands).forEach((m) => { m.visible = !rehabXR(); });
+    Object.entries(REHAB.hands).forEach(([h, m]) => { m.remove(m.userData.tag); const t = labelSprite(HAND_NAME[h] + '：' + handFruit(h, o), { h: 0.035 }); t.position.y = 0.05; m.add(t); m.userData.tag = t; });
+    REHAB.marks.forEach((m, i) => { const h = REHAB_CTRLS[i].userData.hand; m.visible = rehabXR() && !!HAND_NAME[h]; if (HAND_NAME[h]) m.material.color.set(handFruit(h, o) === 'りんご' ? '#d0392b' : '#f2d13a'); });
+    pl.msg = (rehabXR() ? '飛んでくる 果物に 手で さわります。' : '果物が 手の 前に 来たら ボタン（← →）で さわります。') + '右手は ' + handFruit('right', o) + '・左手は ' + handFruit('left', o);
+  }
+  renderHud();
+  toast(REHAB_GAMES[o.game] + 'を はじめます');
+}
+function clearRehab() {
+  const pl = rehabNow(); if (pl && pl.list) pl.list.forEach((f) => REHAB.fx.remove(f.m));
+  if (REHAB.board) { REHAB.g.remove(REHAB.board); REHAB.board = null; }
+  if (REHAB.fx) REHAB.fx.visible = false; if (REHAB.marks) REHAB.marks.forEach((m) => { m.visible = false; });
+  if (REHAB.dog) { const d = REHAB.dog; d.visible = true; if (REHAB.ball.parent !== REHAB.g) REHAB.g.add(REHAB.ball); }
+}
+function leaveRehab(pl) {
+  clearRehab(); REHAB.g.visible = false;
+  if (pl.from.home && home.group) goHome(); else if (pl.from.pos) startWalk(pl.from.pos, pl.from.yaw); else goPlaza();
+}
+const rehabWant = (pl) => (pl.opt.hand === 'alt' ? (pl.throws % 2 ? 'left' : 'right') : pl.opt.hand); // つぎに なげる 手
+const rehabWantText = (pl) => (HAND_NAME[rehabWant(pl)] || 'すきな 手');
+function rehabMsg(pl, t, kind) { pl.msg = t; pl.msgKind = kind || ''; rehabStats(); }
+
+// ---- ボールなげ -----------------------------------------------------------
+const DOG_FACE = Math.PI * 0.88; // まつ ときは こちらを 向く
+const DOG_SIT = new THREE.Vector3(1.3, 0, -2.6); const DOG_DROP = new THREE.Vector3(0, 0, -0.85); // 犬が まつ ところは 右前（画面に 見える）
+function dogSit(instant) {
+  const d = REHAB.dog; const at = REHAB.stand.clone().add(DOG_SIT);
+  d.userData.state = 'sit'; if (instant) { d.position.copy(at); d.rotation.y = DOG_FACE; }
+  else d.userData.state = 'home';
+}
+function rehabBallReadyPos(out) { // ボールが 手もとに ある ときの 位置（庭の 中の 座標）
+  camera.getWorldPosition(out); camera.getWorldDirection(tmpDir); tmpDir.y = 0; tmpDir.normalize();
+  out.addScaledVector(tmpDir, rehabXR() ? 0.38 : 0.75).add(new THREE.Vector3(-tmpDir.z * 0.2, rehabXR() ? -0.45 : -0.36, tmpDir.x * 0.2));
+  return REHAB.g.worldToLocal(out);
+}
+function rehabGrab(c) {
+  const pl = rehabNow(); if (!pl) return;
+  if (pl.done) { startRehab(); return; } // VR：おわった あと トリガーで もう一度
+  if (pl.game !== 'ball' || pl.B.state !== 'ready') return;
+  const want = rehabWant(pl); const hand = c.userData.hand;
+  if (HAND_NAME[want] && hand && hand !== want) { pl.wrongHand++; playSfx('bump'); rehabMsg(pl, 'こんどは ' + HAND_NAME[want] + 'で なげよう', 'ng'); return; }
+  Object.assign(pl.B, { state: 'held', ctrl: c, hand, hist: [] }); playSfx('plastic');
+}
+function rehabRelease(c) {
+  const pl = rehabNow(); if (!pl || pl.game !== 'ball' || pl.B.state !== 'held' || pl.B.ctrl !== c) return;
+  const B = pl.B; const h = B.hist; const now = performance.now();
+  const old = h.find((e) => now - e.t < 140) || h[0]; const nw = h[h.length - 1];
+  const v = old && nw && nw.t > old.t ? nw.p.clone().sub(old.p).multiplyScalar(1000 / (nw.t - old.t)) : new THREE.Vector3();
+  v.multiplyScalar(1.6); // 小さな 動きでも 遠くへ とぶように 少し 手つだう
+  const flat = Math.hypot(v.x, v.z);
+  if (flat < 1.5) { camera.getWorldDirection(tmpDir); tmpDir.y = 0; tmpDir.normalize(); v.x = tmpDir.x * 2.2; v.z = tmpDir.z * 2.2; v.y = Math.max(v.y, 1.6); } // 手を はなした だけ：前に ころがす
+  if (v.length() > 16) v.setLength(16);
+  rehabThrowBall(pl, v, B.hand);
+}
+function rehabSwipeThrow(power, side) { // VR で ない とき：power 0〜1・side は 左右の むき（-1〜1）
+  const pl = rehabNow(); if (!pl || pl.game !== 'ball' || pl.B.state !== 'ready' || pl.done) return;
+  camera.getWorldDirection(tmpDir); tmpDir.y = 0; tmpDir.normalize(); tmpDir.applyAxisAngle(new THREE.Vector3(0, 1, 0), -side * 0.45);
+  const sp = 4 + 9 * Math.max(0, Math.min(1, power)); const el = 0.62;
+  rehabThrowBall(pl, new THREE.Vector3(tmpDir.x * sp * Math.cos(el), sp * Math.sin(el), tmpDir.z * sp * Math.cos(el)), null);
+}
+function rehabThrowBall(pl, v, hand) {
+  const B = pl.B; Object.assign(B, { state: 'fly', ctrl: null, landed: false, from: B.p.clone(), throwAt: performance.now() }); B.v.copy(v);
+  pl.throws++; if (hand && pl.byHand[hand] !== undefined) pl.byHand[hand]++;
+  playSfx('cloth'); REHAB.dog.userData.state = 'wait'; REHAB.dog.userData.go = performance.now() + 300;
+  rehabMsg(pl, pl.throws + ' 回め！ ' + DOG_NAME + 'が 走って いきます', 'ok');
+}
+function stepRehabBall(pl, dt, now) {
+  const B = pl.B; const H = REHAB.half - 0.25; const R = 0.07; const d = REHAB.dog; const D = d.userData; const bl = REHAB.ball;
+  if (B.state === 'ready') rehabBallReadyPos(B.p);
+  else if (B.state === 'held') { B.ctrl.getWorldPosition(tmpHead); B.p.copy(REHAB.g.worldToLocal(tmpHead)); B.hist.push({ p: B.p.clone(), t: now }); if (B.hist.length > 30) B.hist.shift(); }
+  else if (B.state === 'fly' || B.state === 'roll') {
+    B.v.y -= 9.8 * dt; B.p.addScaledVector(B.v, dt);
+    if (B.p.y < R) {
+      B.p.y = R;
+      if (!B.landed) { B.landed = true; const m = Math.hypot(B.p.x - B.from.x, B.p.z - B.from.z); pl.dists.push(m); rehabMsg(pl, m.toFixed(1) + ' m なげました！', 'ok'); }
+      if (B.v.y < -1.2) { B.v.y *= -0.42; B.v.x *= 0.7; B.v.z *= 0.7; playSfx('food'); } else { B.v.y = 0; B.state = 'roll'; }
+    }
+    if (B.state === 'roll') { B.v.multiplyScalar(Math.max(0, 1 - 1.8 * dt)); if (B.v.length() < 0.12) { B.v.set(0, 0, 0); B.state = 'rest'; } }
+    if (Math.abs(B.p.x) > H) { B.p.x = Math.sign(B.p.x) * H; B.v.x *= -0.5; }
+    if (Math.abs(B.p.z) > H) { B.p.z = Math.sign(B.p.z) * H; B.v.z *= -0.5; }
+    bl.rotation.x -= B.v.z * dt * 8; bl.rotation.z += B.v.x * dt * 8;
+  }
+  if (B.state !== 'dog') bl.position.copy(B.p);
+  // 犬
+  const run = (to, sp) => { const dx = to.x - d.position.x; const dz = to.z - d.position.z; const L = Math.hypot(dx, dz); if (L < 0.05) return true;
+    const st = Math.min(L, sp * dt); d.position.x += (dx / L) * st; d.position.z += (dz / L) * st;
+    const yaw = Math.atan2(-dx, -dz); let dy = yaw - d.rotation.y; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); d.rotation.y += dy * Math.min(1, dt * 10);
+    D.legs.forEach((L2, k) => { L2.rotation.x = Math.sin(now / 55 + (k % 2 ? 0 : Math.PI) + (k > 1 ? 0.6 : 0)) * 0.7; }); return L < 0.1; };
+  const still = () => D.legs.forEach((L2) => { L2.rotation.x *= 0.8; });
+  D.tail.rotation.z = Math.sin(now / (D.state === 'sit' ? 160 : 70)) * 0.6;
+  if (D.state === 'wait') { still(); if (now > D.go) D.state = 'chase'; }
+  else if (D.state === 'chase') {
+    const tgt = new THREE.Vector3(B.p.x, 0, B.p.z);
+    run(tgt, 4.2);
+    if (Math.hypot(tgt.x - d.position.x, tgt.z - d.position.z) < 0.4 && B.p.y < 0.35) { // くわえる
+      B.state = 'dog'; D.mouth.add(bl); bl.position.set(0, 0, 0); D.state = 'back'; playSfx('pop');
+    }
+  } else if (D.state === 'back') {
+    if (run(REHAB.stand.clone().add(DOG_DROP), 3.2)) { // 足もとに おく
+      D.state = 'drop'; D.t = now; REHAB.g.add(bl); B.p.copy(REHAB.stand).add(DOG_DROP).add(new THREE.Vector3(0, R, -0.3)); bl.position.copy(B.p); B.state = 'rest2';
+      d.rotation.y = Math.PI; pl.fetches++; const bark = labelSprite('ワン！', { h: 0.18 }); bark.position.set(0, 0.95, 0); d.add(bark); setTimeout(() => d.remove(bark), 1100);
+      playSfx('person'); rehabMsg(pl, DOG_NAME + 'が ボールを もって きて くれました（' + pl.fetches + ' / ' + pl.opt.throws + '）', 'ok');
+    }
+  } else if (D.state === 'drop') {
+    still(); D.head.rotation.x = Math.sin(now / 120) * 0.15;
+    if (now - D.t > 900) {
+      D.head.rotation.x = 0;
+      if (pl.fetches >= pl.opt.throws) { finishRehab(pl); D.state = 'home'; return; }
+      B.state = 'ready'; D.state = 'home'; rehabMsg(pl, 'つぎは ' + rehabWantText(pl) + 'で なげよう', '');
+    }
+  } else if (D.state === 'home') { if (run(REHAB.stand.clone().add(DOG_SIT), 2)) { D.state = 'sit'; d.rotation.y = DOG_FACE; } }
+  else still();
+}
+
+// ---- 果物タッチ -----------------------------------------------------------
+function rehabSpawnFruit(pl, now) {
+  const o = pl.opt; const [, dur, wait] = REHAB_SPEED[o.speed]; const head = camera.position; const xr = rehabXR();
+  let kind = Math.random() < 0.5 ? 'apple' : 'banana';
+  if (pl.streak[0] === kind && pl.streak[1] >= 2) kind = kind === 'apple' ? 'banana' : 'apple'; // 3 回 つづけて 同じ ものに しない
+  pl.streak = [kind, pl.streak[0] === kind ? pl.streak[1] + 1 : 1];
+  const m = kind === 'apple' ? ITEM_MODELS['りんご']({ color: '#d0392b' }) : bananaMesh(); m.scale.setScalar(1.5);
+  if (kind === 'apple') m.children.forEach((c) => { c.position.y -= 0.062; });
+  const w = (o.wide ? 0.55 : 0.28) * (xr ? 1 : 0.9); // VR で ない ときは 画面の 上半分（左下の カードと 下の 帯に かくれない）
+  const to = xr ? new THREE.Vector3((Math.random() * 2 - 1) * w, head.y - 0.3 + Math.random() * 0.4, head.z - 0.45)
+    : new THREE.Vector3((Math.random() * 2 - 1) * w, head.y + 0.04 + Math.random() * 0.22, head.z - 0.85);
+  const from = new THREE.Vector3(to.x * 3 + (Math.random() - 0.5) * 2, head.y + 0.4 + Math.random() * 0.8, head.z - 7);
+  m.position.copy(from); REHAB.fx.add(m);
+  pl.list.push({ m, kind, from, to, t0: now, dur: dur * 1000, wait: wait * 1000, state: 'fly', spin: (Math.random() - 0.5) * 6 });
+}
+function rehabTouch(pl, f, hand, now) {
+  if (f.state !== 'fly' && f.state !== 'wait') return;
+  const want = fruitHand(f.kind, pl.opt); const name = f.kind === 'apple' ? 'りんご' : 'バナナ';
+  if (hand === want) {
+    f.state = 'pop'; f.t1 = now; pl.ok++; if (hand === 'right') pl.okR++; else pl.okL++;
+    pl.rt.push(Math.max(0, now - (f.t0 + f.dur * 0.55))); playSfx('pick');
+    const t = labelSprite('+1', { h: 0.08, bg: 'rgba(255,240,200,0.95)' }); t.position.copy(f.m.position).add(new THREE.Vector3(0, 0.12, 0)); REHAB.fx.add(t); setTimeout(() => REHAB.fx.remove(t), 700);
+    rehabMsg(pl, 'いいね！ ' + HAND_NAME[hand] + 'で ' + name, 'ok');
+  } else {
+    f.state = 'bad'; f.t1 = now; pl.wrong++; playSfx('bump');
+    rehabMsg(pl, name + 'は ' + HAND_NAME[want] + 'で さわろう', 'ng');
+  }
+}
+function rehabPress(hand) { // VR で ない とき：手の 前に 来た 果物に その 手で さわる
+  const pl = rehabNow(); if (!pl || pl.game !== 'fruit' || pl.done) return;
+  const now = performance.now();
+  const ready = pl.list.filter((f) => (f.state === 'fly' || f.state === 'wait') && now - f.t0 > f.dur * 0.55).sort((a, b) => a.t0 - b.t0);
+  const hm = REHAB.hands[hand]; hm.userData.reach = { t: now, to: ready[0] ? ready[0].m.position.clone() : null };
+  if (!ready.length) { rehabMsg(pl, 'まだ 手の 前に 来て いません。近くに 来たら さわろう', ''); return; }
+  rehabTouch(pl, ready[0], hand, now);
+}
+function stepRehabFruit(pl, dt, now) {
+  const head = camera.position; const xr = rehabXR();
+  if (!pl.done && now < pl.end && now >= pl.next) { rehabSpawnFruit(pl, now); pl.next = now + REHAB_SPEED[pl.opt.speed][0] * 1000 * (0.8 + Math.random() * 0.4); }
+  // VR：コントローラーが 果物に ふれたら
+  const ctl = xr ? REHAB_CTRLS.filter((c) => HAND_NAME[c.userData.hand]) : [];
+  REHAB.marks.forEach((m, i) => { const h = REHAB_CTRLS[i].userData.hand; m.visible = xr && !!HAND_NAME[h]; });
+  for (let i = pl.list.length - 1; i >= 0; i--) {
+    const f = pl.list[i]; const u = (now - f.t0) / f.dur;
+    if (f.state === 'fly') {
+      const e = 1 - (1 - Math.min(1, u)) * (1 - Math.min(1, u)); f.m.position.lerpVectors(f.from, f.to, e); f.m.position.y += Math.sin(Math.min(1, u) * Math.PI) * 0.35;
+      f.m.rotation.y += f.spin * dt; if (u >= 1) f.state = 'wait';
+    } else if (f.state === 'wait') {
+      f.m.position.copy(f.to); f.m.position.y += Math.sin(now / 200) * 0.015; f.m.rotation.y += f.spin * dt * 0.3;
+      if (now - f.t0 - f.dur > f.wait) { f.state = 'miss'; f.t1 = now; pl.miss++; rehabMsg(pl, (f.kind === 'apple' ? 'りんご' : 'バナナ') + 'が 通りすぎました', ''); }
+    } else {
+      const k = (now - f.t1) / 450;
+      if (f.state === 'pop') f.m.scale.setScalar(1.5 * (1 + k * 0.8));
+      else if (f.state === 'bad') { f.m.position.z -= dt * 3; f.m.position.y += dt * 1.5; }
+      else { f.m.position.y -= dt * 2.2; f.m.position.z += dt * 1.5; }
+      f.m.traverse((o2) => { if (o2.material) { o2.material.transparent = true; o2.material.opacity = Math.max(0, 1 - k); } });
+      if (k >= 1) { REHAB.fx.remove(f.m); pl.list.splice(i, 1); }
+      continue;
+    }
+    if (u > 0.55) ctl.forEach((c) => { if (c.position.distanceTo(f.m.position) < 0.15) rehabTouch(pl, f, c.userData.hand, now); });
+  }
+  // VR で ない ときの 手：ふだんは 下に、ボタンで 果物へ のばす
+  Object.entries(REHAB.hands).forEach(([h, m]) => {
+    m.visible = !xr; const rest = new THREE.Vector3(head.x + (h === 'right' ? 0.3 : -0.3), head.y - 0.26, head.z - 0.6);
+    const r = m.userData.reach; const k = r ? (now - r.t) / 380 : 1;
+    if (r && k < 1 && r.to) { const s = Math.sin(Math.PI * k); m.position.lerpVectors(rest, r.to, s); } else m.position.copy(rest);
+    m.rotation.set(1.2, 0, h === 'right' ? -0.25 : 0.25); // ゆびを 上に、てのひらを 前へ
+  });
+  if (!pl.done && now >= pl.end && !pl.list.some((f) => f.state === 'fly' || f.state === 'wait')) finishRehab(pl);
+  if ((stepRehabFruit.sec || 0) !== Math.ceil((pl.end - now) / 1000)) { stepRehabFruit.sec = Math.ceil((pl.end - now) / 1000); rehabStats(); }
+}
+
+// ---- けっか ---------------------------------------------------------------
+function rehabResult(pl) {
+  if (pl.game === 'ball') {
+    const best = pl.dists.length ? Math.max(...pl.dists) : 0; const avg = pl.dists.length ? pl.dists.reduce((a, b) => a + b, 0) / pl.dists.length : 0;
+    return { game: 'ball', at: new Date().toISOString(), throws: pl.throws, best: Math.round(best * 10) / 10, avg: Math.round(avg * 10) / 10, right: pl.byHand.right, left: pl.byHand.left, wrongHand: pl.wrongHand, hand: pl.opt.hand };
+  }
+  const rt = pl.rt.length ? Math.round(pl.rt.reduce((a, b) => a + b, 0) / pl.rt.length) / 1000 : 0;
+  return { game: 'fruit', at: new Date().toISOString(), sec: pl.opt.time, speed: pl.opt.speed, wide: pl.opt.wide, swap: pl.opt.swap, ok: pl.ok, right: pl.okR, left: pl.okL, wrong: pl.wrong, miss: pl.miss, rt: Math.round(rt * 100) / 100 };
+}
+function rehabLine(r) {
+  const d = new Date(r.at); const day = (d.getMonth() + 1) + '/' + d.getDate() + '　';
+  return r.game === 'ball' ? day + 'ボールなげ ' + r.throws + '回・いちばん ' + r.best + 'm・平均 ' + r.avg + 'm' + (r.right + r.left ? '（右 ' + r.right + '・左 ' + r.left + '）' : '')
+    : day + '果物タッチ ' + Math.round(r.sec / 60) + '分 ' + r.ok + 'こ（右 ' + r.right + '・左 ' + r.left + '）・ちがう手 ' + r.wrong + '・のがした ' + r.miss + (r.rt ? '・はやさ ' + r.rt + '秒' : '');
+}
+function finishRehab(pl) {
+  if (pl.done) return; pl.done = true;
+  const r = rehabResult(pl); const prev = [...rehabLog].reverse().find((x) => x.game === r.game);
+  rehabLog.push(r); rehabSave();
+  const lines = r.game === 'ball'
+    ? [['なげた 回数', r.throws + ' 回'], ['いちばん 遠く', r.best + ' m'], ['平均', r.avg + ' m']].concat(r.right + r.left ? [['右手・左手', r.right + ' 回・' + r.left + ' 回']] : []) // 手が わかるのは VR だけ
+    : [['さわれた', r.ok + ' こ'], ['右手・左手', r.right + ' こ・' + r.left + ' こ'], ['ちがう 手', r.wrong + ' 回'], ['のがした', r.miss + ' こ']];
+  if (prev) lines.push(['前回', r.game === 'ball' ? 'いちばん ' + prev.best + ' m' : prev.ok + ' こ']);
+  // 庭に けっかの 板（VR でも 見える）
+  const bd = new Board(1.4, 0.9, 500);
+  bd.draw((c, w, h) => { c.fillStyle = 'rgba(255,253,248,0.96)'; roundRect(c, 0, 0, w, h, 30); c.fill(); c.fillStyle = '#2f7d6d'; c.font = '700 ' + Math.round(h * 0.11) + 'px ' + FONT_DISPLAY; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillText(REHAB_GAMES[r.game] + '　おつかれさまでした', w / 2, h * 0.12);
+    c.font = '700 ' + Math.round(h * 0.075) + 'px ' + FONT_BODY; lines.forEach(([a, b], k) => { c.fillStyle = '#55626d'; c.textAlign = 'left'; c.fillText(a, w * 0.1, h * (0.3 + k * 0.12)); c.fillStyle = '#1f2a33'; c.textAlign = 'right'; c.fillText(b, w * 0.9, h * (0.3 + k * 0.12)); });
+    c.fillStyle = '#55626d'; c.textAlign = 'center'; c.font = '400 ' + Math.round(h * 0.055) + 'px ' + FONT_BODY; c.fillText('VR：トリガーで もう一度', w / 2, h * 0.93); });
+  bd.mesh.position.copy(REHAB.stand).add(new THREE.Vector3(0, 1.5, -1.7)); REHAB.g.add(bd.mesh); REHAB.board = bd.mesh;
+  rehabMsg(pl, 'おつかれさまでした！', 'ok'); playSfx('coin'); renderHud();
+  if (rehabXR()) return;
+  modal.dataset.closable = '1';
+  openModal('<h2>' + REHAB_GAMES[r.game] + '　おつかれさまでした</h2><table class="badge-table">' + lines.map(([a, b]) => '<tr><th>' + esc(a) + '</th><td>' + esc(b) + '</td></tr>').join('') + '</table>' +
+    '<div class="row"><button type="button" class="primary" id="rr-again">もう一度</button><button type="button" id="rr-menu">メニューを えらぶ</button><button type="button" id="rr-end">おわる</button></div>',
+  () => { $('rr-again').onclick = () => { closeModal(); startRehab(); }; $('rr-menu').onclick = () => { closeModal(); openRehab(); }; $('rr-end').onclick = () => { closeModal(); endPlay(); }; });
+}
+function stepRehab(pl, dt, now) { if (pl.game === 'ball') stepRehabBall(pl, dt, now); else stepRehabFruit(pl, dt, now); }
+function rehabStats() {
+  const pl = rehabNow(); const el = $('rh-stats'); if (!pl || !el) return;
+  const now = performance.now();
+  el.innerHTML = pl.game === 'ball'
+    ? '<span>なげた ' + pl.throws + ' / ' + pl.opt.throws + '</span><span>いちばん ' + (pl.dists.length ? Math.max(...pl.dists).toFixed(1) : '0') + ' m</span>' + (rehabXR() && pl.opt.hand !== 'any' ? '<span>つぎ：' + rehabWantText(pl) + '</span>' : '')
+    : '<span>のこり ' + Math.max(0, Math.ceil((pl.end - now) / 1000)) + ' 秒</span><span>さわれた ' + pl.ok + '</span><span>ちがう手 ' + pl.wrong + '</span><span>のがした ' + pl.miss + '</span>';
+  const fb = $('rh-msg'); if (fb) { fb.textContent = pl.msg; fb.className = 'feedback ' + (pl.msgKind || ''); }
+}
+function renderRehabHud(el) {
+  const pl = state.play; const o = pl.opt; const xr = rehabXR();
+  const how = pl.game === 'ball'
+    ? (xr ? 'トリガーで ボールを にぎり、うでを ふって はなすと なげます。' + DOG_NAME + 'が とって きて くれます。' : '画面を 下から 上へ スワイプして なげます（長く はやく → 遠くへ）。スペースキーでも なげられます。')
+    : (xr ? '果物に コントローラーを 持った 手で さわります。' : '果物が 手の 前で 止まったら、その 果物の 手の ボタン（← 左手・→ 右手）を おします。') + '右手は ' + handFruit('right', o) + '・左手は ' + handFruit('left', o) + '。';
+  el.innerHTML = '<span class="tag">リハビリステーション</span><h2>' + REHAB_GAMES[pl.game] + '</h2><div>' + how + '</div>' +
+    '<div class="meta" id="rh-stats"></div><div class="feedback" id="rh-msg"></div>' +
+    (pl.game === 'fruit' && !xr && !pl.done ? '<div class="row"><button type="button" id="rh-left" style="flex:1;padding:12px">◀ 左手（' + handFruit('left', o) + '）</button><button type="button" id="rh-right" style="flex:1;padding:12px">右手（' + handFruit('right', o) + '） ▶</button></div>' : '') +
+    (pl.game === 'ball' && !xr && !pl.done ? '<div class="row"><button type="button" id="rh-throw">なげる（ふつうの 強さ）</button></div>' : '') +
+    '<div class="row">' + (pl.done ? '<button type="button" class="primary" id="rh-again">もう一度</button><button type="button" id="rh-menu">メニュー</button>' : '<button type="button" id="rh-menu">メニュー・設定</button>') + '<button type="button" id="rh-end">おわる</button></div>';
+  if ($('rh-left')) { $('rh-left').onclick = () => rehabPress('left'); $('rh-right').onclick = () => rehabPress('right'); }
+  if ($('rh-throw')) $('rh-throw').onclick = () => rehabSwipeThrow(0.55, 0);
+  if ($('rh-again')) $('rh-again').onclick = () => startRehab();
+  $('rh-menu').onclick = openRehab; $('rh-end').onclick = endPlay;
+  rehabStats();
+}
+// VR で ない ときの スワイプ・キー
+function rehabPointer(e, phase) {
+  const pl = rehabNow(); if (!pl || pl.game !== 'ball' || rehabXR() || pl.done) return false;
+  if (phase === 'down') { rehabSwipe = { x: e.clientX, y: e.clientY, t: performance.now() }; return true; }
+  if (phase === 'move') return !!rehabSwipe;
+  const s = rehabSwipe; rehabSwipe = null; if (!s) return false;
+  const h = renderer.domElement.clientHeight; const dy = s.y - e.clientY; const dx = e.clientX - s.x; const ms = Math.max(60, performance.now() - s.t);
+  if (dy < 25) { rehabMsg(pl, '下から 上へ はらうように スワイプすると なげられます', ''); return true; }
+  const power = Math.min(1, (dy / (h * 0.55)) * 0.6 + (dy / ms) * 0.25); // 長さと はやさ
+  rehabSwipeThrow(power, Math.max(-1, Math.min(1, dx / Math.max(40, dy))));
+  return true;
+}
+window.addEventListener('keydown', (e) => {
+  const pl = rehabNow(); if (!pl || !modal.hidden || pl.done) return;
+  if (pl.game === 'fruit') { if (e.code === 'ArrowLeft' || e.code === 'KeyF') { e.preventDefault(); rehabPress('left'); } else if (e.code === 'ArrowRight' || e.code === 'KeyJ') { e.preventDefault(); rehabPress('right'); } }
+  else if (e.code === 'Space') { e.preventDefault(); rehabSwipeThrow(0.55, 0); }
+});
 // 歩いている とき、近くで できる こと
 function nearbyActions() {
   if (state.where !== 'walk') return [];
@@ -8371,12 +8792,13 @@ function nearbyActions() {
     if (nearParasol) out.push(['sun', 'パラソルで 日向ぼっこ']);
   }
   const y = booths.find((b) => b.job.id === 'yatai'); if (y && Math.hypot(y.door.x - p.x, y.door.z - p.z) < 6) out.push(['buy', '屋台で 買う']);
+  const cr = booths.find((b) => b.job.id === 'care'); if (cr && Math.hypot(cr.door.x - p.x, cr.door.z - p.z) < 7) out.push(['rehab', 'リハビリステーションへ']); // 介護施設の 前から 行ける
   if (profile && Math.hypot(FURN.door.x - p.x, FURN.door.z - p.z) < 6) out.push(['furn', '家具屋に 入る']);
   const cf = booths.find((b) => b.job.id === 'cafe'); if (profile && cf && Math.hypot(cf.door.x - p.x, cf.door.z - p.z) < 6) { out.push(['cafe', 'カフェで のんびり']); out.push(['terrace', 'テラス席で のんびり']); }
   if (profile && PLAZA.c && Math.hypot(PLAZA.c.x - p.x, PLAZA.c.z - p.z) < 7) out.push(['plaza', 'テラスで のんびり']);
   return out;
 }
-const PLAY_ACTS = { ski: startSki, climb: startClimb, swim: startSwim, sun: startSun, buy: () => openYataiShop(), furn: () => goFurniture(), cafe: () => openCafeOrder('in'), terrace: () => openCafeOrder('out'), plaza: () => openCafeOrder('plaza') };
+const PLAY_ACTS = { rehab: () => openRehab(), ski: startSki, climb: startClimb, swim: startSwim, sun: startSun, buy: () => openYataiShop(), furn: () => goFurniture(), cafe: () => openCafeOrder('in'), terrace: () => openCafeOrder('out'), plaza: () => openCafeOrder('plaza') };
 let lastNearby = '';
 function checkNearby() { const k = nearbyActions().map((a) => a[0]).join(',') + (state.skating ? '|s' : ''); if (k !== lastNearby) { lastNearby = k; renderHud(); } }
 // 屋台で 買う（お客さんとして）
@@ -8725,7 +9147,7 @@ $('btn-season').addEventListener('click', () => setSeason(season === 'winter' ? 
 $('btn-home').addEventListener('click', () => goHome());
 $('btn-settings').addEventListener('click', openSettings);
 window.hopeTown = {
-  state, goBooth, pickVariant, startSession, select: onSelectItem, playSfx, sfxKind, SFX, nextTargetKey, setSeason, startWalk, exitToWalk, walkKeys, rig, look, walkable, booths, goHome, exitHome, goPlaza,
+  state, goBooth, pickVariant, startSession, openRehab, startRehab, rehabPress, rehabSwipeThrow, REHAB, get rehabOpt() { return rehabOpt; }, set rehabOpt(v) { rehabOpt = v; }, select: onSelectItem, playSfx, sfxKind, SFX, nextTargetKey, setSeason, startWalk, exitToWalk, walkKeys, rig, look, walkable, booths, goHome, exitHome, goPlaza,
   get profile() { return profile; }, quitWork, openJobList, openCafeOrder, sitCafe, endPlay, CAFE_ORDER, doLeisure, LEISURE, home, FURN, goFurniture, furnShop, pickFurn, exitFurniture, cheatCover() { const r = state.round; if (r && r.cover) { r.cover.surf.clearAll(); coverProgress(r, 1, performance.now()); } }, seasonal, LAKE, toWorld, nearbyActions, openShop, openBadgeBook, openSettings, openAreaPicker,
   // テスト用：オープニングを とばして 家を 用意する
   quickStart(homeKey, mode) { profile = { name: 'テスト', gender: 'n', mode: mode || 'money', home: homeKey || 'downtown', money: 0, badges: {}, owned: [], since: new Date().toISOString() }; saveProfile(); closeModal(); buildHome(); renderWallet(); goPlaza(); },
