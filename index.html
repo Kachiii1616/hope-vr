@@ -779,7 +779,7 @@ function kakizomeRound() {
   const tools = first ? ['新聞紙', '下じき', '半紙', '文鎮', 'すずり', '筆', 'クレヨン'] : ['半紙', '文鎮', '筆', 'クレヨン'];
   const items = tools.map((label) => ({ label }))
     .concat(KAKI.text.map((ch, k) => ({ label: '', id: 'c' + k, ch, name: '「' + ch + '」を 書く' })),
-      [{ label: '', id: 'name', name: '左の 下に 名前を 書く' }, { label: '', id: 'post', name: 'けいじ板に はる' }]);
+      [{ label: '', id: 'name', name: 'お手本の「名前」を 見て 名前を 書く' }, { label: '', id: 'post', name: 'けいじ板に はる' }]);
   return {
     title: (first ? '道具を ならべて、' : '新しい 半紙で、') + 'お手本を 見ながら「謹賀新年」と 書き、名前を 書いて けいじ板に かざる', shortTitle: '書き初めを 書いて かざる',
     items, need: tools.filter((t) => t !== 'クレヨン').concat(['c0', 'c1', 'c2', 'c3', 'name', 'post']), ordered: true, layout: 'kakizome', first,
@@ -5651,7 +5651,7 @@ function startKakizome(b, def) {
     kakiName(c, L, '名前', 1, '#9aa4ab');
   });
   paintTehon();
-  const tlab = labelSprite('お手本（字を えらぶと 書く）', { h: 0.075 }); tlab.position.set(K.tehon[0], top + 0.52, K.tehon[1]); W.add(tlab);
+  const tlab = labelSprite('お手本（字・名前を えらぶと 書く）', { h: 0.075 }); tlab.position.set(K.tehon[0], top + 0.52, K.tehon[1]); W.add(tlab);
   const invis = () => new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.001, depthWrite: false });
   const ringBox = (holder, w, h) => { // 立てた 板の 上の 四角い 光る わく
     const g = new THREE.Group(); g.scale.set(w / 0.28, h / 0.28, 1); holder.add(g);
@@ -5665,16 +5665,15 @@ function startKakizome(b, def) {
     const hit = new THREE.Mesh(new THREE.PlaneGeometry(TW * 0.8, TL.S * 1.05), invis()); hit.userData.slotIndex = idx; holder.add(hit);
     slots[idx] = { spec: def.items[idx], key: 'c' + k, mesh: hit, ring: ringBox(holder, TW * 0.82, TL.S * 1.15), holder, done: false };
   });
-  // 名前を 書く ところ（半紙の 左の 下）
+  // 名前も お手本の 左の 下（灰色の「名前」）を えらぶと、半紙の 左の 下に 書く（えらぶ ところは ずっと お手本）
   const SL = kakiLayout(KS.w, KS.h, 0.05);
   const onSheet = (cx, cy) => new THREE.Vector3(KS.x - (cx / KS.w - 0.5) * KS.w, top + 0.01, KS.z + (0.5 - cy / KS.h) * KS.h); // 紙の 上の 点（店員から 見て 右が -x）
-  const nameTag = labelSprite('名前を 書く ところ', { h: 0.06 }); nameTag.position.copy(onSheet(SL.nameX, SL.nameY0)).add(new THREE.Vector3(0.06, 0.1, 0)); nameTag.visible = false; W.add(nameTag);
   {
     const idx = def.items.findIndex((it) => it.id === 'name');
-    const holder = new THREE.Group(); holder.position.copy(onSheet(SL.nameX, (SL.nameY0 + SL.nameY1) / 2)); W.add(holder);
-    const hit = part(holder, box(0.08, 0.02, SL.nameY1 - SL.nameY0), '#ffffff', 0, 0.005, 0, { transparent: true, opacity: 0.01, depthWrite: false }); hit.userData.slotIndex = idx;
-    const ring = makeGlowRing(); ring.position.y = 0.004; holder.add(ring);
-    slots[idx] = { spec: def.items[idx], key: 'name', mesh: hit, ring, holder, done: false };
+    const nh = TL.nameY1 - TL.nameY0;
+    const holder = new THREE.Group(); holder.position.set(TL.nameX - TW / 2, TH / 2 + 0.03 + (TH / 2 - (TL.nameY0 + TL.nameY1) / 2), 0.016); tilt.add(holder);
+    const hit = new THREE.Mesh(new THREE.PlaneGeometry(TW * 0.3, nh), invis()); hit.userData.slotIndex = idx; holder.add(hit);
+    slots[idx] = { spec: def.items[idx], key: 'name', mesh: hit, ring: ringBox(holder, TW * 0.32, nh * 1.08), holder, done: false };
   }
   // けいじ板（入口がわの かべ）
   {
@@ -5711,7 +5710,7 @@ function startKakizome(b, def) {
       if (k === 'クレヨン') return 'クレヨンは 使いません。書き初めは 筆と すみで 書きます';
       if (r.pos < c0) return 'さきに 道具を じゅんばんに ならべよう（' + def.need.slice(0, c0).join(' → ') + '）';
       if (/^c\d$/.test(k)) return 'お手本の 字を 上から 順に 書こう';
-      if (k === 'name') return '名前は「謹賀新年」を ぜんぶ 書いてから、左の 下に 書きます';
+      if (k === 'name') return '名前は「謹賀新年」を ぜんぶ 書いてから、お手本の 左の 下の「名前」を えらびます';
       if (k === 'post') return '名前まで 書いてから はろう';
       return null;
     },
@@ -5728,8 +5727,8 @@ function startKakizome(b, def) {
       else if (k === '筆') { // すずりの 海で すみを つけて、半紙の 上で かまえる
         D.brush = h; const ink = new THREE.Vector3(K.suzuri[0], top + 0.045, K.suzuri[1] + 0.07).add(off);
         motion(h, [{ d: 650, p: ink.clone().add(up), r: WR, lift: 0.15 }, { d: 250, p: ink }, { d: 500, osc: { p: [0, 0.012, 0.02], n: 2 } }, { d: 300, p: ink.clone().add(up) }]);
-      } else if (/^c\d$/.test(k)) { const n = Number(k[1]); write(onSheet(SL.x, SL.y(n)), (u) => { prog[n] = u; }); if (n === K.text.length - 1) nameTag.visible = true; }
-      else if (k === 'name') { nameTag.visible = false; write(onSheet(SL.nameX, SL.nameY0 + (SL.nameY1 - SL.nameY0) * 0.3), (u) => { nameU = u; }); r.slowFinish = true; }
+      } else if (/^c\d$/.test(k)) { const n = Number(k[1]); write(onSheet(SL.x, SL.y(n)), (u) => { prog[n] = u; }); }
+      else if (k === 'name') { write(onSheet(SL.nameX, SL.nameY0 + (SL.nameY1 - SL.nameY0) * 0.3), (u) => { nameU = u; }); r.slowFinish = true; }
       else if (k === 'post') post();
     } };
   state.round = r;
