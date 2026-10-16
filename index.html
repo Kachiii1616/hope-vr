@@ -8412,13 +8412,14 @@ function stepPlay(dt, now) {
 // ===========================================================================
 // リハビリステーション（島の 外の しずかな 庭。家の よか・介護施設の 前・島ぜんたい から 行ける）
 //   ① 犬と ボールなげ：ボールを なげると 犬（コロ）が とってきて 足もとに おく。VR では なげる 手を 指定できる（交互・右・左・どちらでも）
+//   ③ 犬と バレー：ネットを はさんで コロと ビーチボールの ラリー（ふわっと ゆっくり 落ちる）
 //   ② 果物タッチ：前から 飛んでくる 果物に さわる。右手は りんご・左手は バナナ（入れかえも できる）
 //   VR：コントローラーの 位置で さわる・トリガーで ボールを にぎって、ふって はなすと なげる
 //   VR で ない とき：果物は 画面の「右手」「左手」ボタン（← → キー）、ボールは 画面を 上へ スワイプ（スペースキー）
 //   けっかは この 体験の きろく（profile.rehab）に のこす。hope-work の 作業体験の きろく（TrialPhase）とは べつ
 // ===========================================================================
 const REHAB = { at: new THREE.Vector3(0, 0, 640), half: 11, stand: new THREE.Vector3(0, 0, 7), g: null };
-const REHAB_GAMES = { ball: '犬と ボールなげ', fruit: '果物タッチ' };
+const REHAB_GAMES = { ball: '犬と ボールなげ', volley: '犬と バレー', fruit: '果物タッチ' };
 const REHAB_DEF = { game: 'ball', throws: 10, hand: 'alt', time: 60, speed: 'normal', swap: false, wide: false };
 const REHAB_SPEED = { slow: [2.4, 3.4, 1.3], normal: [1.7, 2.6, 0.9], fast: [1.15, 1.9, 0.6] }; // 出る 間かく・飛んでくる 時間・手の 前で まつ 時間（秒）
 const HAND_NAME = { right: '右手', left: '左手' };
@@ -8459,9 +8460,14 @@ function dogMesh() { // 柴犬ふうの 犬（頭が -z）
 }
 function bananaMesh() {
   const g = new THREE.Group();
-  const b = part(g, new THREE.TorusGeometry(0.09, 0.024, 10, 18, Math.PI * 0.75), '#f2d13a', 0, 0, 0, { roughness: 0.55 }); b.rotation.z = Math.PI * 0.62; b.scale.set(1, 1, 0.8);
-  part(g, cyl(0.008, 0.011, 0.03, 6), '#6b4a2a', -0.07, 0.065, 0).rotation.z = 0.9; // 軸
-  part(g, ball(0.012, 6, 5), '#5a4a2a', 0.083, 0.045, 0); // 先
+  const R = 0.09; const A0 = Math.PI * 0.62; const A1 = A0 + Math.PI * 0.75; // 弧の はじめと おわりの 角度
+  const b = part(g, new THREE.TorusGeometry(R, 0.024, 10, 18, Math.PI * 0.75), '#f2d13a', 0, 0, 0, { roughness: 0.55 }); b.rotation.z = A0; b.scale.set(1, 1, 0.8);
+  // 軸と 先は 弧の 両はしに つける（はしの 外向きに のばす）
+  const end = (a) => new THREE.Vector2(R * Math.cos(a), R * Math.sin(a));
+  const p0 = end(A0); const d0 = new THREE.Vector2(Math.sin(A0), -Math.cos(A0)); // はじめの はしから 外へ
+  const st = part(g, cyl(0.007, 0.011, 0.035, 6), '#6b4a2a', p0.x + d0.x * 0.012, p0.y + d0.y * 0.012, 0); st.rotation.z = -Math.atan2(d0.x, d0.y); // 軸
+  const p1 = end(A1); const d1 = new THREE.Vector2(-Math.sin(A1), Math.cos(A1)); // おわりの はしから 外へ
+  part(g, ball(0.013, 8, 6), '#5a4a2a', p1.x + d1.x * 0.004, p1.y + d1.y * 0.004, 0); // 先
   return g;
 }
 function handMesh(color) { // VR で ない ときの 手（てのひらと ゆび）
@@ -8521,16 +8527,16 @@ function openRehab() {
   const last = rehabLog.slice(-3).reverse().map(rehabLine).map((t) => '<li>' + esc(t) + '</li>').join('');
   openModal('<h2>リハビリステーション</h2><p>しずかな 庭で、体を 動かす リハビリを します。VR では コントローラーを 持った 手で さわったり なげたり します。</p>' +
     '<label class="field">メニュー</label>' + radio('rg', REHAB_GAMES, o.game) +
-    '<div id="rh-ball"><label class="field">なげる 回数</label>' + radio('rt', { 5: '5 回', 10: '10 回', 15: '15 回' }, String(o.throws)) +
-    '<label class="field">なげる 手（VR）</label>' + radio('rh', { alt: '交互（右 → 左）', right: '右手', left: '左手', any: 'どちらでも' }, o.hand) + '</div>' +
-    '<div id="rh-fruit"><label class="field">時間</label>' + radio('rtm', { 60: '1 分', 120: '2 分', 180: '3 分' }, String(o.time)) +
-    '<label class="field">速さ</label>' + radio('rs', { slow: 'ゆっくり', normal: 'ふつう', fast: 'はやい' }, o.speed) +
-    '<label class="field">手の 指定</label>' + radio('rw', { std: '右手＝りんご・左手＝バナナ', swap: '右手＝バナナ・左手＝りんご' }, o.swap ? 'swap' : 'std') +
-    '<label class="field">飛んでくる はんい</label>' + radio('rr', { narrow: '体の 前', wide: '左右に 大きく（体の まんなかを こえて 手を のばす）' }, o.wide ? 'wide' : 'narrow') + '</div>' +
+    '<div data-g="ball"><label class="field">なげる 回数</label>' + radio('rt', { 5: '5 回', 10: '10 回', 15: '15 回' }, String(o.throws)) + '</div>' +
+    '<div data-g="ball volley"><label class="field">なげる・うつ 手</label>' + radio('rh', { alt: '交互（右 → 左）', right: '右手', left: '左手', any: 'どちらでも' }, o.hand) + '</div>' +
+    '<div data-g="fruit volley"><label class="field">時間</label>' + radio('rtm', { 60: '1 分', 120: '2 分', 180: '3 分' }, String(o.time)) +
+    '<label class="field">速さ</label>' + radio('rs', { slow: 'ゆっくり', normal: 'ふつう', fast: 'はやい' }, o.speed) + '</div>' +
+    '<div data-g="fruit"><label class="field">手の 指定</label>' + radio('rw', { std: '右手＝りんご・左手＝バナナ', swap: '右手＝バナナ・左手＝りんご' }, o.swap ? 'swap' : 'std') + '</div>' +
+    '<div data-g="fruit volley"><label class="field">飛んでくる はんい</label>' + radio('rr', { narrow: '体の 前', wide: '左右に 大きく（体の まんなかを こえて 手を のばす）' }, o.wide ? 'wide' : 'narrow') + '</div>' +
     (last ? '<label class="field">さいきんの けっか</label><ul style="margin:0;padding-left:1.2em;color:var(--ink-soft)">' + last + '</ul>' : '') +
     '<div class="row"><button type="button" class="primary" id="rh-go">はじめる</button><button type="button" id="rh-close">やめる</button></div>',
   (card) => {
-    const sync = () => { const gm = pickVal('rg'); $('rh-ball').hidden = gm !== 'ball'; $('rh-fruit').hidden = gm !== 'fruit'; };
+    const sync = () => { const gm = pickVal('rg'); card.querySelectorAll('[data-g]').forEach((el) => { el.hidden = !el.dataset.g.split(' ').includes(gm); }); };
     card.querySelectorAll('input[name="rg"]').forEach((r) => { r.onchange = sync; }); sync();
     $('rh-close').onclick = closeModal;
     $('rh-go').onclick = () => {
@@ -8546,12 +8552,13 @@ function startRehab() {
   leaveForPlay(); buildRehab();
   const o = Object.assign({}, rehabOpt); const g = REHAB.g; g.visible = true;
   REHAB.grass.material.color.set(season === 'winter' ? '#e9f0f2' : '#8fc46e');
-  rig.position.copy(g.localToWorld(REHAB.stand.clone())); rig.rotation.y = 0; look.yaw = 0; look.pitch = o.game === 'ball' ? 0.12 : 0.02;
+  rig.position.copy(g.localToWorld(REHAB.stand.clone())); rig.rotation.y = 0; look.yaw = 0; look.pitch = o.game === 'ball' ? 0.12 : o.game === 'volley' ? -0.14 : 0.02; // バレーは 少し 上を 向く（ボールの 山なりが 見えるように）
   const now = performance.now();
   const pl = { kind: 'rehab', game: o.game, opt: o, t0: now, from, done: false, msg: '' };
   state.where = 'play'; state.play = pl;
   dogSit(true);
-  if (o.game === 'ball') {
+  if (o.game === 'volley') startVolley(pl, now);
+  else if (o.game === 'ball') {
     pl.B = { state: 'ready', p: new THREE.Vector3(), v: new THREE.Vector3(), hist: [], ctrl: null };
     Object.assign(pl, { throws: 0, fetches: 0, dists: [], byHand: { right: 0, left: 0 }, wrongHand: 0 });
     REHAB.ball.visible = true; REHAB.fx.visible = false;
@@ -8571,13 +8578,14 @@ function clearRehab() {
   const pl = rehabNow(); if (pl && pl.list) pl.list.forEach((f) => REHAB.fx.remove(f.m));
   if (REHAB.board) { REHAB.g.remove(REHAB.board); REHAB.board = null; }
   if (REHAB.fx) REHAB.fx.visible = false; if (REHAB.marks) REHAB.marks.forEach((m) => { m.visible = false; });
-  if (REHAB.dog) { const d = REHAB.dog; d.visible = true; if (REHAB.ball.parent !== REHAB.g) REHAB.g.add(REHAB.ball); }
+  if (REHAB.dog) { const d = REHAB.dog; d.visible = true; d.position.y = 0; if (REHAB.ball.parent !== REHAB.g) REHAB.g.add(REHAB.ball); }
+  if (REHAB.net) { REHAB.net.visible = false; REHAB.vball.visible = false; }
 }
 function leaveRehab(pl) {
   clearRehab(); REHAB.g.visible = false;
   if (pl.from.home && home.group) goHome(); else if (pl.from.pos) startWalk(pl.from.pos, pl.from.yaw); else goPlaza();
 }
-const rehabWant = (pl) => (pl.opt.hand === 'alt' ? (pl.throws % 2 ? 'left' : 'right') : pl.opt.hand); // つぎに なげる 手
+const rehabWant = (pl) => (pl.opt.hand === 'alt' ? ((pl.game === 'volley' ? pl.hits : pl.throws) % 2 ? 'left' : 'right') : pl.opt.hand); // つぎに なげる・うつ 手
 const rehabWantText = (pl) => (HAND_NAME[rehabWant(pl)] || 'すきな 手');
 function rehabMsg(pl, t, kind) { pl.msg = t; pl.msgKind = kind || ''; rehabStats(); }
 
@@ -8745,8 +8753,113 @@ function stepRehabFruit(pl, dt, now) {
   if ((stepRehabFruit.sec || 0) !== Math.ceil((pl.end - now) / 1000)) { stepRehabFruit.sec = Math.ceil((pl.end - now) / 1000); rehabStats(); }
 }
 
+// ---- 犬と バレー ----------------------------------------------------------
+//   ひくい ネットを はさんで、コロが ビーチボールを とばして くる → 手で うちかえす → コロが 頭で かえす…の ラリー。
+//   ボールは 風船バレーの ように ふわっと ゆっくり 落ちる（g を 小さく）。うつ 手は ボールなげと 同じ 指定（交互・右・左・どちらでも）
+//   VR：コントローラーを 持った 手で ボールに ふれると うちかえす。VR で ない とき：ボールが 手の 前に 来たら ボタン（← 左手・→ 右手・スペース）
+const VOLLEY = { dogZ: -5.2, netZ: -2.6, g: 3.6, r: 0.13 };
+const VOLLEY_T = { slow: 2.8, normal: 2.2, fast: 1.6 }; // コロから 手もとまで 飛ぶ 時間（秒）
+function beachBall() {
+  const g = new THREE.Group(); const cols = ['#e0453a', '#ffffff', '#f2c230', '#ffffff', '#3c7fc4', '#ffffff'];
+  cols.forEach((c, k) => part(g, new THREE.SphereGeometry(VOLLEY.r, 8, 12, (k / 6) * TAU, TAU / 6), c, 0, 0, 0, { roughness: 0.5 }));
+  part(g, ball(VOLLEY.r * 0.22, 10, 8), '#ffffff', 0, VOLLEY.r * 0.92, 0).scale.y = 0.4;
+  return g;
+}
+function buildVolley() { // 庭に ネットと ビーチボール（はじめて バレーを する とき）
+  if (REHAB.net) return;
+  const g = REHAB.g; const z = REHAB.stand.z + VOLLEY.netZ; const net = new THREE.Group(); g.add(net); REHAB.net = net;
+  [-2.2, 2.2].forEach((x) => part(net, cyl(0.035, 0.035, 1.25, 8), '#8a8f96', x, 0.62, z));
+  part(net, box(4.4, 0.45, 0.01), '#ffffff', 0, 1.0, z, { transparent: true, opacity: 0.45, side: THREE.DoubleSide });
+  part(net, box(4.4, 0.04, 0.02), '#ffffff', 0, 1.23, z);
+  for (let k = 0; k <= 22; k++) part(net, box(0.008, 0.45, 0.012), '#e8eef0', -2.2 + k * 0.2, 1.0, z); // あみの 目
+  const vb = beachBall(); g.add(vb); REHAB.vball = vb;
+}
+const volleyLocal = (obj) => REHAB.g.worldToLocal(obj.getWorldPosition(new THREE.Vector3()));
+function volleyToss(V, from, to, T) { // from から to へ T 秒で 落ちて くる 放物線
+  V.from = from.clone(); V.to = to.clone(); V.T = T; V.t0 = performance.now();
+  V.v = to.clone().sub(from).multiplyScalar(1 / T); V.v.y += 0.5 * VOLLEY.g * T;
+}
+function volleyServe(pl) {
+  const V = pl.V; const o = pl.opt; const head = volleyLocal(camera); const xr = rehabXR();
+  const w = (o.wide ? 0.5 : 0.25) * (xr ? 1 : 0.9);
+  const to = xr ? new THREE.Vector3(head.x + (Math.random() * 2 - 1) * w, head.y - 0.15 + Math.random() * 0.35, head.z - 0.45)
+    : new THREE.Vector3(head.x + (Math.random() * 2 - 1) * w, head.y + 0.05 + Math.random() * 0.2, head.z - 0.9);
+  const d = REHAB.dog; V.state = 'come';
+  volleyToss(V, new THREE.Vector3(d.position.x, 0.75, d.position.z + 0.2), to, VOLLEY_T[o.speed]);
+}
+function volleyHit(pl, hand) {
+  const V = pl.V; const now = performance.now(); if (V.state !== 'come' || pl.done) return;
+  const t = (now - V.t0) / 1000;
+  if (t < V.T * 0.55) { rehabMsg(pl, 'もう 少し 近くに 来てから うとう', ''); return; }
+  const want = rehabWant(pl);
+  if (HAND_NAME[want] && hand && hand !== want) { pl.wrongHand++; rehabMsg(pl, 'こんどは ' + HAND_NAME[want] + 'で うとう', 'ng'); playSfx('bump'); return; } // ちがう 手は うたない（まだ まに あう）
+  pl.hits++; pl.rally++; pl.best = Math.max(pl.best, pl.rally); if (hand) pl.byHand[hand]++;
+  playSfx('pop');
+  const good = Math.abs(t - V.T) < 0.3;
+  rehabMsg(pl, (good ? 'ナイス タイミング！ ' : 'うちかえした！ ') + pl.rally + ' 回 つづいて います', 'ok');
+  // コロの 前へ（ネットを こえる 高い 山なり）。コロは 落ちる ところへ 横に 走る
+  const dx = (Math.random() * 2 - 1) * 1.3; V.dogX = dx; V.state = 'go';
+  volleyToss(V, V.p, new THREE.Vector3(dx, 0.8, REHAB.stand.z + VOLLEY.dogZ + 0.2), VOLLEY_T[pl.opt.speed] * 0.85); // 少し ひくめに とばす
+}
+function rehabVolleyPress(hand) { // VR で ない とき：hand は 'left' / 'right'（null は「どちらでも」）
+  const pl = rehabNow(); if (!pl || pl.game !== 'volley' || pl.done) return;
+  const hm = REHAB.hands[hand || (rehabWant(pl) === 'left' ? 'left' : 'right')]; hm.userData.reach = { t: performance.now(), to: REHAB.fx.worldToLocal(REHAB.vball.getWorldPosition(new THREE.Vector3())) };
+  if (pl.V.state !== 'come') { rehabMsg(pl, 'ボールが 来るのを まとう', ''); return; }
+  volleyHit(pl, hand);
+}
+function stepRehabVolley(pl, dt, now) {
+  const V = pl.V; const vb = REHAB.vball; const d = REHAB.dog; const D = d.userData; const R = VOLLEY.r; const xr = rehabXR();
+  const t = (now - V.t0) / 1000;
+  if (V.state === 'come' || V.state === 'go') {
+    V.p.copy(V.from).addScaledVector(V.v, t); V.p.y -= 0.5 * VOLLEY.g * t * t;
+    vb.rotation.x += dt * 2.2; vb.rotation.z += dt * 1.3;
+    if (V.state === 'come') {
+      if (xr) REHAB_CTRLS.forEach((c) => { if (HAND_NAME[c.userData.hand] && V.state === 'come' && volleyLocal(c).distanceTo(V.p) < 0.24) volleyHit(pl, c.userData.hand); });
+      if (V.state === 'come' && V.p.y < R) { // おとした
+        V.p.y = R; V.state = 'drop'; V.t1 = now; pl.miss++; pl.rally = 0; playSfx('food');
+        rehabMsg(pl, 'おしい！ ' + DOG_NAME + 'が もう一度 とばして くれます', '');
+      }
+    } else if (t >= V.T) { // コロが 頭で かえす
+      D.jump = now; pl.dogHits++; playSfx('food');
+      if (now >= pl.end) { V.state = 'end'; V.p.set(d.position.x, 0.75, d.position.z + 0.2); finishRehab(pl); }
+      else volleyServe(pl);
+    }
+  } else if (V.state === 'drop') {
+    if (now - V.t1 > 1500) { // ボールは コロの ところへ もどって、また はじめから
+      if (now >= pl.end) { V.state = 'end'; finishRehab(pl); } else { V.p.set(d.position.x, 0.75, d.position.z + 0.2); volleyServe(pl); }
+    }
+  } else if (V.state === 'wait') { V.p.set(d.position.x, 0.75 + Math.sin(now / 250) * 0.03, d.position.z + 0.2); if (now >= V.next) volleyServe(pl); }
+  vb.position.copy(V.p);
+  // コロ：ネットの 向こうで こちらを 向いて、ボールの 落ちる ところへ 横に 動く。かえす ときは 少し とぶ
+  const tx = V.state === 'go' ? V.dogX : d.position.x; const dx = tx - d.position.x; const st = Math.sign(dx) * Math.min(Math.abs(dx), 2.6 * dt);
+  d.position.x += st; d.rotation.y = Math.PI - Math.sign(dx) * Math.min(0.5, Math.abs(dx));
+  const moving = Math.abs(dx) > 0.05;
+  D.legs.forEach((L2, k) => { L2.rotation.x = moving ? Math.sin(now / 55 + (k % 2 ? 0 : Math.PI)) * 0.6 : L2.rotation.x * 0.8; });
+  D.tail.rotation.z = Math.sin(now / 90) * 0.6;
+  const jk = D.jump ? (now - D.jump) / 420 : 1; d.position.y = jk < 1 ? Math.sin(Math.PI * jk) * 0.22 : 0; D.head.rotation.x = jk < 1 ? -Math.sin(Math.PI * jk) * 0.5 : 0;
+  // VR で ない ときの 手（果物タッチと 同じ。ボタンで ボールへ のばす）
+  const head = camera.position;
+  Object.entries(REHAB.hands).forEach(([h, m]) => {
+    m.visible = !xr; const rest = new THREE.Vector3(head.x + (h === 'right' ? 0.3 : -0.3), head.y - 0.12, head.z - 0.6);
+    const r = m.userData.reach; const k = r ? (now - r.t) / 380 : 1;
+    if (r && k < 1 && r.to) m.position.lerpVectors(rest, r.to, Math.sin(Math.PI * k)); else m.position.copy(rest); // 上を 向いて いる ぶん 高め
+    m.rotation.set(1.2, 0, h === 'right' ? -0.25 : 0.25);
+  });
+  if ((stepRehabVolley.sec || 0) !== Math.ceil((pl.end - now) / 1000)) { stepRehabVolley.sec = Math.ceil((pl.end - now) / 1000); rehabStats(); }
+}
+function startVolley(pl, now) {
+  buildVolley();
+  const o = pl.opt; Object.assign(pl, { V: { state: 'wait', p: new THREE.Vector3(), v: new THREE.Vector3(), next: now + 1600 }, end: now + o.time * 1000, hits: 0, rally: 0, best: 0, miss: 0, dogHits: 0, byHand: { right: 0, left: 0 }, wrongHand: 0 });
+  REHAB.ball.visible = false; REHAB.net.visible = true; REHAB.vball.visible = true; REHAB.fx.visible = true;
+  const d = REHAB.dog; d.visible = true; d.position.set(0, 0, REHAB.stand.z + VOLLEY.dogZ); d.rotation.y = Math.PI; d.userData.state = 'volley';
+  Object.entries(REHAB.hands).forEach(([h, m]) => { m.visible = !rehabXR(); m.remove(m.userData.tag); const t = labelSprite(HAND_NAME[h], { h: 0.035 }); t.position.y = 0.05; m.add(t); m.userData.tag = t; });
+  REHAB.marks.forEach((m) => { m.visible = false; });
+  pl.msg = DOG_NAME + 'が ボールを とばして きます。' + (o.hand === 'any' ? '' : 'さいしょは ' + rehabWantText(pl) + 'で ') + 'うちかえそう';
+}
+
 // ---- けっか ---------------------------------------------------------------
 function rehabResult(pl) {
+  if (pl.game === 'volley') return { game: 'volley', at: new Date().toISOString(), sec: pl.opt.time, speed: pl.opt.speed, wide: pl.opt.wide, hits: pl.hits, best: pl.best, miss: pl.miss, right: pl.byHand.right, left: pl.byHand.left, wrongHand: pl.wrongHand, hand: pl.opt.hand };
   if (pl.game === 'ball') {
     const best = pl.dists.length ? Math.max(...pl.dists) : 0; const avg = pl.dists.length ? pl.dists.reduce((a, b) => a + b, 0) / pl.dists.length : 0;
     return { game: 'ball', at: new Date().toISOString(), throws: pl.throws, best: Math.round(best * 10) / 10, avg: Math.round(avg * 10) / 10, right: pl.byHand.right, left: pl.byHand.left, wrongHand: pl.wrongHand, hand: pl.opt.hand };
@@ -8756,6 +8869,7 @@ function rehabResult(pl) {
 }
 function rehabLine(r) {
   const d = new Date(r.at); const day = (d.getMonth() + 1) + '/' + d.getDate() + '　';
+  if (r.game === 'volley') return day + 'バレー ' + Math.round(r.sec / 60) + '分 うちかえし ' + r.hits + '回・いちばん ' + r.best + '回 つづいた（右 ' + r.right + '・左 ' + r.left + '）・おとした ' + r.miss;
   return r.game === 'ball' ? day + 'ボールなげ ' + r.throws + '回・いちばん ' + r.best + 'm・平均 ' + r.avg + 'm' + (r.right + r.left ? '（右 ' + r.right + '・左 ' + r.left + '）' : '')
     : day + '果物タッチ ' + Math.round(r.sec / 60) + '分 ' + r.ok + 'こ（右 ' + r.right + '・左 ' + r.left + '）・ちがう手 ' + r.wrong + '・のがした ' + r.miss + (r.rt ? '・はやさ ' + r.rt + '秒' : '');
 }
@@ -8763,10 +8877,12 @@ function finishRehab(pl) {
   if (pl.done) return; pl.done = true;
   const r = rehabResult(pl); const prev = [...rehabLog].reverse().find((x) => x.game === r.game);
   rehabLog.push(r); rehabSave();
-  const lines = r.game === 'ball'
+  const lines = r.game === 'volley'
+    ? [['うちかえした', r.hits + ' 回'], ['いちばん つづいた', r.best + ' 回'], ['右手・左手', r.right + ' 回・' + r.left + ' 回'], ['おとした', r.miss + ' 回']]
+    : r.game === 'ball'
     ? [['なげた 回数', r.throws + ' 回'], ['いちばん 遠く', r.best + ' m'], ['平均', r.avg + ' m']].concat(r.right + r.left ? [['右手・左手', r.right + ' 回・' + r.left + ' 回']] : []) // 手が わかるのは VR だけ
     : [['さわれた', r.ok + ' こ'], ['右手・左手', r.right + ' こ・' + r.left + ' こ'], ['ちがう 手', r.wrong + ' 回'], ['のがした', r.miss + ' こ']];
-  if (prev) lines.push(['前回', r.game === 'ball' ? 'いちばん ' + prev.best + ' m' : prev.ok + ' こ']);
+  if (prev) lines.push(['前回', r.game === 'volley' ? 'いちばん ' + prev.best + ' 回 つづいた' : r.game === 'ball' ? 'いちばん ' + prev.best + ' m' : prev.ok + ' こ']);
   // 庭に けっかの 板（VR でも 見える）
   const bd = new Board(1.4, 0.9, 500);
   bd.draw((c, w, h) => { c.fillStyle = 'rgba(255,253,248,0.96)'; roundRect(c, 0, 0, w, h, 30); c.fill(); c.fillStyle = '#2f7d6d'; c.font = '700 ' + Math.round(h * 0.11) + 'px ' + FONT_DISPLAY; c.textAlign = 'center'; c.textBaseline = 'middle';
@@ -8781,27 +8897,33 @@ function finishRehab(pl) {
     '<div class="row"><button type="button" class="primary" id="rr-again">もう一度</button><button type="button" id="rr-menu">メニューを えらぶ</button><button type="button" id="rr-end">おわる</button></div>',
   () => { $('rr-again').onclick = () => { closeModal(); startRehab(); }; $('rr-menu').onclick = () => { closeModal(); openRehab(); }; $('rr-end').onclick = () => { closeModal(); endPlay(); }; });
 }
-function stepRehab(pl, dt, now) { if (pl.game === 'ball') stepRehabBall(pl, dt, now); else stepRehabFruit(pl, dt, now); }
+function stepRehab(pl, dt, now) { if (pl.game === 'ball') stepRehabBall(pl, dt, now); else if (pl.game === 'volley') stepRehabVolley(pl, dt, now); else stepRehabFruit(pl, dt, now); }
 function rehabStats() {
   const pl = rehabNow(); const el = $('rh-stats'); if (!pl || !el) return;
   const now = performance.now();
-  el.innerHTML = pl.game === 'ball'
+  el.innerHTML = pl.game === 'volley'
+    ? '<span>のこり ' + Math.max(0, Math.ceil((pl.end - now) / 1000)) + ' 秒</span><span>うちかえし ' + pl.hits + '</span><span>つづいて いる ' + pl.rally + '（いちばん ' + pl.best + '）</span><span>おとした ' + pl.miss + '</span>' + (pl.opt.hand !== 'any' ? '<span>つぎ：' + rehabWantText(pl) + '</span>' : '')
+    : pl.game === 'ball'
     ? '<span>なげた ' + pl.throws + ' / ' + pl.opt.throws + '</span><span>いちばん ' + (pl.dists.length ? Math.max(...pl.dists).toFixed(1) : '0') + ' m</span>' + (rehabXR() && pl.opt.hand !== 'any' ? '<span>つぎ：' + rehabWantText(pl) + '</span>' : '')
     : '<span>のこり ' + Math.max(0, Math.ceil((pl.end - now) / 1000)) + ' 秒</span><span>さわれた ' + pl.ok + '</span><span>ちがう手 ' + pl.wrong + '</span><span>のがした ' + pl.miss + '</span>';
   const fb = $('rh-msg'); if (fb) { fb.textContent = pl.msg; fb.className = 'feedback ' + (pl.msgKind || ''); }
 }
 function renderRehabHud(el) {
   const pl = state.play; const o = pl.opt; const xr = rehabXR();
-  const how = pl.game === 'ball'
+  const how = pl.game === 'volley'
+    ? (xr ? DOG_NAME + 'が ネットの 向こうから ボールを とばして きます。コントローラーを 持った 手で ボールに ふれて うちかえし、ラリーを つづけましょう。' : 'ボールが 手の 前に 来たら、うつ 手の ボタン（← 左手・→ 右手）を おして うちかえします。')
+    : pl.game === 'ball'
     ? (xr ? 'トリガーで ボールを にぎり、うでを ふって はなすと なげます。' + DOG_NAME + 'が とって きて くれます。' : '画面を 下から 上へ スワイプして なげます（長く はやく → 遠くへ）。スペースキーでも なげられます。')
     : (xr ? '果物に コントローラーを 持った 手で さわります。' : '果物が 手の 前で 止まったら、その 果物の 手の ボタン（← 左手・→ 右手）を おします。') + '右手は ' + handFruit('right', o) + '・左手は ' + handFruit('left', o) + '。';
   el.innerHTML = '<span class="tag">リハビリステーション</span><h2>' + REHAB_GAMES[pl.game] + '</h2><div>' + how + '</div>' +
     '<div class="meta" id="rh-stats"></div><div class="feedback" id="rh-msg"></div>' +
     (pl.game === 'fruit' && !xr && !pl.done ? '<div class="row"><button type="button" id="rh-left" style="flex:1;padding:12px">◀ 左手（' + handFruit('left', o) + '）</button><button type="button" id="rh-right" style="flex:1;padding:12px">右手（' + handFruit('right', o) + '） ▶</button></div>' : '') +
+    (pl.game === 'volley' && !xr && !pl.done ? '<div class="row"><button type="button" id="rh-vl" style="flex:1;padding:12px">◀ 左手で うつ</button><button type="button" id="rh-vr" style="flex:1;padding:12px">右手で うつ ▶</button></div>' : '') +
     (pl.game === 'ball' && !xr && !pl.done ? '<div class="row"><button type="button" id="rh-throw">なげる（ふつうの 強さ）</button></div>' : '') +
     '<div class="row">' + (pl.done ? '<button type="button" class="primary" id="rh-again">もう一度</button><button type="button" id="rh-menu">メニュー</button>' : '<button type="button" id="rh-menu">メニュー・設定</button>') + '<button type="button" id="rh-end">おわる</button></div>';
   if ($('rh-left')) { $('rh-left').onclick = () => rehabPress('left'); $('rh-right').onclick = () => rehabPress('right'); }
   if ($('rh-throw')) $('rh-throw').onclick = () => rehabSwipeThrow(0.55, 0);
+  if ($('rh-vl')) { $('rh-vl').onclick = () => rehabVolleyPress('left'); $('rh-vr').onclick = () => rehabVolleyPress('right'); }
   if ($('rh-again')) $('rh-again').onclick = () => startRehab();
   $('rh-menu').onclick = openRehab; $('rh-end').onclick = endPlay;
   rehabStats();
@@ -8820,7 +8942,8 @@ function rehabPointer(e, phase) {
 }
 window.addEventListener('keydown', (e) => {
   const pl = rehabNow(); if (!pl || !modal.hidden || pl.done) return;
-  if (pl.game === 'fruit') { if (e.code === 'ArrowLeft' || e.code === 'KeyF') { e.preventDefault(); rehabPress('left'); } else if (e.code === 'ArrowRight' || e.code === 'KeyJ') { e.preventDefault(); rehabPress('right'); } }
+  if (pl.game === 'volley') { const h = e.code === 'ArrowLeft' || e.code === 'KeyF' ? 'left' : e.code === 'ArrowRight' || e.code === 'KeyJ' ? 'right' : e.code === 'Space' ? (HAND_NAME[rehabWant(pl)] ? rehabWant(pl) : 'right') : null; if (h) { e.preventDefault(); rehabVolleyPress(h); } }
+  else if (pl.game === 'fruit') { if (e.code === 'ArrowLeft' || e.code === 'KeyF') { e.preventDefault(); rehabPress('left'); } else if (e.code === 'ArrowRight' || e.code === 'KeyJ') { e.preventDefault(); rehabPress('right'); } }
   else if (e.code === 'Space') { e.preventDefault(); rehabSwipeThrow(0.55, 0); }
 });
 // 歩いている とき、近くで できる こと
@@ -9190,7 +9313,7 @@ $('btn-season').addEventListener('click', () => setSeason(season === 'winter' ? 
 $('btn-home').addEventListener('click', () => goHome());
 $('btn-settings').addEventListener('click', openSettings);
 window.hopeTown = {
-  state, goBooth, pickVariant, startSession, openRehab, startRehab, rehabPress, rehabSwipeThrow, REHAB, get rehabOpt() { return rehabOpt; }, set rehabOpt(v) { rehabOpt = v; }, select: onSelectItem, playSfx, sfxKind, SFX, nextTargetKey, setSeason, startWalk, exitToWalk, walkKeys, rig, look, walkable, booths, goHome, exitHome, goPlaza,
+  state, goBooth, pickVariant, startSession, openRehab, startRehab, rehabPress, rehabSwipeThrow, rehabVolleyPress, REHAB, get rehabOpt() { return rehabOpt; }, set rehabOpt(v) { rehabOpt = v; }, select: onSelectItem, playSfx, sfxKind, SFX, nextTargetKey, setSeason, startWalk, exitToWalk, walkKeys, rig, look, walkable, booths, goHome, exitHome, goPlaza,
   get profile() { return profile; }, quitWork, openJobList, openCafeOrder, sitCafe, endPlay, CAFE_ORDER, doLeisure, LEISURE, home, FURN, goFurniture, furnShop, pickFurn, exitFurniture, cheatCover() { const r = state.round; if (r && r.cover) { r.cover.surf.clearAll(); coverProgress(r, 1, performance.now()); } }, seasonal, LAKE, toWorld, nearbyActions, openShop, openBadgeBook, openSettings, openAreaPicker,
   // テスト用：オープニングを とばして 家を 用意する
   quickStart(homeKey, mode) { profile = { name: 'テスト', gender: 'n', mode: mode || 'money', home: homeKey || 'downtown', money: 0, badges: {}, owned: [], since: new Date().toISOString() }; saveProfile(); closeModal(); buildHome(); renderWallet(); goPlaza(); },
