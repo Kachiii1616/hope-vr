@@ -5406,11 +5406,27 @@ function yataiCook(b, W, def) {
     part(fill, cyl(cup ? 0.037 : 0.054, cup ? 0.037 : 0.054, 0.004, 20), cup ? '#f6f0de' : '#5a2a26', 0, 0, 0);
     if (!cup) [[-0.02, 0.01], [0.022, -0.012]].forEach(([x, z]) => part(fill, box(0.022, 0.01, 0.022), '#fbfaf4', x, 0.004, z));
   }
+  // 甘酒：ひしゃくで なべから すくい、紙コップの 上で かたむけて そそぐ（すじが のびて、コップの 中が 下から たまる）
+  let ladle = null; let stream = null; const LADLE_R = 0.06; // ひしゃくの おわんの 半径
+  if (base.key === '紙コップ') {
+    // コップの 本体と 帯を 口の あいた 筒に して、そそいだ 甘酒が 上から 見えるように
+    [[0.04, 0.03, 0.09], [0.041, 0.035, 0.03]].forEach(([rt, rb, h], i) => { const m = bm.children[i]; m.geometry = new THREE.CylinderGeometry(rt, rb, h, 18, 1, true); m.material.side = THREE.DoubleSide; });
+    part(bm, new THREE.CircleGeometry(0.03, 18), '#ffffff', 0, 0.001, 0).rotation.x = -Math.PI / 2;
+    ladle = new THREE.Group(); ladle.visible = false; W.add(ladle);
+    part(ladle, new THREE.SphereGeometry(LADLE_R, 16, 8, 0, TAU, Math.PI / 2, Math.PI / 2), '#a07a4a', 0, LADLE_R, 0, { side: THREE.DoubleSide, roughness: 0.6 });
+    const hd = part(ladle, cyl(0.008, 0.008, 0.34, 8), '#a07a4a', 0.075, 0.2, 0, { roughness: 0.6 }); hd.rotation.z = -0.35;
+    stream = part(W, cyl(0.006, 0.009, 1, 8), '#f6f0de', 0, 0, 0, { transparent: true, opacity: 0.9, roughness: 0.3 }); stream.visible = false;
+  }
+  const cupLevel = (u) => { // 紙コップの 中身の 高さ（0〜1）。コップは 下が 細いので、高さに 合わせて 半径も かえる
+    const y = 0.02 + 0.06 * u; const rr = (0.03 + 0.01 * y / 0.09 - 0.001) / 0.037;
+    fill.position.y = y; fill.scale.set(rr, 1, rr); return y;
+  };
   r.onPick = (slot, ok) => {
     if (!ok) { flashWrong(slot); return; }
     slot.holder.children.forEach((c) => { if (c.isSprite) c.visible = false; });
     paint(); const k = slot.key; const ch = base.holder; // ch：入れもの
     if (k === 'お客さま') { // できあがりを 台の 向こうの お客さまの 手もとへ
+      if (ladle) { for (let i = anims.length - 1; i >= 0; i--) if (anims[i].obj === ladle) anims.splice(i, 1); ladle.visible = false; stream.visible = false; }
       parts.forEach((o) => go(o, new THREE.Vector3(...YATAI.hand).add(o.position.clone().sub(spot))));
       r.slowFinish = true; return;
     }
@@ -5439,13 +5455,28 @@ function yataiCook(b, W, def) {
       later(550, () => anims.push({ kind: 'fill', set: (u) => { sp.rotation.z = u; }, from: 0, to: -1.25, t0: performance.now() }));
       later(1150, () => anims.push({ kind: 'fill', set: (u) => { sp.position.lerpVectors(above, inIce, u); }, from: 0, to: 1, t0: performance.now() }));
     }
-    else if (k === '焼きいも') { slot.holder.scale.setScalar(0.85); go(slot.holder, spot.clone().add(new THREE.Vector3(0, 0.12, 0))); later(560, () => { slot.holder.rotation.z = 1.2; }); parts.push(slot.holder); }
-    else if (k === '甘酒' || k === 'おしるこ') { // なべの よこへ 入れものを 持っていって よそう → 手前に もどす
+    else if (k === '焼きいも') { // 袋の 上へ 持ちあげ、たてに して 小さめに → 袋の 中へ おろす（黄色い 切り口だけ 上から のぞく）
+      const im = slot.holder; const inBag = spot.clone().add(new THREE.Vector3(-0.025, 0.175, 0));
+      motion(im, [{ d: 600, p: inBag.clone().add(new THREE.Vector3(0, 0.22, 0)), r: [0, Math.PI, 1.45], s: 0.6, lift: 0.12 }, { d: 450, p: inBag }]);
+      parts.push(im);
+    }
+    else if (k === '甘酒') { // ひしゃくで すくう → コップの 上で かたむけて そそぐ → なべに もどす
+      const pot = slot.holder.position; const cupTop = spot.y + 0.144; const TILT = 1.1;
+      const lip = new THREE.Vector3(-LADLE_R * (Math.cos(TILT) + Math.sin(TILT)), LADLE_R * (Math.cos(TILT) - Math.sin(TILT)), 0); // かたむけた ときの ひしゃくの ふち
+      const pourAt = new THREE.Vector3(spot.x, cupTop + 0.12, spot.z).sub(lip); const mouth = pourAt.clone().add(lip);
+      ladle.visible = true; ladle.position.copy(pot).add(new THREE.Vector3(0, 0.3, 0)); ladle.rotation.set(0, 0, 0);
+      const pour = () => { fill.visible = true; stream.position.x = mouth.x; stream.position.z = mouth.z; stream.visible = true;
+        anims.push({ kind: 'fill', set: (u) => { const sy = spot.y + cupLevel(u) * 1.6; const l = Math.max(0.001, mouth.y - sy); stream.scale.y = l; stream.position.y = mouth.y - l / 2; }, from: 0, to: 1, t0: performance.now() }); };
+      motion(ladle, [{ d: 350, p: pot.clone().add(new THREE.Vector3(0, 0.135, 0)) }, { d: 350, osc: { p: [0.03, 0, 0.02], n: 1 } }, { d: 300, p: pot.clone().add(new THREE.Vector3(0, 0.34, 0)) },
+        { d: 700, p: pourAt.clone().add(new THREE.Vector3(0, 0.04, 0)), lift: 0.04 }, { d: 350, p: pourAt, r: [0, 0, TILT], at: pour }, { d: 700, at: () => { stream.visible = false; } },
+        { d: 300, r: [0, 0, 0] }, { d: 600, p: pot.clone().add(new THREE.Vector3(0, 0.3, 0)), at: () => { ladle.visible = false; } }]);
+    }
+    else if (k === 'おしるこ') { // なべの よこへ 入れものを 持っていって よそう → 手前に もどす
       go(ch, slot.holder.position.clone().add(new THREE.Vector3(0.25, 0, -0.3)));
       later(600, () => { fill.visible = true; });
       later(1100, () => go(ch, spot));
     } else animateDone(slot);
-    if (nextTargetKey() === 'お客さま') { r.handing = true; later(k === 'スプーン' ? 1800 : k === 'かき氷器' || k === '甘酒' || k === 'おしるこ' ? 1500 : 900, () => { state.feedback = { text: 'できあがり！ お客さまに わたそう', kind: 'ok' }; drawWorkBoard(); }); }
+    if (nextTargetKey() === 'お客さま') { r.handing = true; later(k === '甘酒' ? 3100 : k === 'スプーン' ? 1800 : k === 'かき氷器' || k === 'おしるこ' ? 1500 : 900, () => { state.feedback = { text: 'できあがり！ お客さまに わたそう', kind: 'ok' }; drawWorkBoard(); }); }
   };
 }
 // 田植えの 苗受け：軽トラの 苗箱を 両手で 受けとり、その 列の 苗のせ台に 苗（マット）を すべらせて のせる。空いた 箱は 空き箱の 上に かさねる
@@ -6751,7 +6782,7 @@ function startLaptop(b, def) {
 //   店員は +z を 向くので、+x が 店員の 左。札・箱の 文字は 店員がわ（-z）に 向ける。
 // 倉庫の たなは 右の かべ（入口がわ。売り場の たなの 手前）に つける。たな・台車は wall の 中で 組み、wall ごと かべへ 向ける
 //   wall：お店の 中の 位置と 向き（ローカルの -z が たなの 正面＝部屋の まん中）。stand：店員の 立つ ところ（かべの 方を 向く）
-const STOCK = { x: 0.25, z: 2.55, w: 1.7, d: 0.45, boards: [1.1, 0.78, 0.46, 0.14], spotX: 0.58, cartX: -0.75, cartZ: 1.325, wall: { x: 0.625, z: 3.05, ry: -Math.PI / 2 }, stand: [0.5, 3.3] };
+const STOCK = { x: 0.25, z: 2.55, w: 1.7, d: 0.45, boards: [1.1, 0.78, 0.46, 0.14], spotX: 0.58, cartX: -0.55, cartZ: 1.85, wall: { x: 0.625, z: 3.05, ry: -Math.PI / 2 }, stand: [0.5, 3.3] };
 function stockBox(W, label, w, h, d, x, y, z) {
   const g = new THREE.Group(); g.position.set(x, y, z); W.add(g);
   part(g, box(w, h, d), '#c49a6c', 0, h / 2, 0);
