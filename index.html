@@ -1916,6 +1916,8 @@ function tree(x, z, kind) {
       for (let n = 0; n < 4; n++) {
         const a = n * Math.PI / 2 + Math.PI / 4; const cx = x + Math.cos(a) * 0.72; const cz = z + Math.sin(a) * 0.72;
         addBox(cx, 0.24, cz, 0.42, 0.06, 0.42, '#f2efe8', -a); addBox(cx + Math.cos(a) * 0.19, 0.48, cz + Math.sin(a) * 0.19, 0.06, 0.5, 0.42, '#f2efe8', -a); // いす（背もたれは 外がわ）
+        const ca = Math.cos(a); const sa = Math.sin(a);
+        [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([u, v]) => addBox(cx + (u * ca - v * sa) * 0.17, 0.155, cz + (u * sa + v * ca) * 0.17, 0.04, 0.11, 0.04, '#cfcac0', -a)); // いすの 足（床から 座面まで）
       }
       block(x, z, 1.1);
     });
