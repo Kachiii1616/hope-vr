@@ -6,7 +6,7 @@
 <title>HOPE しごとタウン</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=Zen+Maru+Gothic:wght@500;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=Zen+Maru+Gothic:wght@500;700&family=Yuji+Syuku&display=swap">
 <style>
 /* 画面いっぱいの 3D の町。HTML は上の帯・下の職業チップ・左上の指示カード・右の記録だけを重ねる。 */
 :root {
@@ -648,7 +648,7 @@ const EXTRA_ACTS = {
   },
   super: { 'A': '商品Aを Aの たなへ', 'B': '商品Bを Bの たなへ', 'C': '商品Cを Cの たなへ', 'D': '商品Dを Dの たなへ' },
   school: {
-    '新聞紙': '新聞紙を しく', '下じき': '下じきを しく', '半紙': '半紙を おく', '文鎮': '文鎮で おさえる', 'すずり': 'すずりに すみを 入れる', '筆': '筆を おく', 'クレヨン': 'クレヨンを 出す',
+    '新聞紙': '新聞紙を しく', '下じき': '下じきを しく', '半紙': '半紙を おく', '文鎮': '文鎮で おさえる', 'すずり': 'すずりに すみを 入れる', '筆': '筆に すみを つける', 'クレヨン': 'クレヨンを 出す',
   },
 };
 ACTIONS.rink = (l) => (l === 'お客さま' ? 'お客さまに わたす' : state.round && state.round.def.layout === 'picking' ? l + 'を かごに 入れる' : l + 'を わたす'); // ボートの 受付は かごに まとめる
@@ -761,6 +761,31 @@ function registerRound() {
   };
 }
 
+// ---- 書き初め（学校の 冬）：教室の 机に 道具を ならべ、お手本を 見て「謹賀新年」を 上から 順に 書き、左に 名前、入口がわの けいじ板に はる。
+//   2 回めからは 新聞紙・下じき・すずりは 机に 出した まま、新しい 半紙で 書く。はった 作品は 体験の あとも 教室に のこる（startKakizome）
+//   座標は お店の 中（店員から 見て 左が +x、奥が +z）。sheet・board の w・h は m
+const KAKI = {
+  text: ['謹', '賀', '新', '年'],
+  stand: [0, 0.9], pitch: 0.55,
+  desk: { z: 1.8, w: 1.3, d: 0.9, top: 0.78 }, table: { z: 2.75, top: 0.78 },
+  sheet: { x: 0, z: 1.8, w: 0.26, h: 0.68 },
+  suzuri: [-0.42, 1.98], fudeRest: [-0.34, 1.52], tehon: [0.47, 1.6],
+  board: { x: -1.52, y: 1.42, z: 4.33, w: 1.15, h: 0.95, slots: 4, gap: 0.27, s: 0.8 },
+  tools: { '新聞紙': 0.96, '下じき': 0.64, '半紙': 0.32, '文鎮': 0, 'すずり': -0.32, '筆': -0.64, 'クレヨン': -0.96 }, // 奥の 台の 上の x
+  font: '"Yuji Syuku", "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", serif',
+};
+function kakizomeRound() {
+  const first = !(state.session && state.session.kakiSetup);
+  const tools = first ? ['新聞紙', '下じき', '半紙', '文鎮', 'すずり', '筆', 'クレヨン'] : ['半紙', '文鎮', '筆', 'クレヨン'];
+  const items = tools.map((label) => ({ label }))
+    .concat(KAKI.text.map((ch, k) => ({ label: '', id: 'c' + k, ch, name: '「' + ch + '」を 書く' })),
+      [{ label: '', id: 'name', name: '左の 下に 名前を 書く' }, { label: '', id: 'post', name: 'けいじ板に はる' }]);
+  return {
+    title: (first ? '道具を ならべて、' : '新しい 半紙で、') + 'お手本を 見ながら「謹賀新年」と 書き、名前を 書いて けいじ板に かざる', shortTitle: '書き初めを 書いて かざる',
+    items, need: tools.filter((t) => t !== 'クレヨン').concat(['c0', 'c1', 'c2', 'c3', 'name', 'post']), ordered: true, layout: 'kakizome', first,
+  };
+}
+
 // ---- 冬の しごと（お店ごとに 1 つ。夏の しごとと 同じ 道具立てで、冬の 中身に かえる）
 const WINTER = {
   logi: {
@@ -848,11 +873,10 @@ const WINTER = {
     },
   },
   school: {
-    work: '書き初めの準備', intro: '書き初めの 道具を、決まった 順番で 机に ならべます。', defect: '順番の まちがい（新聞紙の 前に 半紙 など）',
-    round() {
-      const items = ['新聞紙', '下じき', '半紙', '文鎮', 'すずり', '筆', 'クレヨン'].map((label) => ({ label, color: '#ffffff' }));
-      return { title: '書き初めの 道具を ならべる', shortTitle: '書き初めの 準備', items: shuffle(items), need: ['新聞紙', '下じき', '半紙', '文鎮', 'すずり', '筆'], ordered: true };
-    },
+    work: '書き初め', rounds: 3,
+    intro: '道具を 決まった 順番で 机に ならべ、お手本を 見ながら 半紙に「謹賀新年」と 上から 順に 書きます。左の 下に 名前を 書いたら、教室の けいじ板に はって かざります。',
+    defect: '道具の 順番・字の 順番の まちがい（上から 順に 書く）',
+    round() { return kakizomeRound(); },
   },
 };
 // 夏の しごと（もとの 定義）と 冬の しごとを 季節の 切りかえに のせる（山小屋は 自分の variants を 持つ）
@@ -3039,8 +3063,14 @@ function decorateInterior(b) {
     // 教室：黒板（左の かべ）と、かべぞいの 生徒の 机・いす
     part(cls, box(0.03, 0.7, 1.4), '#2f4a3a', SHOP_W / 2 - 0.02, 1.35, 1.6);
     part(cls, box(0.04, 0.04, 1.44), '#8a6a46', SHOP_W / 2 - 0.04, 0.98, 1.6);
-    const bb = new Board(1.3, 0.6, 300); bb.draw((c, w, h) => { c.fillStyle = '#2f4a3a'; c.fillRect(0, 0, w, h); c.fillStyle = '#f2efe6'; c.font = '700 ' + Math.round(h * 0.26) + 'px ' + FONT_DISPLAY; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('書き初め', w / 2, h * 0.35); c.font = '400 ' + Math.round(h * 0.16) + 'px ' + FONT_BODY; c.fillText('道具を じゅんばんに ならべよう', w / 2, h * 0.7); });
+    const bb = new Board(1.3, 0.6, 300); bb.draw((c, w, h) => { c.fillStyle = '#2f4a3a'; c.fillRect(0, 0, w, h); c.fillStyle = '#f2efe6'; c.font = '700 ' + Math.round(h * 0.26) + 'px ' + FONT_DISPLAY; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('書き初め', w / 2, h * 0.35); c.font = '400 ' + Math.round(h * 0.16) + 'px ' + FONT_BODY; c.fillText('お手本を 見て 上から 順に 書こう', w / 2, h * 0.7); });
     bb.mesh.position.set(SHOP_W / 2 - 0.04, 1.35, 1.6); bb.mesh.rotation.y = -Math.PI / 2; cls.add(bb.mesh);
+    // 書き初めを はる けいじ板（入口がわの かべ・店員から 見て 右）。はった 作品は kakiWall に のこる
+    const KB = KAKI.board;
+    part(cls, box(KB.w + 0.06, KB.h + 0.06, 0.02), '#8a6a46', KB.x, KB.y, KB.z + 0.01);
+    part(cls, box(KB.w, KB.h, 0.02), '#c8955a', KB.x, KB.y, KB.z);
+    const kbHead = textPlate('書き初め', 0.36, 0.09, '#9a5b3c', '#ffffff'); kbHead.position.set(KB.x, KB.y + KB.h / 2 - 0.07, KB.z - 0.012); kbHead.rotation.y = Math.PI; cls.add(kbHead);
+    const kakiWall = new THREE.Group(); kakiWall.userData.n = 0; cls.add(kakiWall); b.rooms.kakiWall = kakiWall;
     [[-1.55, 3.3], [1.55, 3.3], [-1.55, 2.3]].forEach(([x, z]) => {
       part(cls, box(0.6, 0.04, 0.45), '#d9b98a', x, 0.72, z); [-1, 1].forEach((a) => [-1, 1].forEach((c) => part(cls, box(0.03, 0.62, 0.03), '#8a8f96', x + a * 0.26, 0.41, z + c * 0.19)));
       part(cls, box(0.36, 0.04, 0.36), '#8a6a46', x, 0.5, z + 0.42); part(cls, box(0.36, 0.36, 0.04), '#8a6a46', x, 0.7, z + 0.6);
@@ -5057,7 +5087,7 @@ Object.assign(STAGES, {
   '焼きいも・甘酒': { counter: '#c98f5a', stand: [0, 0.85], pitch: 0.3, after: yataiCook, decor(W) { yataiFrame(W); part(W, box(0.5, 0.06, 0.35), '#5a5f66', 0.6, 0.93, 2.35); for (let i = 0; i < 12; i++) part(W, ball(0.035, 8, 6), '#8a8f96', 0.42 + (i % 4) * 0.12, 0.97, 2.25 + Math.floor(i / 4) * 0.1); },
     spots: { '紙袋': [1.0, 0.906, 2.0, { s: 1.6 }], '焼きいも': [0.6, 0.99, 2.35, { s: 1.6 }], '紙コップ': [0.15, 0.906, 2.0, { s: 1.6 }], '甘酒': [0, 0.906, 2.4, { s: 1.6 }], 'おわん': [-0.45, 0.906, 2.0, { s: 1.6 }], 'おしるこ': [-0.6, 0.906, 2.4, { s: 1.6 }], 'お客さま': GUEST('#3c7fc4') } },
 });
-// ---- 第 3 弾：風力発電所・書き初め・田んぼの 苗受け --------------
+// ---- 第 3 弾：風力発電所・田んぼの 苗受け（書き初めは startKakizome） --------------
 Object.assign(SM, {
   harness() { const g = new THREE.Group(); [-0.06, 0.06].forEach((x) => part(g, box(0.04, 0.5, 0.02), '#e0662f', x, 0.25, 0)); part(g, box(0.3, 0.05, 0.02), '#e0662f', 0, 0.12, 0); part(g, new THREE.TorusGeometry(0.03, 0.008, 6, 12), '#8a8f96', 0, 0.42, 0.02); return g; },
   switchPanel() { const g = new THREE.Group(); part(g, box(0.5, 0.6, 0.12), '#c9ced6', 0, 0.3, 0, { metalness: 0.3, roughness: 0.4 }); part(g, cyl(0.07, 0.07, 0.05, 16), '#d0453a', 0, 0.36, 0.08, { emissive: '#7a1a10', emissiveIntensity: 0.4 }).rotation.x = Math.PI / 2; part(g, box(0.3, 0.06, 0.005), '#f2c230', 0, 0.16, 0.062);
@@ -5068,7 +5098,6 @@ Object.assign(SM, {
   paint() { const g = new THREE.Group(); part(g, cyl(0.08, 0.08, 0.16, 16), '#7fb3d9', 0, 0.08, 0); part(g, cyl(0.081, 0.081, 0.06, 16), '#ffffff', 0, 0.09, 0); return g; },
   heater() { const g = ITEM_MODELS['ヒーター'](); g.scale.setScalar(2.4); return g; },
 });
-// 書き初めは えらんだ ものが 決まった ところへ 動く（placeTo：品名・これまでに 置いた 数 → 置く 場所）
 Object.assign(STAGES, {
   // 風力発電所：風車の 塔の 中。奥に 停止スイッチの 盤、左の かべに ヘルメットと 安全帯、右の 台に 点検の 道具、まん中に 点検表
   '風車の点検': { counter: false, stand: [0, 0.7], pitch: 0.18,
@@ -5079,13 +5108,6 @@ Object.assign(STAGES, {
     spots: { 'ヘルメット': [1.0, 1.5, 2.15, { model: () => SM.helmet() }], '安全帯': [1.05, 1.25, 2.8, { model: () => SM.harness() }], '停止スイッチ': [0.15, 0.75, 3.0, { model: () => SM.switchPanel() }],
       'ライト': [-0.45, 0.83, 2.2, { model: () => SM.light() }], 'スパナ': [-0.95, 0.83, 2.15, { model: () => SM.spanner() }], 'オイルゲージ': [-0.75, 0.83, 2.5, { model: () => SM.oilGauge(), ly: 0.25 }], 'ペンキ': [-1.4, 0.83, 2.2, { model: () => SM.paint() }],
       'ヒーター': [-1.25, 0.83, 2.5, { model: () => SM.heater(), ly: 0.25 }], '点検表': [0.05, 0.9, 1.75, { model: () => SM.clipboard() }] } },
-  // 学校（冬）：書き初め。教室の 机（2 つ くっつけて）の まわりの 台に 道具。えらぶと 机の 上の 決まった ところへ
-  '書き初めの準備': { counter: false, stand: [0, 0.85], pitch: 0.5,
-    decor(W) { part(W, box(1.2, 0.04, 0.6), '#d9b98a', 0, 0.74, 1.75); [-1, 1].forEach((a) => [-1, 1].forEach((c) => part(W, box(0.03, 0.62, 0.03), '#8a8f96', a * 0.56, 0.41, 1.75 + c * 0.26)));
-      part(W, box(2.3, 0.04, 0.5), '#c9a27a', 0, 0.74, 2.7); [-1, 1].forEach((a) => [-1, 1].forEach((c) => part(W, box(0.04, 0.62, 0.04), '#6b4a2a', a * 1.1, 0.41, 2.7 + c * 0.2))); }, // 手前に 机（2 つ くっつけて）、奥の 長い 台に 道具
-    spots: { '新聞紙': [0.96, 0.76, 2.7, { s: 2 }], '下じき': [0.64, 0.76, 2.7, { s: 1.8, ly: 0.1 }], '半紙': [0.32, 0.76, 2.7, { s: 2 }],
-      '文鎮': [0, 0.76, 2.7, { s: 2, ly: 0.1 }], 'すずり': [-0.32, 0.76, 2.7, { s: 2 }], '筆': [-0.64, 0.76, 2.7, { s: 2, ly: 0.1 }], 'クレヨン': [-0.96, 0.76, 2.7, { s: 1.6 }] },
-    placeTo(spec) { return { '新聞紙': [0, 0.762, 1.75], '下じき': [0.05, 0.768, 1.75], '半紙': [0.05, 0.774, 1.75], '文鎮': [0.05, 0.78, 1.95], 'すずり': [-0.4, 0.762, 1.75], '筆': [-0.4, 0.762, 1.55] }[spec.label] || null; } },
   // 田んぼ：あぜ道。奥に 田植え機の 苗のせ台（1〜4 列め）、右に 苗箱を のせた 台車、その 奥に 空き箱と 肥料
   '田植えの苗受け': { counter: false, stand: [0, 0.7], pitch: 0.2,
     decor(W) { part(W, box(SHOP_W - 0.1, 0.004, 3.4), '#7a9a5a', 0, 0.104, 2.4); part(W, box(1.9, 0.5, 0.6), '#d0453a', -0.22, 0.5, 3.2); [-1.0, 0.55].forEach((x) => part(W, cyl(0.28, 0.28, 0.14, 18), '#2b2f36', x, 0.3, 3.55).rotation.z = Math.PI / 2);
@@ -5561,6 +5583,162 @@ function flyPaper(slot, ok, W) {
   anims.push({ kind: 'paper', obj: h, from: h.position.clone(), to, rx0: h.rotation.x, rx1: Math.PI / 2, s0: 1, s1: tray ? 0.8 : 0.7, t0: performance.now() });
   state.round.slowFinish = true;
 }
+// 書き初め（学校の 冬）：奥の 台の 道具を 手前の 机へ（新聞紙 → 下じき → 半紙 → 文鎮 → すずり → 筆）。
+//   左の お手本の 字を 上から 順に えらぶと、筆が 半紙に その 字を 書く。左の 下に 名前を 書いたら、入口がわの けいじ板に はる
+function kakiLayout(w, h, top) { // 字の 大きさと 位置（w・h は 紙の 大きさ。単位は m でも ドットでも よい）
+  const S = Math.min(w * 0.66, h * 0.15); const step = S * 1.08;
+  return { S, x: w * 0.56, y: (k) => h * top + step * (k + 0.5), nameX: w * 0.17, nameY0: h * (top + 0.57), nameY1: h * 0.96 };
+}
+function kakiInk(c, text, x, y, size, u) { // 筆で 上から 書いて いく（u：0 → 1）
+  if (u <= 0) return;
+  c.save(); c.beginPath(); c.rect(x - size, y - size * 0.62, size * 2, size * 1.24 * Math.min(1, u)); c.clip();
+  c.font = '400 ' + Math.round(size) + 'px ' + KAKI.font; c.fillText(text, x, y); c.restore();
+}
+function kakiName(c, L, name, u, color) { // 名前（たて書き。1 字ずつ 上から）
+  const chars = [...name]; const ns = Math.min(L.S * 0.45, (L.nameY1 - L.nameY0) / Math.max(chars.length, 3));
+  c.fillStyle = color;
+  chars.forEach((t, i) => kakiInk(c, t, L.nameX, L.nameY0 + ns * (i + 0.5), ns, u * chars.length - i));
+}
+function startKakizome(b, def) {
+  const W = b.workArea; const slots = []; const s = state.session; const K = KAKI; const KD = K.desk; const KS = K.sheet; const KB = K.board; const top = KD.top;
+  b.counter.visible = false;
+  // 手前に 机（2 つ くっつけて）、奥に 道具を 置く 長い 台
+  part(W, box(KD.w, 0.04, KD.d), '#d9b98a', 0, top - 0.02, KD.z);
+  [-1, 1].forEach((a) => [-1, 1].forEach((c) => part(W, box(0.03, top - 0.12, 0.03), '#8a8f96', a * (KD.w / 2 - 0.05), 0.1 + (top - 0.12) / 2, KD.z + c * (KD.d / 2 - 0.05))));
+  part(W, box(2.3, 0.04, 0.5), '#c9a27a', 0, K.table.top - 0.02, K.table.z);
+  [-1, 1].forEach((a) => [-1, 1].forEach((c) => part(W, box(0.04, K.table.top - 0.12, 0.04), '#6b4a2a', a * 1.1, 0.1 + (K.table.top - 0.12) / 2, K.table.z + c * 0.2)));
+  // 机の 上に 出す もの（道具を えらぶと 出る。2 回めからは 新聞紙・下じき・すずりは 出した まま）
+  const D = {};
+  D.news = new THREE.Group(); D.news.position.set(-0.12, top + 0.002, KD.z); W.add(D.news);
+  part(D.news, box(0.9, 0.003, 0.86), '#e8e6e0', 0, 0, 0); part(D.news, box(0.003, 0.001, 0.86), '#c9c6be', 0, 0.002, 0); // 折り目
+  for (let i = 0; i < 9; i++) part(D.news, box(i % 3 ? 0.36 : 0.16, 0.001, 0.012), '#9aa1a6', i % 2 ? 0.2 : -0.2, 0.002, -0.36 + i * 0.09); // 記事の 行
+  D.shita = part(W, box(0.32, 0.004, 0.76), '#2a3566', KS.x, top + 0.006, KS.z); // 下じき（フェルト）
+  const sheet = new Board(KS.w, KS.h, 1200); D.sheet = sheet.mesh; D.sheet.rotation.set(Math.PI / 2, Math.PI, 0); D.sheet.position.set(KS.x, top + 0.0095, KS.z); W.add(D.sheet); // 上を 奥へ ねかせる
+  D.bunchin = part(W, box(0.22, 0.016, 0.026), '#3d4a54', KS.x, top + 0.018, KS.z + KS.h / 2 - 0.035, { metalness: 0.5, roughness: 0.35 });
+  D.suzuri = ITEM_MODELS['すずり'](); D.suzuri.scale.setScalar(2); D.suzuri.position.set(K.suzuri[0], top + 0.004, K.suzuri[1]); W.add(D.suzuri);
+  const setup = !def.first;
+  D.news.visible = setup; D.shita.visible = setup; D.suzuri.visible = setup; D.sheet.visible = false; D.bunchin.visible = false;
+  // 半紙（書いた 字は 上から 少しずつ 出る）
+  const prog = [0, 0, 0, 0]; let nameU = 0; const name = (profile && profile.name) || 'なまえ';
+  const paintSheet = () => sheet.draw((c, w, h) => {
+    c.fillStyle = '#fbfaf4'; c.fillRect(0, 0, w, h);
+    const L = kakiLayout(w, h, 0.05); c.textAlign = 'center'; c.textBaseline = 'middle'; c.shadowColor = 'rgba(20,16,12,0.45)'; c.shadowBlur = 2;
+    c.fillStyle = '#16120f'; K.text.forEach((t, k) => kakiInk(c, t, L.x, L.y(k), L.S, prog[k]));
+    kakiName(c, L, name, nameU, '#16120f');
+  });
+  paintSheet();
+  // 奥の 台の 道具（名札は となりと 重ならないよう 互い ちがいの 高さ）
+  def.items.forEach((spec, idx) => {
+    if (!spec.label) return;
+    const holder = new THREE.Group(); holder.position.set(K.tools[spec.label], K.table.top, K.table.z); holder.rotation.y = Math.PI; W.add(holder);
+    const mesh = makeItemMesh(spec); mesh.scale.multiplyScalar(spec.label === 'クレヨン' ? 1.6 : spec.label === '下じき' ? 1.8 : 2);
+    const topY = new THREE.Box3().setFromObject(mesh).max.y; mesh.traverse((m) => { m.userData.slotIndex = idx; }); holder.add(mesh);
+    const ring = makeGlowRing(); ring.position.y = 0.005; holder.add(ring);
+    const sp = labelSprite(actionText(b.job, spec), { h: 0.1 }); sp.position.y = topY + 0.12 + (Object.keys(K.tools).indexOf(spec.label) % 2 ? 0.11 : 0); holder.add(sp);
+    slots[idx] = { spec, key: itemKey(spec), mesh, ring, holder, done: false };
+  });
+  // お手本（机の 左の 台に 立てる）。字を えらぶと その 字を 書く
+  const T = new THREE.Group(); T.position.set(K.tehon[0], top, K.tehon[1]); T.rotation.y = Math.PI; W.add(T);
+  part(T, box(0.26, 0.03, 0.14), '#7a5a3a', 0, 0.015, 0.03);
+  const tilt = new THREE.Group(); tilt.rotation.x = -0.6; T.add(tilt);
+  const TW = 0.22; const TH = 0.46; const tehon = new Board(TW, TH, 1400);
+  tehon.mesh.position.set(0, TH / 2 + 0.03, 0.012); tilt.add(tehon.mesh);
+  part(tilt, box(TW + 0.03, TH + 0.03, 0.012), '#7a5a3a', 0, TH / 2 + 0.03, 0.002);
+  const paintTehon = () => tehon.draw((c, w, h) => {
+    c.fillStyle = '#fffaf0'; c.fillRect(0, 0, w, h); c.strokeStyle = '#c8463d'; c.lineWidth = 6; c.strokeRect(3, 3, w - 6, h - 6);
+    c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = '#c8463d'; c.font = '700 ' + Math.round(w * 0.12) + 'px ' + FONT_BODY; c.fillText('お手本', w / 2, h * 0.055);
+    const L = kakiLayout(w, h, 0.11); c.fillStyle = '#16120f'; K.text.forEach((t, k) => kakiInk(c, t, L.x, L.y(k), L.S, 1));
+    kakiName(c, L, '名前', 1, '#9aa4ab');
+  });
+  paintTehon();
+  const tlab = labelSprite('お手本（字を えらぶと 書く）', { h: 0.075 }); tlab.position.set(K.tehon[0], top + 0.52, K.tehon[1]); W.add(tlab);
+  const invis = () => new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.001, depthWrite: false });
+  const ringBox = (holder, w, h) => { // 立てた 板の 上の 四角い 光る わく
+    const g = new THREE.Group(); g.scale.set(w / 0.28, h / 0.28, 1); holder.add(g);
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.12, 0.14, 40), new THREE.MeshBasicMaterial({ color: '#ffd23f', transparent: true, opacity: 0.95, depthTest: false, side: THREE.DoubleSide }));
+    ring.renderOrder = 9; ring.visible = false; g.add(ring); return ring;
+  };
+  const TL = kakiLayout(TW, TH, 0.11);
+  K.text.forEach((t, k) => {
+    const idx = def.items.findIndex((it) => it.id === 'c' + k);
+    const holder = new THREE.Group(); holder.position.set(TL.x - TW / 2, TH / 2 + 0.03 + (TH / 2 - TL.y(k)), 0.016); tilt.add(holder);
+    const hit = new THREE.Mesh(new THREE.PlaneGeometry(TW * 0.8, TL.S * 1.05), invis()); hit.userData.slotIndex = idx; holder.add(hit);
+    slots[idx] = { spec: def.items[idx], key: 'c' + k, mesh: hit, ring: ringBox(holder, TW * 0.82, TL.S * 1.15), holder, done: false };
+  });
+  // 名前を 書く ところ（半紙の 左の 下）
+  const SL = kakiLayout(KS.w, KS.h, 0.05);
+  const onSheet = (cx, cy) => new THREE.Vector3(KS.x - (cx / KS.w - 0.5) * KS.w, top + 0.01, KS.z + (0.5 - cy / KS.h) * KS.h); // 紙の 上の 点（店員から 見て 右が -x）
+  const nameTag = labelSprite('名前を 書く ところ', { h: 0.06 }); nameTag.position.copy(onSheet(SL.nameX, SL.nameY0)).add(new THREE.Vector3(0.06, 0.1, 0)); nameTag.visible = false; W.add(nameTag);
+  {
+    const idx = def.items.findIndex((it) => it.id === 'name');
+    const holder = new THREE.Group(); holder.position.copy(onSheet(SL.nameX, (SL.nameY0 + SL.nameY1) / 2)); W.add(holder);
+    const hit = part(holder, box(0.08, 0.02, SL.nameY1 - SL.nameY0), '#ffffff', 0, 0.005, 0, { transparent: true, opacity: 0.01, depthWrite: false }); hit.userData.slotIndex = idx;
+    const ring = makeGlowRing(); ring.position.y = 0.004; holder.add(ring);
+    slots[idx] = { spec: def.items[idx], key: 'name', mesh: hit, ring, holder, done: false };
+  }
+  // けいじ板（入口がわの かべ）
+  {
+    const idx = def.items.findIndex((it) => it.id === 'post');
+    const holder = new THREE.Group(); holder.position.set(KB.x, KB.y, KB.z - 0.03); holder.rotation.y = Math.PI; W.add(holder);
+    const hit = new THREE.Mesh(new THREE.PlaneGeometry(KB.w, KB.h), invis()); hit.userData.slotIndex = idx; holder.add(hit);
+    const pl = labelSprite('けいじ板に はる', { h: 0.12 }); pl.position.set(KB.x, KB.y - KB.h / 2 - 0.1, KB.z - 0.05); W.add(pl);
+    slots[idx] = { spec: def.items[idx], key: 'post', mesh: hit, ring: ringBox(holder, KB.w * 1.04, KB.h * 1.04), holder, done: false };
+  }
+  // 筆の 動き：すずりで すみを つける・字を 書く（筆先を 下に して、書いて いる 間 少し ゆらす）
+  const up = new THREE.Vector3(0, 0.13, 0); const off = new THREE.Vector3(0, 0.225, 0.045); const WR = [0.2, Math.PI, -Math.PI / 2];
+  const rest = new THREE.Vector3(K.fudeRest[0], top + 0.002, K.fudeRest[1]);
+  const later = (ms, fn) => setTimeout(() => { if (state.round === r && state.phase !== 'choose') fn(); }, reduceMotion ? 0 : ms);
+  const reveal = (set) => anims.push({ kind: 'fill', from: 0, to: 1, set: (u) => { set(u); paintSheet(); }, t0: performance.now() });
+  const write = (P, set) => { const at = P.clone().add(off);
+    motion(D.brush, [{ d: 450, p: at.clone().add(up), r: WR, lift: 0.05 }, { d: 200, p: at, at: () => { playSfx('brush'); reveal(set); } }, { d: 650, osc: { p: [0.012, 0, -0.025], n: 2 } }, { d: 250, p: at.clone().add(up) }]); };
+  // はる：筆と 文鎮を かたづけ、半紙を 立てて けいじ板の つぎの ところへ（画びょうで とめる）。はった 作品は 教室に のこる
+  const post = () => {
+    s.kakiSetup = true;
+    motion(D.brush, [{ d: 500, p: rest, r: [0, Math.PI, 0], lift: 0.08 }]);
+    motion(D.bunchin, [{ d: 450, p: [0.3, top + 0.018, KD.z - 0.35], lift: 0.08 }]);
+    const wall = b.rooms.kakiWall; const n = wall.userData.n++ % KB.slots;
+    wall.children.filter((o) => o.userData.slot === n).forEach((o) => wall.remove(o)); // いちばん 古い 作品と はりかえる
+    const sh = D.sheet; wall.add(sh); sh.userData.slot = n; // 教室も 作業の 場所も お店の 中の 座標なので、そのまま うつせる
+    [-1, 1].forEach((sd) => part(sh, ball(0.011, 10, 8), '#d0453a', sd * (KS.w / 2 - 0.03), KS.h / 2 - 0.03, 0.008)); // 画びょう
+    const to = new THREE.Vector3(KB.x + KB.w / 2 - 0.16 - n * KB.gap, KB.y - 0.06, KB.z - 0.022);
+    motion(sh, [{ d: 450, p: sh.position.clone().add(new THREE.Vector3(0, 0.3, 0)), r: [0.9, Math.PI, 0] }, { d: 1000, p: to, r: [0, Math.PI, 0], s: KB.s, lift: 0.2 }]);
+    later(300, () => moveRig(b.group.localToWorld(new THREE.Vector3(K.stand[0], 0, K.stand[1])), b.yaw + Math.PI, 0.12, 700)); // けいじ板が 見えるように 顔を 上げる
+    r.finishWait = 2200;
+  };
+  const r = { def, slots, pos: 0, lastActionAt: performance.now(), hintShown: false, mistakeThisRound: false,
+    ngText(slot) {
+      const k = slot.key; const c0 = def.need.indexOf('c0');
+      if (k === 'クレヨン') return 'クレヨンは 使いません。書き初めは 筆と すみで 書きます';
+      if (r.pos < c0) return 'さきに 道具を じゅんばんに ならべよう（' + def.need.slice(0, c0).join(' → ') + '）';
+      if (/^c\d$/.test(k)) return 'お手本の 字を 上から 順に 書こう';
+      if (k === 'name') return '名前は「謹賀新年」を ぜんぶ 書いてから、左の 下に 書きます';
+      if (k === 'post') return '名前まで 書いてから はろう';
+      return null;
+    },
+    onPick(slot, ok) {
+      if (!ok) { flashWrong(slot); return; }
+      slot.holder.children.forEach((c) => { if (c.isSprite) c.visible = false; });
+      const k = slot.key; const h = slot.holder;
+      const place = (obj) => motion(h, [{ d: 650, p: obj.position.clone().add(new THREE.Vector3(0, 0.03, 0)), lift: 0.18, at: () => { h.visible = false; obj.visible = true; } }]); // 道具を 机へ
+      if (k === '新聞紙') place(D.news);
+      else if (k === '下じき') place(D.shita);
+      else if (k === '半紙') place(D.sheet);
+      else if (k === '文鎮') place(D.bunchin);
+      else if (k === 'すずり') place(D.suzuri);
+      else if (k === '筆') { // すずりの 海で すみを つけて、半紙の 上で かまえる
+        D.brush = h; const ink = new THREE.Vector3(K.suzuri[0], top + 0.045, K.suzuri[1] + 0.07).add(off);
+        motion(h, [{ d: 650, p: ink.clone().add(up), r: WR, lift: 0.15 }, { d: 250, p: ink }, { d: 500, osc: { p: [0, 0.012, 0.02], n: 2 } }, { d: 300, p: ink.clone().add(up) }]);
+      } else if (/^c\d$/.test(k)) { const n = Number(k[1]); write(onSheet(SL.x, SL.y(n)), (u) => { prog[n] = u; }); if (n === K.text.length - 1) nameTag.visible = true; }
+      else if (k === 'name') { nameTag.visible = false; write(onSheet(SL.nameX, SL.nameY0 + (SL.nameY1 - SL.nameY0) * 0.3), (u) => { nameU = u; }); r.slowFinish = true; }
+      else if (k === 'post') post();
+    } };
+  state.round = r;
+  if (document.fonts && document.fonts.load) document.fonts.load('400 64px "Yuji Syuku"', '謹賀新年名前' + name).then(() => { paintTehon(); paintSheet(); }).catch(() => {}); // 筆の 字の フォントが 届いたら 描きなおす
+  moveRig(b.group.localToWorld(new THREE.Vector3(K.stand[0], 0, K.stand[1])), b.yaw + Math.PI, K.pitch, s.roundIndex ? 500 : undefined); // 机の 上・奥の 台・お手本が 見えるように 下を 向く
+  state.feedback = { text: '', kind: '' };
+  drawWorkBoard(); renderHud();
+  if (state.withSupport) speak(def.title + '。最初は、' + stepLabel(def.need[0]) + '。');
+}
 // 場面つきで 1 回分を 作る
 function startStage(b, def, st) {
   const F = st.field ? FIELDS[st.field] : null; // 外の 作業場（座標は お店の 中と 同じ）
@@ -5637,6 +5815,7 @@ function nextRound() {
   if (def.layout === 'cafe') return startCafe(b, def);
   if (def.layout === 'care') return startCare(b, def);
   if (def.layout === 'library') return startLibrary(b, def);
+  if (def.layout === 'kakizome') return startKakizome(b, def);
   if (CLEAN_LAYOUTS[def.layout]) return startCleaning(b, def);
   if (STAGES[b.job.work]) return startStage(b, def, STAGES[b.job.work]);
   def.items.forEach((spec, idx) => {
@@ -7470,6 +7649,7 @@ const SFX = {
   person() { tone(880, 0.25, { vol: 0.15 }); tone(1320, 0.35, { vol: 0.13, at: 0.1 }); }, // ポロン（お客さま・利用者さんに わたす）
   wipe() { hiss(0.12, { f: 1400, q: 0.8, vol: 0.12, attack: 0.03 }); }, // キュッ（ふく）
   snow() { hiss(0.18, { filter: 'lowpass', f: 1300, to: 500, vol: 0.32, attack: 0.01 }); }, // ザッ（雪を どける）
+  brush() { hiss(0.45, { filter: 'lowpass', f: 1100, to: 450, vol: 0.2, attack: 0.06 }); }, // スーッ（筆で 書く）
   bump() { tone(120, 0.12, { vol: 0.35 }); hiss(0.06, { filter: 'lowpass', f: 600, vol: 0.4 }); }, // ゴツン
   pop() { tone(660, 0.1, { vol: 0.2 }); }, // ポン（ほかに 合う 音が ない とき）
   horn() { [147, 185].forEach((f) => tone(f, 0.9, { type: 'triangle', vol: 0.22, attack: 0.08 })); }, // ボーッ（汽笛・ブリッジへの 連絡）
@@ -7508,6 +7688,8 @@ function sfxKind(slot) {
   if (lay === 'planting') return { helmet: 'plastic', water: 'water', can: 'water', pole: 'wood', wrap: 'cloth', tie: 'rope', gum: 'tape', jute: 'metal', shake: 'wood' }[id] || 'soil';
   if (lay === 'nursery') return id === 'water' ? 'water' : 'soil';
   if (lay === 'library') return LIB.genres[id] ? 'wood' : 'book';
+  if (lay === 'kakizome' && (/^c\d$/.test(id) || id === 'name')) return 'brush';
+  if (lay === 'kakizome' && id === 'post') return 'paper';
   if (lay === 'stock') return 'cardboard';
   if (lay === 'fishing') return id === '網' ? 'rope' : id === 'はずす' ? 'fish' : 'water';
   if (lay === 'ferry') return { vest: 'cloth', rope: 'rope', horn: 'horn', ring: 'plastic', gloves: 'cloth', chip: 'ice', sand: 'soil', water: 'water', binoc: 'plastic' }[id] || 'beep';
