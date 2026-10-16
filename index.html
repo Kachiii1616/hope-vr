@@ -1156,6 +1156,22 @@ rig.add(camera);
 const whiteout = new THREE.Mesh(new THREE.SphereGeometry(0.2, 16, 12), new THREE.MeshBasicMaterial({ color: '#ffffff', side: THREE.BackSide, transparent: true, opacity: 0, depthTest: false, depthWrite: false, fog: false }));
 whiteout.renderOrder = 9999; whiteout.visible = false; whiteout.frustumCulled = false;
 camera.add(whiteout);
+// 双眼鏡を のぞいた ときの 視界（2 つの 丸い 穴の ほかは 黒い 板。カメラの 目の 前に つけるので VR でも 見える）
+const binocMask = (() => {
+  const cv = document.createElement('canvas'); const tex = new THREE.CanvasTexture(cv);
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0, depthTest: false, depthWrite: false, fog: false }));
+  m.renderOrder = 9998; m.visible = false; m.frustumCulled = false; m.position.z = -0.1; camera.add(m);
+  m.userData.draw = (aspect) => { // 画面の 縦横に あわせて 描く（穴が つぶれて 楕円に ならないように）
+    const h = 512; const w = Math.round(h * Math.max(0.5, Math.min(3, aspect))); if (cv.width === w && cv.height === h) return; cv.width = w; cv.height = h;
+    const c = cv.getContext('2d'); c.fillStyle = '#05080a'; c.fillRect(0, 0, w, h);
+    const r = Math.min(h * 0.42, w * 0.27); c.globalCompositeOperation = 'destination-out';
+    [-1, 1].forEach((sd) => { const x = w / 2 + sd * r * 0.62; const g = c.createRadialGradient(x, h / 2, r * 0.82, x, h / 2, r);
+      g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(1, 'rgba(0,0,0,0)'); c.fillStyle = g; c.beginPath(); c.arc(x, h / 2, r, 0, Math.PI * 2); c.fill(); });
+    c.globalCompositeOperation = 'source-over';
+    tex.needsUpdate = true;
+  };
+  return m;
+})();
 
 scene.add(new THREE.HemisphereLight('#ffffff', '#8aa07a', 0.62));
 const sun = new THREE.DirectionalLight('#fff4e0', 0.72);
@@ -4396,6 +4412,41 @@ function ferryFloe() { // 見張りで 見つける 大きな 流氷（アザラ
   [-1, 1].forEach((sd) => part(seal, ball(0.035, 6, 5), '#1f2a33', 0.92, 0.48, sd * 0.09));
   return g;
 }
+// 双眼鏡を のぞく 動き：持ちあげる（0.55 秒）→ 黒い 視界に なり、流氷の 方へ 向いて ズーム → 少し ゆれながら 見る → おろして もとの 向きへ
+//   VR では 向きと ズームは かえられない（頭の 向きは 本人の もの）ので、視界の 形だけ 出す
+let binocView = null;
+function startBinocView(def, target, onRaised, onDone) {
+  const xr = renderer.xr.isPresenting; const fov0 = camera.fov;
+  const tp = rig.worldToLocal(target.getWorldPosition(new THREE.Vector3())).sub(camera.position);
+  let dy = Math.atan2(-tp.x, -tp.z) - look.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); // いちばん 近い まわりかたで 向く
+  const T = reduceMotion ? [0.55, 0.05, 0.05, 1.8, 0.05] : [0.55, 0.3, 0.8, 1.8, 0.6]; // 持ちあげ・暗く なる・向いて ズーム・見る・おろす
+  binocView = { def, xr, fov0, zoom: fov0 / 3.2, y0: look.yaw, p0: look.pitch, y1: look.yaw + dy, p1: Math.atan2(-tp.y, Math.hypot(tp.x, tp.z)) - 0.02,
+    T, t0: performance.now(), onRaised, onDone, raised: false };
+  binocMask.userData.draw(xr ? 2 : camera.aspect);
+}
+function endBinocView(done) {
+  const v = binocView; if (!v) return; binocView = null;
+  binocMask.visible = false; binocMask.material.opacity = 0;
+  if (!v.xr) { camera.fov = v.fov0; camera.updateProjectionMatrix(); look.yaw = v.y0; look.pitch = v.p0; }
+  if (done && v.onDone) v.onDone();
+}
+function stepBinoc(now) {
+  const v = binocView; if (!v) return;
+  if (!state.round || state.round.def !== v.def) { endBinocView(false); return; } // とちゅうで やめた とき
+  const [a, b, c, d, e] = v.T; const t = (now - v.t0) / 1000; const sm = (u) => { u = Math.min(1, Math.max(0, u)); return u * u * (3 - 2 * u); };
+  if (t < a) return; // まだ 持ちあげて いる
+  if (!v.raised) { v.raised = true; if (v.onRaised) v.onRaised(); }
+  const dark = sm((t - a) / b) * (1 - sm((t - a - b - c - d) / e)); // 視界の 濃さ
+  const z = sm((t - a - b) / c) * (1 - sm((t - a - b - c - d) / e)); // 向きと ズーム
+  binocMask.visible = dark > 0.001; binocMask.material.opacity = dark;
+  if (!v.xr) {
+    const fov = v.fov0 + (v.zoom - v.fov0) * z; camera.fov = fov; camera.updateProjectionMatrix();
+    const h = 2 * 0.1 * Math.tan(fov * Math.PI / 360) * 1.04; binocMask.scale.set(h * camera.aspect, h, 1); // いつも 画面 いっぱい
+    const sway = reduceMotion ? 0 : z * 0.004; // 手で 持って いる ゆれ
+    look.yaw = v.y0 + (v.y1 - v.y0) * z + Math.sin(now / 430) * sway; look.pitch = v.p0 + (v.p1 - v.p0) * z + Math.sin(now / 310 + 1) * sway * 0.7;
+  } else binocMask.scale.set(0.5, 0.25, 1); // VR：目の 前 0.1m に 横 0.5m（視野を おおう）
+  if (t > a + b + c + d + e) endBinocView(true);
+}
 function startFerry(b, def) {
   const F = FIELDS.ferry; const W = F.work; const D = F.D; const slots = []; const stage = def.stage;
   F.g.visible = true;
@@ -4500,12 +4551,15 @@ function startFerry(b, def) {
     state.round = { def, slots, pos: 0, lastActionAt: performance.now(), hintShown: false, mistakeThisRound: false,
       onPick(slot, ok) {
         if (!ok) { flashWrong(slot); return; }
-        if (slot.key === 'binoc') { // 目の 前に 持ちあげて 海を 見る
+        if (slot.key === 'binoc') { // 目の 前に 持ちあげて のぞく → 流氷の 方へ 向いて ズーム → おろす（startBinocView）
           if (bs.tag) bs.tag.visible = false; st.looked = true;
           anims.push({ kind: 'box', obj: bs.holder, from: bs.holder.position.clone(), to: new THREE.Vector3(stand[0] + 0.1, D + 1.45, stand[1] - 0.35), t0: performance.now() });
-          setTimeout(() => { if (state.round && state.round.def === def) { bs.holder.visible = false; big.visible = true; } }, 700);
-          state.feedback = { text: '大きな 流氷が 見えた！', kind: 'ok' };
-          if (state.withSupport) setTimeout(() => speak('大きな 流氷が 見えました。どちらの 方向か、ブリッジに 報告しましょう。'), 900);
+          big.visible = true;
+          startBinocView(def, big, () => { bs.holder.visible = false; }, () => {
+            state.feedback = { text: '大きな 流氷が 見えた！ どちらの 方向か 報告しよう', kind: 'ok' }; renderHud();
+            if (state.withSupport) speak('大きな 流氷が 見えました。どちらの 方向か、ブリッジに 報告しましょう。');
+          });
+          state.feedback = { text: '双眼鏡で 海を 見ています…', kind: '' };
           renderHud(); return;
         }
         playSfx('horn'); say('ブリッジ：了解。流氷を よけて 進みます', new THREE.Vector3(px, D + 1.9, pz)); state.round.finishWait = 1900;
@@ -7400,6 +7454,7 @@ function drawWorkBoard() {
 function onSelectItem(slotIndex) {
   const r = state.round; if (!r || state.phase !== 'work') return;
   const slot = r.slots[slotIndex]; if (!slot || slot.done) return;
+  if (binocView) return; // 双眼鏡を のぞいて いる あいだは えらばない（おろしてから）
   r.lastActionAt = performance.now();
   playSfx(sfxKind(slot)); // さわった 物の 音（正しくても まちがいでも）
   // まだ えらべない とき（釣りで あたりの 前 など）は ミスに しないで 声かけだけ
@@ -8627,6 +8682,7 @@ renderer.setAnimationLoop((now) => {
   else if (whiteout.visible) whiteout.visible = false;
   const WF = FIELDS.wind; if (WF && WF.pendingHide && (!tween || (tween.fade && tween.snapped))) { WF.pendingHide = false; WF.g.visible = false; hillMills.forEach((m) => { m.visible = true; }); }
   const SF = FIELDS.snow; if (SF && SF.pendingHide && (!tween || (tween.fade && tween.snapped))) { SF.pendingHide = false; SF.g.visible = false; }
+  stepBinoc(now);
   if (!renderer.xr.isPresenting) { camera.rotation.y = look.yaw; camera.rotation.x = -look.pitch; }
   walkStep(dt);
   stepFurn(dt);
