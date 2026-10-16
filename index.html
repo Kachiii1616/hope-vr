@@ -2419,14 +2419,60 @@ const ITEM_MODELS = {
 };
 
 // 人（カフェの お客さま・介護施設の 利用者）
-function person(bodyColor, legColor, nameTag) {
+//   イラスト風：大きめの 頭・黒目に 白い ひかり・ピンクの ほっぺ・にっこり 口・ななめの 前髪・白い えり・V ネックの セーター。
+//   正面は +z。hair は 'bob'（肩までの ボブ）か 'short'（みじかい 髪）。書かなければ 服の 色で きめる（町の 人が ばらけるように）。
+const PERSON_SKIN = '#f3dbc8';
+const PERSON_LINE = '#3a2c27';
+const personLineMat = new THREE.MeshBasicMaterial({ color: PERSON_LINE, side: THREE.BackSide });
+// 輪郭線（うら面だけ 少し 大きく かさねる）
+const PERSON_BODY = new THREE.LatheGeometry([[0, 0.09], [0.066, 0.09], [0.064, 0.15], [0.058, 0.19], [0.046, 0.212], [0.022, 0.226], [0, 0.229]].map(([x, y]) => new THREE.Vector2(x, y)), 24);
+function personLine(m, k) { const o = new THREE.Mesh(m.geometry, personLineMat); o.scale.setScalar(1 + (k || 0.08)); m.add(o); return m; }
+function person(bodyColor, legColor, nameTag, hair) {
   const g = new THREE.Group();
-  part(g, cyl(0.05, 0.055, 0.11, 16), legColor, 0, 0.055, 0);
-  part(g, cyl(0.055, 0.065, 0.14, 16), bodyColor, 0, 0.18, 0);
-  part(g, ball(0.05, 18, 14), '#f1c9a5', 0, 0.3, 0);
-  part(g, new THREE.SphereGeometry(0.053, 18, 10, 0, TAU, 0, Math.PI / 2), nameTag ? '#d8d8d8' : '#3b2a20', 0, 0.305, -0.004);
-  [-1, 1].forEach((sd) => { const arm = part(g, cyl(0.016, 0.016, 0.12, 10), bodyColor, sd * 0.07, 0.18, 0.005); arm.rotation.z = sd * 0.15; });
-  if (nameTag) part(g, box(0.06, 0.03, 0.004), '#ffffff', 0, 0.2, 0.062);
+  const hairColor = nameTag ? '#d8d8d8' : '#3d2c26';
+  if (!hair) hair = [...bodyColor].reduce((a, c) => a + c.charCodeAt(0), 0) % 2 ? 'bob' : 'short';
+  // 足と くつ
+  [-1, 1].forEach((sd) => {
+    personLine(part(g, cyl(0.021, 0.019, 0.085, 12), legColor, sd * 0.024, 0.05, 0), 0.12);
+    personLine(part(g, ball(0.022, 12, 8), PERSON_LINE, sd * 0.024, 0.008, 0.008), 0.05).scale.set(1, 0.5, 1.35);
+  });
+  // セーター（すそ広がりで 肩は なだらか）
+  personLine(part(g, PERSON_BODY, bodyColor, 0, 0, 0), 0.05).scale.z = 0.86;
+  // うで と 手
+  [-1, 1].forEach((sd) => {
+    const arm = personLine(part(g, cyl(0.017, 0.019, 0.11, 10), bodyColor, sd * 0.066, 0.16, 0.004), 0.12); arm.rotation.z = sd * 0.16;
+    personLine(part(g, ball(0.017, 10, 8), PERSON_SKIN, sd * 0.075, 0.1, 0.006), 0.1);
+  });
+  // 首と 白い えり（V の 形）
+  personLine(part(g, cyl(0.015, 0.016, 0.04, 12), PERSON_SKIN, 0, 0.225, 0), 0.15);
+  const neck = new THREE.Group(); neck.position.set(0, 0.214, 0.036); neck.rotation.x = -0.75; g.add(neck); // 胸の ななめに そわせる
+  part(neck, box(0.024, 0.024, 0.004), PERSON_SKIN, 0, -0.004, 0).rotation.z = Math.PI / 4;
+  [-1, 1].forEach((sd) => {
+    const flap = new THREE.Group(); flap.position.set(sd * 0.015, 0, 0.003); flap.rotation.z = -sd * 0.45; neck.add(flap); // 先が 下の まん中を 向く 三角
+    personLine(part(flap, cyl(0.016, 0.016, 0.004, 3), '#fffdf7', 0, -0.006, 0), 0.25).rotation.x = Math.PI / 2;
+  });
+  if (nameTag) part(g, box(0.05, 0.026, 0.004), '#ffffff', 0, 0.168, 0.066);
+  // 頭（体より 大きめ）
+  const H = 0.29; const R = 0.064;
+  personLine(part(g, ball(R, 24, 18), PERSON_SKIN, 0, H, 0), 0.05);
+  [-1, 1].forEach((sd) => personLine(part(g, ball(0.012, 10, 8), PERSON_SKIN, sd * 0.062, H - 0.006, -0.004), 0.12).scale.set(0.6, 1, 0.9));
+  // 目（黒目と 白い ひかり）・ほっぺ・口
+  [-1, 1].forEach((sd) => {
+    part(g, ball(0.0078, 12, 10), '#2e2420', sd * 0.022, H - 0.002, 0.059).scale.set(1, 1.3, 0.6);
+    part(g, ball(0.0032, 8, 6), '#ffffff', sd * 0.022 + 0.003, H + 0.0045, 0.0635);
+    part(g, ball(0.012, 12, 8), '#eaa3b5', sd * 0.039, H - 0.016, 0.0485).scale.set(1.35, 0.8, 0.35);
+  });
+  const mouth = part(g, new THREE.TorusGeometry(0.015, 0.0024, 6, 16, Math.PI), PERSON_LINE, 0, H - 0.017, 0.0605); mouth.rotation.set(-0.3, 0, Math.PI); mouth.scale.y = 0.55;
+  // 髪：上の かぶり（前は ひたいの 上、うしろは えりあし まで）＋ ななめの 前髪
+  const top = part(g, new THREE.SphereGeometry(R + 0.006, 24, 12, 0, TAU, 0, Math.PI / 2), hairColor, 0, H, -0.002, { side: THREE.DoubleSide });
+  top.rotation.x = -0.42;
+  const bang = part(g, new THREE.SphereGeometry(R + 0.004, 24, 10, 0, TAU, 0, Math.PI * 0.36), hairColor, 0, H, 0, { side: THREE.DoubleSide });
+  bang.rotation.set(0.32, 0, 0.3);
+  if (hair === 'bob') {
+    // 肩の 上まで とどく ボブ（顔の 前は あける）
+    const side = part(g, new THREE.CylinderGeometry(R + 0.007, R + 0.017, 0.085, 28, 1, true, Math.PI * 0.3, Math.PI * 1.4), hairColor, 0, H - 0.028, -0.003, { side: THREE.DoubleSide });
+    side.scale.z = 0.95;
+  }
   return g;
 }
 
@@ -3311,9 +3357,8 @@ function trophyMesh(color, ghost) {
 }
 // 自分の 姿（家の 中）。性別は 髪型と 服だけに 使う
 function avatar(gender) {
-  const g = person(gender === 'f' ? '#e07fa4' : gender === 'm' ? '#3c7fc4' : '#4f9a45', '#3d4a54');
-  if (gender === 'f') { part(g, box(0.1, 0.1, 0.03), '#3b2a20', 0, 0.26, -0.045); part(g, cyl(0.06, 0.085, 0.09, 16), '#e07fa4', 0, 0.1, 0); }
-  if (gender === 'n') { part(g, cyl(0.056, 0.058, 0.03, 16), '#e3b23c', 0, 0.345, 0); part(g, box(0.07, 0.008, 0.05), '#e3b23c', 0, 0.333, 0.05); }
+  const g = person(gender === 'f' ? '#e4a3b4' : gender === 'm' ? '#9ebbdf' : '#a9cf9a', '#3d4a54', false, gender === 'f' ? 'bob' : 'short');
+  if (gender === 'n') { part(g, cyl(0.068, 0.07, 0.03, 20), '#e3b23c', 0, 0.36, -0.004); part(g, box(0.08, 0.008, 0.05), '#e3b23c', 0, 0.346, 0.06); }
   return g;
 }
 
@@ -4843,8 +4888,6 @@ function startCafe(b, def) {
     if (k === 'お客さま') {
       // 前の 台の 向こう（ふりかえった 先）。にこにこ 顔
       mesh = person('#c4577a', '#3d4a54');
-      part(mesh, ball(0.006, 8, 6), '#2b2b2b', -0.018, 0.31, 0.047); part(mesh, ball(0.006, 8, 6), '#2b2b2b', 0.018, 0.31, 0.047);
-      part(mesh, new THREE.TorusGeometry(0.016, 0.003, 6, 12, Math.PI), '#9a3b3b', 0, 0.292, 0.047).rotation.z = Math.PI;
       mesh.scale.setScalar(4.6); holder.position.set(0, 0.1, COUNTER_Z + 0.8); holder.rotation.y = Math.PI; ringScale = 2.2; labelY = 1.85;
     } else if (k === '氷') {
       // 台の 手前に 下げた 氷の 箱（スコップ つき）
@@ -5047,7 +5090,7 @@ Object.assign(SM, {
   skatePair(n) { const g = new THREE.Group(); // 1 足（刃を 横に 見せる。見る がわが +z）。手前の くつに サイズの 札
     [[0.03, -0.06], [0, 0.06]].forEach(([dx, dz]) => { const s = SHAPE_MODELS.skate({ color: n < 23 ? '#e07fa4' : '#3c7fc4' }); s.scale.setScalar(1.6); s.rotation.y = Math.PI / 2; s.position.set(dx, 0, dz); g.add(s); });
     const t = textPlate(String(n), 0.08, 0.055, '#ffffff', '#1f2a33'); t.position.set(0, 0.2, 0.125); g.add(t); return g; },
-  guest(c) { const g = person(c || '#c4577a', '#3d4a54'); part(g, ball(0.006, 8, 6), '#2b2b2b', -0.018, 0.31, 0.047); part(g, ball(0.006, 8, 6), '#2b2b2b', 0.018, 0.31, 0.047); g.scale.setScalar(4.6); return g; },
+  guest(c) { const g = person(c || '#c4577a', '#3d4a54'); g.scale.setScalar(4.6); return g; },
 });
 // スキー場の レンタル：板（名前・注文書の 希望・色・長さ）と 受付の 場所（立つ z・ブーツの たな・3 だんの 高さ・板たての x）
 const SKI_BOARDS = [['短い板', '短い', '#e0662f', 0.95], ['中くらいの板', '中くらい', '#4f9a45', 1.12], ['長い板', '長い', '#3c7fc4', 1.3]];
@@ -6141,8 +6184,6 @@ function startRegister(b, def) {
   // お客さま（台の 向こう）
   const guest = new THREE.Group(); guest.position.set(REGI.guest[0], 0.1, REGI.guest[1]); guest.rotation.y = Math.PI; W.add(guest);
   const gm = person('#e3a33c', '#3d4a54');
-  part(gm, ball(0.006, 8, 6), '#2b2b2b', -0.018, 0.31, 0.047); part(gm, ball(0.006, 8, 6), '#2b2b2b', 0.018, 0.31, 0.047);
-  part(gm, new THREE.TorusGeometry(0.016, 0.003, 6, 12, Math.PI), '#9a3b3b', 0, 0.292, 0.047).rotation.z = Math.PI;
   gm.scale.setScalar(4.6); guest.add(gm);
   // わたす ところは お客さまの 体（はんけい 約 0.3）より 手前。袋（おく行き 0.26）が 体に くっつかない よう 0.65 はなす
   const hand = new THREE.Vector3(REGI.guest[0], 1.0, REGI.guest[1] - 0.65);
