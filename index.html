@@ -761,11 +761,13 @@ function registerRound() {
   };
 }
 
-// ---- 書き初め（学校の 冬）：教室の 机に 道具を ならべ、お手本を 見て「謹賀新年」を 上から 順に 書き、左に 名前、入口がわの けいじ板に はる。
+// ---- 書き初め（学校の 冬）：教室の 机に 道具を ならべ、お手本を 見て 4 文字の 言葉を 上から 順に 書き、左に 名前、入口がわの けいじ板に はる。
+//   言葉は 回ごとに かわる（1 回めは「謹賀新年」、2 回めからは KAKI.words から かさならないように）
 //   2 回めからは 新聞紙・下じき・すずりは 机に 出した まま、新しい 半紙で 書く。はった 作品は 体験の あとも 教室に のこる（startKakizome）
 //   座標は お店の 中（店員から 見て 左が +x、奥が +z）。sheet・board の w・h は m
 const KAKI = {
-  text: ['謹', '賀', '新', '年'],
+  first: '謹賀新年',
+  words: ['初日の出', '希望の春', '新春の夢', '明るい心', '元気な体', '花と小鳥', '笑顔の花'], // 2 回めから えらぶ（どれも 4 文字。半紙の 字の ならびは 4 文字で きめて ある）
   stand: [0, 0.9], pitch: 0.55,
   desk: { z: 1.8, w: 1.3, d: 0.9, top: 0.78 }, table: { z: 2.75, top: 0.78 },
   sheet: { x: 0, z: 1.8, w: 0.26, h: 0.68 },
@@ -775,14 +777,16 @@ const KAKI = {
   font: '"Yuji Syuku", "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", serif',
 };
 function kakizomeRound() {
-  const first = !(state.session && state.session.kakiSetup);
+  const s = state.session; const first = !(s && s.kakiSetup);
+  if (s && !s.kakiWords) s.kakiWords = [KAKI.first].concat(shuffle(KAKI.words)); // この 体験で 書く 言葉の 順番
+  const word = s ? s.kakiWords[s.roundIndex % s.kakiWords.length] : KAKI.first; const text = [...word];
   const tools = first ? ['新聞紙', '下じき', '半紙', '文鎮', 'すずり', '筆', 'クレヨン'] : ['半紙', '文鎮', '筆', 'クレヨン'];
   const items = tools.map((label) => ({ label }))
-    .concat(KAKI.text.map((ch, k) => ({ label: '', id: 'c' + k, ch, name: '「' + ch + '」を 書く' })),
+    .concat(text.map((ch, k) => ({ label: '', id: 'c' + k, ch, name: '「' + ch + '」を 書く' })),
       [{ label: '', id: 'name', name: 'お手本の「名前」を 見て 名前を 書く' }, { label: '', id: 'post', name: 'けいじ板に はる' }]);
   return {
-    title: (first ? '道具を ならべて、' : '新しい 半紙で、') + 'お手本を 見ながら「謹賀新年」と 書き、名前を 書いて けいじ板に かざる', shortTitle: '書き初めを 書いて かざる',
-    items, need: tools.filter((t) => t !== 'クレヨン').concat(['c0', 'c1', 'c2', 'c3', 'name', 'post']), ordered: true, layout: 'kakizome', first,
+    title: (first ? '道具を ならべて、' : '新しい 半紙で、') + 'お手本を 見ながら「' + word + '」と 書き、名前を 書いて けいじ板に かざる', shortTitle: '「' + word + '」を 書いて かざる',
+    items, need: tools.filter((t) => t !== 'クレヨン').concat(text.map((ch, k) => 'c' + k), ['name', 'post']), ordered: true, layout: 'kakizome', first, word, text,
   };
 }
 
@@ -874,7 +878,7 @@ const WINTER = {
   },
   school: {
     work: '書き初め', rounds: 3,
-    intro: '道具を 決まった 順番で 机に ならべ、お手本を 見ながら 半紙に「謹賀新年」と 上から 順に 書きます。左の 下に 名前を 書いたら、教室の けいじ板に はって かざります。',
+    intro: '道具を 決まった 順番で 机に ならべ、お手本を 見ながら 半紙に 4 文字の 言葉を 上から 順に 書きます（言葉は 回ごとに かわります）。左の 下に 名前を 書いたら、教室の けいじ板に はって かざります。',
     defect: '道具の 順番・字の 順番の まちがい（上から 順に 書く）',
     round() { return kakizomeRound(); },
   },
@@ -5721,7 +5725,7 @@ function startKakizome(b, def) {
   const paintSheet = () => sheet.draw((c, w, h) => {
     c.fillStyle = '#fbfaf4'; c.fillRect(0, 0, w, h);
     const L = kakiLayout(w, h, 0.05); c.textAlign = 'center'; c.textBaseline = 'middle'; c.shadowColor = 'rgba(20,16,12,0.45)'; c.shadowBlur = 2;
-    c.fillStyle = '#16120f'; K.text.forEach((t, k) => kakiInk(c, t, L.x, L.y(k), L.S, prog[k]));
+    c.fillStyle = '#16120f'; def.text.forEach((t, k) => kakiInk(c, t, L.x, L.y(k), L.S, prog[k]));
     kakiName(c, L, name, nameU, '#16120f');
   });
   paintSheet();
@@ -5745,7 +5749,7 @@ function startKakizome(b, def) {
   const paintTehon = () => tehon.draw((c, w, h) => {
     c.fillStyle = '#fffaf0'; c.fillRect(0, 0, w, h); c.strokeStyle = '#c8463d'; c.lineWidth = 6; c.strokeRect(3, 3, w - 6, h - 6);
     c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = '#c8463d'; c.font = '700 ' + Math.round(w * 0.12) + 'px ' + FONT_BODY; c.fillText('お手本', w / 2, h * 0.055);
-    const L = kakiLayout(w, h, 0.11); c.fillStyle = '#16120f'; K.text.forEach((t, k) => kakiInk(c, t, L.x, L.y(k), L.S, 1));
+    const L = kakiLayout(w, h, 0.11); c.fillStyle = '#16120f'; def.text.forEach((t, k) => kakiInk(c, t, L.x, L.y(k), L.S, 1));
     kakiName(c, L, '名前', 1, '#9aa4ab');
   });
   paintTehon();
@@ -5757,7 +5761,7 @@ function startKakizome(b, def) {
     ring.renderOrder = 9; ring.visible = false; g.add(ring); return ring;
   };
   const TL = kakiLayout(TW, TH, 0.11);
-  K.text.forEach((t, k) => {
+  def.text.forEach((t, k) => {
     const idx = def.items.findIndex((it) => it.id === 'c' + k);
     const holder = new THREE.Group(); holder.position.set(TL.x - TW / 2, TH / 2 + 0.03 + (TH / 2 - TL.y(k)), 0.016); tilt.add(holder);
     const hit = new THREE.Mesh(new THREE.PlaneGeometry(TW * 0.8, TL.S * 1.05), invis()); hit.userData.slotIndex = idx; holder.add(hit);
@@ -5808,7 +5812,7 @@ function startKakizome(b, def) {
       if (k === 'クレヨン') return 'クレヨンは 使いません。書き初めは 筆と すみで 書きます';
       if (r.pos < c0) return 'さきに 道具を じゅんばんに ならべよう（' + def.need.slice(0, c0).join(' → ') + '）';
       if (/^c\d$/.test(k)) return 'お手本の 字を 上から 順に 書こう';
-      if (k === 'name') return '名前は「謹賀新年」を ぜんぶ 書いてから、お手本の 左の 下の「名前」を えらびます';
+      if (k === 'name') return '名前は「' + def.word + '」を ぜんぶ 書いてから、お手本の 左の 下の「名前」を えらびます';
       if (k === 'post') return '名前まで 書いてから はろう';
       return null;
     },
@@ -5830,7 +5834,7 @@ function startKakizome(b, def) {
       else if (k === 'post') post();
     } };
   state.round = r;
-  if (document.fonts && document.fonts.load) document.fonts.load('400 64px "Yuji Syuku"', '謹賀新年名前' + name).then(() => { paintTehon(); paintSheet(); }).catch(() => {}); // 筆の 字の フォントが 届いたら 描きなおす
+  if (document.fonts && document.fonts.load) document.fonts.load('400 64px "Yuji Syuku"', def.word + '名前' + name).then(() => { paintTehon(); paintSheet(); }).catch(() => {}); // 筆の 字の フォントが 届いたら 描きなおす
   moveRig(b.group.localToWorld(new THREE.Vector3(K.stand[0], 0, K.stand[1])), b.yaw + Math.PI, K.pitch, s.roundIndex ? 500 : undefined); // 机の 上・奥の 台・お手本が 見えるように 下を 向く
   state.feedback = { text: '', kind: '' };
   drawWorkBoard(); renderHud();
