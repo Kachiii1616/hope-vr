@@ -2456,8 +2456,8 @@ function chestPatch(pts, off) {
 const NECK_Y = 0.222; // 首の つけね
 const PERSON_HEAD_Y = 0.287; // 頭の 中心（あごが えりもとに のる 高さ。首は ほとんど 見せない）
 const PERSON_HEAD_R = 0.066;
-const PERSON_NECK_V = chestPatch([[-0.016, NECK_Y], [0.016, NECK_Y], [0, NECK_Y - 0.036]], 0.0015);
-const PERSON_COLLAR = [-1, 1].map((sd) => chestPatch([[sd * 0.016, NECK_Y], [sd * 0.026, NECK_Y], [sd * 0.041, NECK_Y - 0.014], [sd * 0.009, NECK_Y - 0.044], [sd * 0.002, NECK_Y - 0.032]], 0.003));
+const PERSON_NECK_V = chestPatch([[-0.0125, NECK_Y], [0.0125, NECK_Y], [0, NECK_Y - 0.022]], 0.0015);
+const PERSON_COLLAR = [-1, 1].map((sd) => chestPatch([[sd * 0.0125, NECK_Y], [sd * 0.02, NECK_Y], [sd * 0.03, NECK_Y - 0.009], [sd * 0.0065, NECK_Y - 0.03], [sd * 0.0015, NECK_Y - 0.021]], 0.003));
 function person(bodyColor, legColor, nameTag, hair) {
   const g = new THREE.Group();
   const hairColor = nameTag ? '#d8d8d8' : '#3d2c26';
@@ -2484,7 +2484,7 @@ function person(bodyColor, legColor, nameTag, hair) {
   part(g, PERSON_NECK_V, '#e3b89c', 0, 0, 0, { side: THREE.DoubleSide }); // あごの かげに なる ので 少し こく
   // 首の つけねの 前（上から 見ても V と えりが 首まで つづく）
   [[-0.62, 1.24, '#e3b89c'], [0.62, 0.48, '#ffffff'], [-1.1, 0.48, '#ffffff']].forEach(([a0, len, c]) => {
-    part(g, new THREE.CylinderGeometry(0.0175, 0.0295, 0.0045, 6, 1, true, a0, len), c, 0, NECK_Y + 0.0022, 0, { side: THREE.DoubleSide }).scale.z = PERSON_DEPTH;
+    part(g, new THREE.CylinderGeometry(0.0165, 0.0235, 0.0045, 6, 1, true, a0, len), c, 0, NECK_Y + 0.0022, 0, { side: THREE.DoubleSide }).scale.z = PERSON_DEPTH;
   });
   PERSON_COLLAR.forEach((geo) => part(g, geo, '#ffffff', 0, 0, 0, { side: THREE.DoubleSide }));
   if (nameTag) part(g, box(0.05, 0.026, 0.004), '#ffffff', 0, 0.162, 0.058);
@@ -2508,9 +2508,9 @@ function person(bodyColor, legColor, nameTag, hair) {
   const bang = part(g, new THREE.SphereGeometry(R + 0.004, 36, 12, 0, TAU, 0, Math.PI * 0.36), hairColor, 0, H, 0, { side: THREE.DoubleSide });
   bang.rotation.set(0.32, 0, 0.3);
   if (hair === 'bob') {
-    // あごの 下まで とどく 丸い ボブ（すそは 内まき。顔の 前は あける）
-    const side = part(g, new THREE.SphereGeometry(R + 0.009, 36, 16, Math.PI * 0.82, Math.PI * 1.36, Math.PI * 0.22, Math.PI * 0.56), hairColor, 0, H - 0.004, -0.002, { side: THREE.DoubleSide });
-    side.scale.set(1.04, 1.12, 1);
+    // あごの 下まで とどく 丸い ボブ（すそは 内まき。顔の 前は あける）。頭の てっぺんから 1 まいで かぶせて、上の かぶりと すきまを つくらない
+    const side = part(g, new THREE.SphereGeometry(R + 0.009, 36, 18, Math.PI * 0.82, Math.PI * 1.36, 0, Math.PI * 0.78), hairColor, 0, H - 0.01, -0.002, { side: THREE.DoubleSide });
+    side.scale.set(1.03, 1.1, 1);
   }
   return g;
 }
