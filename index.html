@@ -2510,16 +2510,16 @@ function person(bodyColor, legColor, nameTag, hair, look) {
     const n = new THREE.Vector3(x, y, onFace(x, y, 0)).normalize(); const grp = new THREE.Group();
     grp.position.copy(n).multiplyScalar(R).add(new THREE.Vector3(0, H, 0)); grp.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), n); g.add(grp); return grp;
   };
-  // 顔の 表面に そった 線（口・にっこり目）。fn(t) は t = -1〜1 で 正面から 見た (x, y)。線の 半分は 顔に うめる
-  const faceLine = (fn, r, color) => {
-    const pts = []; for (let i = 0; i <= 16; i++) { const [x, y] = fn(-1 + i / 8); pts.push(new THREE.Vector3(x, y, onFace(x, y, 0)).normalize().multiplyScalar(R + r * 0.3).add(new THREE.Vector3(0, H, 0))); }
+  // 顔の 表面に そった 線（口・にっこり目）。fn(t) は t = -1〜1 で 正面から 見た (x, y)。out は 線の 太さの うち 顔から 出す わりあい（のこりは 顔に うめて すきまを つくらない）
+  const faceLine = (fn, r, color, out) => {
+    const pts = []; for (let i = 0; i <= 16; i++) { const [x, y] = fn(-1 + i / 8); pts.push(new THREE.Vector3(x, y, onFace(x, y, 0)).normalize().multiplyScalar(R + r * (2 * out - 1)).add(new THREE.Vector3(0, H, 0))); }
     part(g, new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, r, 8), color, 0, 0, 0);
     [pts[0], pts[pts.length - 1]].forEach((q) => part(g, ball(r, 8, 6), color, q.x, q.y, q.z)); // 線の はしを 丸く
   };
   [-1, 1].forEach((sd) => {
     const ex = sd * 0.023; const ey = -0.011;
     if (look.eyes === 'smile') { // にっこり：上に まるい 線
-      faceLine((t) => [ex + 0.0085 * t, ey - 0.003 + 0.0065 * (1 - t * t)], 0.0022, '#2e2420');
+      faceLine((t) => [ex + 0.0085 * t, ey - 0.003 + 0.0065 * (1 - t * t)], 0.0022, '#2e2420', 0.85);
     } else if (look.eyes === 'dot') { // てん：小さな 黒目
       part(onSkin(ex, ey), ball(0.0058, 14, 10), '#2e2420', 0, 0, -0.001).scale.set(1, 1.15, 0.55);
     } else { // ひかりは 両目とも 黒目の 右上の 同じ ところ
@@ -2532,7 +2532,7 @@ function person(bodyColor, legColor, nameTag, hair, look) {
     ck.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(sd * 0.041, -0.025, onFace(sd * 0.041, -0.025, 0)).normalize());
   });
   // 口：顔に そった 小さな にっこり
-  faceLine((t) => [0.0095 * t, -0.028 - 0.0055 * (1 - t * t)], 0.0022, PERSON_INK);
+  faceLine((t) => [0.0095 * t, -0.028 - 0.0055 * (1 - t * t)], 0.0022, PERSON_INK, 0.75);
   // 髪：上の かぶり（前は ひたいの 上、うしろは えりあし まで）＋ ななめの 前髪
   const top = part(g, new THREE.SphereGeometry(R + 0.006, 36, 16, 0, TAU, 0, Math.PI / 2), hairColor, 0, H, -0.002, { side: THREE.DoubleSide });
   top.rotation.x = -0.42;
