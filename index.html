@@ -10198,7 +10198,8 @@ function buildRaceCourse() {
       pg.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(c, true), 80, 0.045, 6, true), cmat('#ffffff')));
       c.forEach((v, i) => { if (i % 3 === 0) put(box(0.07, 0.85, 0.07), '#ffffff', v.x, 0.42, v.z, pg); }); });
     [[-0.9, 0], [0.9, 0.4]].forEach(([dx, dz]) => { put(cyl(0.1, 0.14, 1.0, 8), '#7a5a3a', P.x + dx * 0.6, 0.5, P.z + dz); put(ball(0.6, 10, 8), '#4f8a3a', P.x + dx * 0.6, 1.4, P.z + dz); }); // まん中の 木
-    put(box(4.4, P.deckH, 1.6), '#b9ad98', P.x, P.deckH / 2, P.deck); [0.4, 0.8].forEach((hh, i) => put(box(1.2, hh, 0.35), '#b9ad98', P.x + 2.8, hh / 2, P.deck + 0.4 - i * 0.35)); // 台と 横の だん put(box(4.4, 0.06, 0.06), '#5a4a3a', P.x, P.deckH + 0.95, P.deck - 0.75); // 見る 台と 手すり
+    put(box(4.4, P.deckH, 1.6), '#b9ad98', P.x, P.deckH / 2, P.deck); [0.4, 0.8].forEach((hh, i) => put(box(1.2, hh, 0.35), '#b9ad98', P.x + 2.8, hh / 2, P.deck + 0.4 - i * 0.35)); // 見る 台と 横の だん
+    put(box(4.4, 0.06, 0.06), '#5a4a3a', P.x, P.deckH + 0.95, P.deck - 0.75); // 手すり
     [-2.1, 2.1].forEach((dx) => put(box(0.06, 0.95, 0.06), '#5a4a3a', P.x + dx, P.deckH + 0.48, P.deck - 0.75));
     const pn = kcPlate('パドック', 2.4, 0.45, '#2f7d4f', '#ffffff'); pn.position.set(P.x, 2.3, P.deck + 1.05); g.add(pn); // 広場から 見える 札
     const pn2 = pn.clone(); pn2.rotation.y = Math.PI; pn2.position.z = P.deck + 1.03; g.add(pn2);
