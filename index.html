@@ -11093,21 +11093,25 @@ const FERRIS_PRICE = 300;
 const ferrisExit = () => ({ pos: FERRIS.at.clone().add(new THREE.Vector3(0, 0, 5.2)), yaw: 0 }); // 小屋の 前（観覧車の 方を 向く）
 const isleNow = () => insideIsle(rig.position.x, rig.position.z) || rig.position.x < -100;
 function buildIsle() {
-  { // 海は こまかい 輪に して、島の 下は ぬく（島の 上から 見て 海が 地面に かぶらない ように）
-    const ring = new THREE.RingGeometry(0, 420, 128, 60).toNonIndexed(); const P0 = ring.attributes.position.array; const keep = [];
-    for (let i = 0; i < P0.length; i += 9) { const cx = (P0[i] + P0[i + 3] + P0[i + 6]) / 3; const cy = (P0[i + 1] + P0[i + 4] + P0[i + 7]) / 3; if (!insideIsle(cx, -cy)) for (let k = 0; k < 9; k++) keep.push(P0[i + k]); } // 輪は xy（回すと y → -z）
-    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(keep, 3)); g.computeVertexNormals(); sea.geometry.dispose(); sea.geometry = g;
+  { // 海は 島の 形どおりに 穴を あける（島の 上から 見て 海が 地面に かぶらない ように。岸の 砂の かべと ぴったり あわせる）
+    const s = new THREE.Shape(); s.absarc(0, 0, 420, 0, TAU, false);
+    s.holes.push(new THREE.Path(ISLE.poly.map(([x, z]) => new THREE.Vector2(ISLE.c.x + x, -(ISLE.c.z + z))))); // 輪は xy（回すと y → -z）
+    sea.geometry.dispose(); sea.geometry = new THREE.ShapeGeometry(s, 64);
   }
   const C = ISLE.c; const sh = (k) => { const s = new THREE.Shape(); ISLE.poly.forEach(([x, z], i) => { const X = C.x + x * k; const Y = -(C.z + z * k); if (i) s.lineTo(X, Y); else s.moveTo(X, Y); }); return s; };
-  // 横の 砂の かべだけ 押し出しで（上の 面は 大きな 三角に なるので、こまかい ます目で べつに 張る）
+  // 横の 砂の かべだけ 押し出しで（上の 面は 大きな 三角に なるので、こまかく わった 三角で べつに 張る）
   const land = new THREE.Mesh(new THREE.ExtrudeGeometry(sh(1), { depth: 1.2, bevelEnabled: false, curveSegments: 1 }), [new THREE.MeshBasicMaterial({ visible: false }), cmat('#dcc893')]); land.rotation.x = -Math.PI / 2; land.position.y = -1.2; scene.add(land);
-  const tile = (k, y, color) => { // 島の 形（中心から k 倍）の 中の ます目（2 m）
-    const S = 2; const xs = ISLE.poly.map(([x]) => x * k); const zs = ISLE.poly.map(([, z]) => z * k); const x0 = Math.min(...xs); const z0 = Math.min(...zs);
-    const nx = Math.ceil((Math.max(...xs) - x0) / S); const nz = Math.ceil((Math.max(...zs) - z0) / S); const pos = []; const inside = (x, z) => insideIsle(C.x + x / k, C.z + z / k);
-    for (let i = 0; i < nx; i++) for (let j = 0; j < nz; j++) {
-      const ax = x0 + i * S; const az = z0 + j * S; if (!inside(ax + S / 2, az + S / 2)) continue;
-      pos.push(ax, 0, az, ax, 0, az + S, ax + S, 0, az, ax + S, 0, az, ax, 0, az + S, ax + S, 0, az + S);
-    }
+  const tile = (k, y, color) => { // 島の 形（中心から k 倍）を そのまま 三角に わけて、長い 辺を 2 m 以下まで 半分に わって いく（岸は 砂の かべと ぴったり）
+    const S = 2; const pts = ISLE.poly.map(([x, z]) => new THREE.Vector2(x * k, z * k)); const pos = [];
+    const split = (a, b, c) => {
+      const ab = a.distanceTo(b); const bc = b.distanceTo(c); const ca = c.distanceTo(a); const L = Math.max(ab, bc, ca);
+      if (L <= S) { pos.push(a.x, 0, a.y, b.x, 0, b.y, c.x, 0, c.y); return; }
+      if (L === ab) { const m = a.clone().lerp(b, 0.5); split(a, m, c); split(m, b, c); } else if (L === bc) { const m = b.clone().lerp(c, 0.5); split(a, b, m); split(a, m, c); } else { const m = c.clone().lerp(a, 0.5); split(a, b, m); split(m, b, c); }
+    };
+    THREE.ShapeUtils.triangulateShape(pts, []).forEach(([i, j, l]) => {
+      const a = pts[i]; let b = pts[j]; let c = pts[l]; if ((b.y - a.y) * (c.x - a.x) - (b.x - a.x) * (c.y - a.y) < 0) [b, c] = [c, b]; // 上を 向く 向きに そろえる
+      split(a, b, c);
+    });
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.computeVertexNormals();
     const m = new THREE.Mesh(g, cmat(color)); m.position.set(C.x, y, C.z); scene.add(m); return m;
   };
