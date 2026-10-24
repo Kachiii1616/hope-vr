@@ -3401,8 +3401,47 @@ function avatar(gender) {
   return g;
 }
 
+// ---- 家の 段階。はじめは テント。お金（バッジのみ モードは バッジの 数）で 1 だんずつ 建てかえる
+//   中の 広さ・家具の 場所は どの 段階も 同じ。外の 見た目だけ かわる
+const HOME_LEVELS = [
+  { name: 'テント', price: 0, badges: 0, wall: '#f7efd8', roof: '#f07a32', floor: '#9aa58a', pin: '#e0662f' },
+  { name: '小屋', price: 1500, badges: 3, wall: '#c49565', roof: '#5b4636', floor: '#c9a27a', pin: '#8a6440' },
+  { name: '家', price: 4000, badges: 7, wall: '#f6efe2', roof: '#c8463d', floor: '#c9a27a', pin: '#c8463d' },
+  { name: '大きな 家', price: 8000, badges: 12, wall: '#f4f0e8', roof: '#3f5670', floor: '#b88a5e', pin: '#3f5670' },
+];
+// 段階が ない 記録（テントより 前に つくった 家）は「家」の まま
+const homeLv = () => (profile ? Math.min(HOME_LEVELS.length - 1, profile.homeLv === undefined ? 2 : profile.homeLv) : 0);
+const homeName = () => HOME_LEVELS[homeLv()].name;
+const nextHome = () => HOME_LEVELS[homeLv() + 1] || null;
+const homeCost = (L) => (profile.mode === 'money' ? yen(L.price) : 'バッジ ' + L.badges + 'こ');
+const homeCan = (L) => (profile.mode === 'money' ? profile.money >= L.price : badgeCount() >= L.badges);
+// 建てかえ（1 回めの ボタンで 確認、「建てかえる」で 決める）
+function askUpgrade() {
+  const L = nextHome(); if (!L) { toast('いちばん 大きな 家です'); return; }
+  if (!homeCan(L)) { toast(profile.mode === 'money' ? L.name + 'まで あと ' + yen(L.price - profile.money) : L.name + 'まで バッジ あと ' + (L.badges - badgeCount()) + 'こ'); return; }
+  home.upAsk = !home.upAsk; paintUpgrade(); renderHud();
+}
+function cancelUpgrade() { home.upAsk = false; paintUpgrade(); renderHud(); }
+function upgradeHome() {
+  const L = nextHome(); if (!L || !homeCan(L)) return false;
+  if (profile.mode === 'money') profile.money -= L.price;
+  profile.homeLv = homeLv() + 1; home.upAsk = false;
+  saveProfile(); buildHome(); renderWallet();
+  if (state.where === 'home') { const p = homeStand(); rig.position.copy(p); }
+  renderHud(); playSfx('coin'); toast(L.name + 'に 建てかえました！');
+  return true;
+}
+function paintUpgrade() {
+  const g = home.group; if (!g || !home.btns) return;
+  ['up', 'yes', 'no'].forEach((k) => { if (home.btns[k]) { g.remove(home.btns[k]); home.btns[k].material.map.dispose(); home.btns[k].material.dispose(); delete home.btns[k]; } });
+  const L = nextHome(); const x = -1.72; const z = -home.HD / 2 + 0.07;
+  const put = (k, m, y) => { m.position.set(x, y, z); m.scale.setScalar(0.8); g.add(m); home.btns[k] = m; };
+  if (!L) { put('up', makeButton('いちばん 大きな 家', '#9aa4ab', 0.66, 0.14), 2.4); return; }
+  if (home.upAsk) { put('yes', makeButton(L.name + 'に 建てかえる', '#e0662f', 0.66, 0.14), 2.4); put('no', makeButton('やめる', '#55626d', 0.66, 0.14), 2.18); return; }
+  put('up', makeButton('建てかえ：' + L.name + ' ' + homeCost(L), homeCan(L) ? '#e0662f' : '#9aa4ab', 0.66, 0.14), 2.4);
+}
 // ---- 家（外観と 中）。引っ越しの ときは 建てなおす
-const home = { group: null, site: null, door: null, front: null, yaw: 0, HD: 4.0, board: null, inner: null, plate: null, pin: null, btns: null, clickables: [] };
+const home = { upAsk: false, group: null, site: null, door: null, front: null, yaw: 0, HD: 4.0, board: null, inner: null, plate: null, pin: null, btns: null, clickables: [] };
 function buildHome() {
   if (home.group) { scene.remove(home.group); home.clickables.forEach((m) => { const k = plazaClickables.indexOf(m); if (k >= 0) plazaClickables.splice(k, 1); }); }
   if (home.pin) { scene.remove(home.pin); const k = overviewOnly.indexOf(home.pin); if (k >= 0) overviewOnly.splice(k, 1); }
@@ -3415,20 +3454,75 @@ function buildHome() {
   home.group = g; home.yaw = yaw; home.front = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
   home.door = g.position.clone().addScaledVector(home.front, HD / 2 + 1.2);
   const add = (geo, m, x, y, z, click) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); g.add(o); if (click) { o.userData.home = true; home.clickables.push(o); plazaClickables.push(o); } return o; };
-  const wall = () => mat('#f6efe2');
-  // 床・壁（入口と 窓）・屋根
-  add(new THREE.PlaneGeometry(HW, HD), mat('#c9a27a'), 0, 0.1, 0).rotation.x = -Math.PI / 2;
+  const lv = homeLv(); const L = HOME_LEVELS[lv]; const doorW = 1.2; const sideW = (HW - doorW) / 2;
+  const wall = () => mat(L.wall);
+  // 床・壁（入口と 窓）。中の 広さは どの 段階も 同じ（家具・掲示板の 場所を かえない）
+  add(new THREE.PlaneGeometry(HW, HD), mat(L.floor), 0, 0.1, 0).rotation.x = -Math.PI / 2;
   add(new THREE.BoxGeometry(HW, WH, 0.1), wall(), 0, WH / 2, -HD / 2, true);
   [-1, 1].forEach((sd) => add(new THREE.BoxGeometry(0.1, WH, HD), wall(), sd * HW / 2, WH / 2, 0, true));
-  const doorW = 1.2; const sideW = (HW - doorW) / 2;
   [-1, 1].forEach((sd) => {
     add(new THREE.BoxGeometry(sideW, WH, 0.1), wall(), sd * (doorW / 2 + sideW / 2), WH / 2, HD / 2, true);
-    add(new THREE.PlaneGeometry(0.9, 0.7), mat('#bfe3f2', { emissive: '#3d6f85', emissiveIntensity: 0.15 }), sd * (doorW / 2 + sideW / 2), 1.5, HD / 2 + 0.055);
+    if (lv === 0) add(new THREE.PlaneGeometry(0.7, 0.5), mat('#5d6a5a', { transparent: true, opacity: 0.85 }), sd * (doorW / 2 + sideW / 2), 1.6, HD / 2 + 0.055); // あみ窓
+    else add(new THREE.PlaneGeometry(lv === 1 ? 0.6 : 0.9, lv === 1 ? 0.5 : 0.7), mat('#bfe3f2', { emissive: '#3d6f85', emissiveIntensity: 0.15 }), sd * (doorW / 2 + sideW / 2), 1.5, HD / 2 + 0.055);
   });
   add(new THREE.BoxGeometry(doorW, WH - 2.2, 0.1), wall(), 0, (WH + 2.2) / 2, HD / 2, true);
-  add(new THREE.BoxGeometry(HW + 0.1, 0.08, HD + 0.1), mat('#fbfaf6'), 0, WH, 0);
-  const roof = add(new THREE.ConeGeometry(3.4, 1.6, 4), mat('#c8463d'), 0, WH + 0.8, 0, true); roof.rotation.y = Math.PI / 4;
-  add(new THREE.CylinderGeometry(0.25, 0.25, 0.04, 20), mat('#fff8e0', { emissive: '#fff1c2', emissiveIntensity: 0.8 }), 0, WH - 0.06, 0);
+  add(new THREE.BoxGeometry(HW + 0.1, 0.08, HD + 0.1), mat(lv === 0 ? L.wall : '#fbfaf6'), 0, WH, 0);
+  // 切妻の 屋根（入口がわが 三角）。y は 屋根の すその 高さ、rise は 高さ、ov は ひさしの 出
+  const gable = (y, rise, ov, color, end) => {
+    const half = HW / 2 + ov; const len = Math.hypot(half, rise); const a = Math.atan2(rise, half);
+    [-1, 1].forEach((sd) => { const r = add(new THREE.BoxGeometry(len, 0.07, HD + ov * 2), mat(color), sd * half / 2, y + rise / 2, 0, true); r.rotation.z = -sd * a; });
+    const tri = new THREE.Shape(); tri.moveTo(-HW / 2, 0); tri.lineTo(HW / 2, 0); tri.lineTo(0, rise * HW / 2 / half); tri.closePath();
+    [-1, 1].forEach((sd) => add(new THREE.ShapeGeometry(tri), mat(end, { side: THREE.DoubleSide }), 0, y, sd * HD / 2, true));
+  };
+  if (lv === 0) {
+    // テント：オレンジの フライシート・まくり上げた 入口・張り綱と ペグ・たき火
+    gable(WH - 0.25, 1.7, 0.35, L.roof, L.wall);
+    add(new THREE.CylinderGeometry(0.03, 0.03, 0.9, 6), mat('#7a5a3a'), 0, WH + 1.85, HD / 2 + 0.1);
+    add(new THREE.PlaneGeometry(0.4, 0.26), mat('#f6d24a', { side: THREE.DoubleSide }), 0.21, WH + 2.15, HD / 2 + 0.1); // てっぺんの 旗
+    add(new THREE.CylinderGeometry(0.12, 0.12, doorW + 0.1, 12), mat(L.roof), 0, 2.15, HD / 2 + 0.1).rotation.z = Math.PI / 2;
+    [-1, 1].forEach((sd) => [-1, 1].forEach((fz) => {
+      const top = new THREE.Vector3(sd * (HW / 2 + 0.3), WH - 0.3, fz * (HD / 2 - 0.4)); const peg = new THREE.Vector3(sd * (HW / 2 + 1.0), 0.05, fz * (HD / 2 - 0.4));
+      const rope = add(new THREE.CylinderGeometry(0.01, 0.01, top.distanceTo(peg), 4), mat('#f2efe6'), (top.x + peg.x) / 2, (top.y + peg.y) / 2, (top.z + peg.z) / 2);
+      rope.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), top.clone().sub(peg).normalize());
+      add(new THREE.CylinderGeometry(0.025, 0.01, 0.2, 6), mat('#9aa4ab'), peg.x, 0.08, peg.z);
+    }));
+    add(new THREE.CylinderGeometry(0.4, 0.45, 0.12, 10), mat('#8d8d86', { flatShading: true }), -1.4, 0.06, HD / 2 + 0.8);
+    [0, 1, 2].forEach((i) => { const l = add(new THREE.CylinderGeometry(0.05, 0.05, 0.6, 6), mat('#7a5a3a'), -1.4, 0.15, HD / 2 + 0.8); l.rotation.set(Math.PI / 2, i * 2.1, 0); l.rotation.order = 'YXZ'; });
+    add(new THREE.ConeGeometry(0.18, 0.4, 7), mat('#ff9a3c', { emissive: '#ff6a1a', emissiveIntensity: 0.9 }), -1.4, 0.32, HD / 2 + 0.8);
+    // ランタン（天井から つるす）
+    add(new THREE.CylinderGeometry(0.008, 0.008, 0.4, 4), mat('#3d4a54'), 0, WH - 0.2, 0);
+    add(new THREE.CylinderGeometry(0.1, 0.1, 0.22, 10), mat('#fff1c2', { emissive: '#ffcf6a', emissiveIntensity: 0.9 }), 0, WH - 0.5, 0);
+  } else {
+    if (lv === 1) {
+      // 小屋：横板の 線・こげ茶の 屋根・ストーブの えんとつ
+      [0.5, 1.0, 1.5, 2.0, 2.5].forEach((y) => {
+        [-1, 1].forEach((sd) => add(new THREE.BoxGeometry(0.02, 0.03, HD + 0.02), mat('#8a6440'), sd * (HW / 2 + 0.05), y, 0));
+        add(new THREE.BoxGeometry(HW + 0.02, 0.03, 0.02), mat('#8a6440'), 0, y, -HD / 2 - 0.05);
+        if (y < 2.2) [-1, 1].forEach((sd) => add(new THREE.BoxGeometry(sideW, 0.03, 0.02), mat('#8a6440'), sd * (doorW / 2 + sideW / 2), y, HD / 2 + 0.05));
+      });
+      gable(WH, 1.2, 0.3, L.roof, L.wall);
+      add(new THREE.CylinderGeometry(0.09, 0.09, 1.4, 10), mat('#4a4f55', { metalness: 0.5 }), 1.3, WH + 0.9, -0.8, true);
+    } else if (lv === 2) {
+      const roof = add(new THREE.ConeGeometry(3.4, 1.6, 4), mat(L.roof), 0, WH + 0.8, 0, true); roof.rotation.y = Math.PI / 4;
+    } else {
+      // 大きな家：2 階・切妻の 屋根・えんとつ・花だん・ポーチの あかり・ポスト
+      const W2 = 2.0;
+      add(new THREE.BoxGeometry(HW + 0.1, W2, HD + 0.1), mat(L.wall), 0, WH + W2 / 2, 0, true);
+      [-1, 0, 1].forEach((i) => add(new THREE.PlaneGeometry(0.8, 0.8), mat('#bfe3f2', { emissive: '#3d6f85', emissiveIntensity: 0.15 }), i * 1.4, WH + 1.0, HD / 2 + 0.06));
+      add(new THREE.BoxGeometry(HW + 0.3, 0.1, 0.5), mat('#fbfaf6'), 0, WH + 0.05, HD / 2 + 0.3);
+      gable(WH + W2, 1.4, 0.35, L.roof, L.wall);
+      add(new THREE.BoxGeometry(0.45, 1.6, 0.45), mat('#9e5a44'), -1.2, WH + W2 + 1.1, -0.9, true);
+      [-1, 1].forEach((sd) => {
+        add(new THREE.BoxGeometry(1.0, 0.18, 0.2), mat('#8a6a46'), sd * (doorW / 2 + sideW / 2), 1.08, HD / 2 + 0.12);
+        [-0.3, 0, 0.3].forEach((x, i) => add(new THREE.SphereGeometry(0.08, 8, 6), mat(['#e07fa4', '#f6d24a', '#e0662f'][i]), sd * (doorW / 2 + sideW / 2) + x, 1.22, HD / 2 + 0.12));
+        add(new THREE.SphereGeometry(0.08, 10, 8), mat('#fff1c2', { emissive: '#ffd27a', emissiveIntensity: 0.9 }), sd * (doorW / 2 + 0.25), 2.05, HD / 2 + 0.1);
+      });
+      add(new THREE.BoxGeometry(1.6, 0.12, 0.8), mat('#c9c2b4'), 0, 0.06, HD / 2 + 0.45);
+      add(new THREE.CylinderGeometry(0.04, 0.04, 1.0, 6), mat('#3d4a54'), 1.9, 0.5, HD / 2 + 1.0);
+      add(new THREE.BoxGeometry(0.3, 0.22, 0.4), mat('#c8463d'), 1.9, 1.1, HD / 2 + 1.0);
+    }
+    add(new THREE.CylinderGeometry(0.25, 0.25, 0.04, 20), mat('#fff8e0', { emissive: '#fff1c2', emissiveIntensity: 0.8 }), 0, WH - 0.06, 0);
+  }
   // 表札
   home.plate = new Board(1.4, 0.32, 300); home.plate.mesh.position.set(0, 2.45, HD / 2 + 0.07); g.add(home.plate.mesh);
   // 中：バッジの 掲示板・トロフィーの たな・自分の 姿・家具
@@ -3440,8 +3534,9 @@ function buildHome() {
   home.btns = { out: makeButton('外に出る', '#2f7d4f', 0.56, 0.14), plaza: makeButton('島ぜんたいへ', '#3d4a54', 0.56, 0.14) };
   home.btns.out.position.set(1.72, 2.4, -HD / 2 + 0.07); home.btns.plaza.position.set(1.72, 2.18, -HD / 2 + 0.07);
   Object.values(home.btns).forEach((m) => { m.scale.setScalar(0.8); g.add(m); });
+  home.upAsk = false; paintUpgrade(); // 左がわに 建てかえの ボタン
   // 島ぜんたいから 見える 目印
-  home.pin = overviewSign('わたしの 家', profile.name + 'さん・' + site.name, '#c8463d', 6);
+  home.pin = overviewSign('わたしの ' + homeName(), profile.name + 'さん・' + site.name, HOME_LEVELS[homeLv()].pin, 6);
   home.pin.position.set(g.position.x, 8, g.position.z); home.pin.lookAt(OVERVIEW.pos); home.pin.userData.home = true;
   home.pin.visible = state.where === 'plaza'; scene.add(home.pin); overviewOnly.push(home.pin); home.clickables.push(home.pin);
   refreshHome();
@@ -3512,7 +3607,9 @@ function buildLeisureWall() {
 }
 function refreshHome() {
   if (!home.group || !profile) return;
-  home.plate.draw((ctx, W, H) => { ctx.fillStyle = '#6b4a2e'; roundRect(ctx, 0, 0, W, H, 18); ctx.fill(); ctx.fillStyle = '#fffaf0'; ctx.font = '700 ' + Math.round(H * 0.5) + 'px ' + FONT_DISPLAY; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(profile.name + 'さんの 家', W / 2, H / 2 + 2); });
+  // 表札（名前が 長くても はみださない）
+  home.plate.draw((ctx, W, H) => { ctx.fillStyle = '#6b4a2e'; roundRect(ctx, 0, 0, W, H, 18); ctx.fill(); ctx.fillStyle = '#fffaf0'; ctx.font = '700 ' + Math.round(H * 0.5) + 'px ' + FONT_DISPLAY; const tw = ctx.measureText(profile.name + 'さんの ' + homeName()).width; if (tw > W - 24) ctx.font = '700 ' + Math.floor(H * 0.5 * (W - 24) / tw) + 'px ' + FONT_DISPLAY; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(profile.name + 'さんの ' + homeName(), W / 2, H / 2 + 2); });
+  if (!home.upAsk) paintUpgrade(); // お金・バッジが ふえたら 色を かえる
   drawBadgeBoard();
   const inner = home.inner; while (inner.children.length) inner.remove(inner.children[0]);
   const HD = home.HD;
@@ -7949,7 +8046,7 @@ function handleRay(ray) {
   if (obj.userData.furnCancel) { furnShop.selected = null; paintFurnTags(); renderHud(); return; }
   if (obj.userData.furnId) { if (state.where === 'furn') { playSfx(SFX_FURN[obj.userData.furnId] || 'pop'); pickFurn(obj.userData.furnId); } return; }
   if (obj.userData.home) { goHome(); return; }
-  if (state.where === 'home') { if (obj.userData.leisure) doLeisure(obj.userData.leisure); else if (obj === home.btns.out) exitHome(); else if (obj === home.btns.plaza) goPlaza(); return; }
+  if (state.where === 'home') { if (obj.userData.leisure) doLeisure(obj.userData.leisure); else if (obj === home.btns.out) exitHome(); else if (obj === home.btns.plaza) goPlaza(); else if (obj === home.btns.up) askUpgrade(); else if (obj === home.btns.yes) upgradeHome(); else if (obj === home.btns.no) cancelUpgrade(); return; }
   if (obj.userData.boothIndex !== undefined) { if (state.where === 'plaza' || state.phase !== 'work') goBooth(obj.userData.boothIndex); return; }
   if (obj.userData.slotIndex !== undefined) { onSelectItem(obj.userData.slotIndex); return; }
   const b = state.booth; if (!b) return;
@@ -8153,7 +8250,7 @@ function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 
 function renderHud() {
   $('btn-home').hidden = !home.group;
-  $('place').textContent = state.where === 'plaza' ? '島ぜんたい' : state.where === 'walk' ? '島を 歩いています' : state.where === 'home' ? profile.name + 'さんの 家（' + home.site.name + '）' : state.where === 'opening' ? 'フェリーで 入港中' : state.where === 'play' ? PLAY_NAME[state.play.kind] : state.where === 'furn' ? '家具屋（お店の 中）' : state.booth.job.area + '　' + state.booth.job.name + '・' + state.booth.job.work;
+  $('place').textContent = state.where === 'plaza' ? '島ぜんたい' : state.where === 'walk' ? '島を 歩いています' : state.where === 'home' ? profile.name + 'さんの ' + homeName() + '（' + home.site.name + '）' : state.where === 'opening' ? 'フェリーで 入港中' : state.where === 'play' ? PLAY_NAME[state.play.kind] : state.where === 'furn' ? '家具屋（お店の 中）' : state.booth.job.area + '　' + state.booth.job.name + '・' + state.booth.job.work;
   $('pad').hidden = !(state.where === 'walk' || state.where === 'furn' || (state.where === 'play' && state.play && !['sun', 'cafe', 'terrace', 'plaza', 'rehab'].includes(state.play.kind)) || (state.where === 'booth' && state.phase === 'work' && state.round && (state.round.cover || state.round.slide)));
   $('btn-walk').textContent = state.where === 'walk' ? '見わたす' : '島を歩く';
   chipsEl.querySelectorAll('.chip').forEach((el, i) => el.setAttribute('aria-current', String(i === 0 ? state.where === 'plaza' : state.booth === booths[i - 1])));
@@ -8200,13 +8297,19 @@ function renderHud() {
     return;
   }
   if (state.where === 'home') {
-    el.innerHTML = '<span class="tag">' + esc(home.site.name) + '</span><h2>' + esc(profile.name) + 'さんの 家</h2>' +
+    el.innerHTML = '<span class="tag">' + esc(home.site.name) + '</span><h2>' + esc(profile.name) + 'さんの ' + homeName() + '</h2>' +
       '<div class="meta"><span>バッジ ' + badgeCount() + ' / ' + JOBS.length + '</span>' + (profile.mode === 'money' ? '<span>お金 ' + yen(profile.money) + '</span>' : '') + '<span>トロフィー ' + MEDAL[trophyLevel()] + '</span></div>' +
+      // 建てかえ（テント → 小屋 → 家 → 大きな 家）
+      (() => { const L = nextHome(); if (!L) return '<div class="tag" style="margin-top:8px">いちばん 大きな 家です</div>';
+        return '<div class="tag" style="margin-top:8px">建てかえ（いまは ' + homeName() + '）</div><div class="row" style="margin-top:2px">' + (home.upAsk
+          ? '<button type="button" class="primary" id="h-up-yes">' + esc(L.name) + 'に 建てかえる（' + homeCost(L) + '）</button><button type="button" id="h-up-no">やめる</button>'
+          : '<button type="button" id="h-up"' + (homeCan(L) ? '' : ' aria-disabled="true" style="opacity:0.6"') + '>' + esc(L.name) + 'に 建てかえ<small style="display:block;font-weight:400">' + homeCost(L) + '</small></button>') + '</div>'; })() +
       '<div class="row"><button type="button" class="primary" id="h-out">外に出る</button><button type="button" id="h-badges">バッジ帳</button><button type="button" id="h-plaza">島ぜんたい</button></div>' +
       // 余暇の すごしかた（お金が かからない・かかる）
       [['お金が かからない よか', true], ['お金が かかる よか', false]].map(([t, free]) => '<div class="tag" style="margin-top:8px">' + t + '</div><div class="row" style="margin-top:2px">' +
         LEISURE.filter((l) => leisureFree(l) === free && l.ok()).map((l) => '<button type="button" data-leisure="' + l.id + '">' + esc(l.name) + (l.label ? '<small style="display:block;font-weight:400">' + esc(l.label) + '</small>' : '') + '</button>').join('') + '</div>').join('');
     $('h-out').onclick = exitHome; $('h-badges').onclick = openBadgeBook; $('h-plaza').onclick = goPlaza;
+    if ($('h-up')) $('h-up').onclick = askUpgrade; if ($('h-up-yes')) $('h-up-yes').onclick = upgradeHome; if ($('h-up-no')) $('h-up-no').onclick = cancelUpgrade;
     el.querySelectorAll('[data-leisure]').forEach((btn) => { btn.onclick = () => doLeisure(btn.dataset.leisure); });
     return;
   }
@@ -9039,7 +9142,7 @@ function closeModal() { modal.hidden = true; modalCard.innerHTML = ''; modalCard
 window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !modal.hidden && modal.dataset.closable === '1') closeModal(); });
 const radio = (name, opts, cur) => '<div class="choices" role="radiogroup">' + Object.entries(opts).map(([v, t]) => '<label><input type="radio" name="' + name + '" value="' + v + '"' + (v === cur ? ' checked' : '') + '> ' + t + '</label>').join('') + '</div>';
 const pickVal = (name) => { const el = modalCard.querySelector('input[name="' + name + '"]:checked'); return el ? el.value : null; };
-const MODE_HTML = { money: 'お金と バッジ<small>しごとで お金と バッジ。お金で 家具を 買う</small>', badge: 'バッジのみ<small>お金は なし。バッジの 数で 家具が もらえる</small>' };
+const MODE_HTML = { money: 'お金と バッジ<small>しごとで お金と バッジ。お金で 家具を 買い、テントから 家を 大きく する</small>', badge: 'バッジのみ<small>お金は なし。バッジの 数で 家具が もらえ、家が 大きく なる</small>' };
 
 function renderWallet() {
   const w = $('wallet');
@@ -9068,7 +9171,7 @@ function openOpening() {
     const start = (skip) => {
       if ($('op-id')) { cloud.id = $('op-id').value.trim(); saveCloudCfg(); }
       const name = $('op-name').value.trim() || 'あなた';
-      profile = { name, gender: pickVal('op-g') || 'n', mode: pickVal('op-m') || 'money', home: null, money: 0, badges: {}, owned: [], since: new Date().toISOString() };
+      profile = { name, gender: pickVal('op-g') || 'n', mode: pickVal('op-m') || 'money', home: null, homeLv: 0, money: 0, badges: {}, owned: [], since: new Date().toISOString() };
       saveProfile(); renderWallet();
       if (skip) openAreaPicker(true); else playFerry();
     };
@@ -9147,7 +9250,7 @@ function openAreaPicker(first) {
       const moved = !!profile.home && profile.home !== sel;
       profile.home = sel; saveProfile(); buildHome(); closeModal();
       if (opening.ferry) opening.ferry.visible = false;
-      goHome(); toast(first ? '家が できました！' : moved ? HOME_SITES[profile.home].name + 'に 引っ越しました' : 'いまの 家です');
+      goHome(); toast(first ? (homeLv() === 0 ? 'テントを はりました！ お金で 家を 大きく できます' : '家が できました！') : moved ? HOME_SITES[profile.home].name + 'に 引っ越しました' : 'いまの 家です');
     };
     if ($('ap-close')) $('ap-close').onclick = closeModal;
     requestAnimationFrame(() => select(sel));
@@ -9353,9 +9456,9 @@ $('btn-home').addEventListener('click', () => goHome());
 $('btn-settings').addEventListener('click', openSettings);
 window.hopeTown = {
   state, goBooth, pickVariant, startSession, openRehab, startRehab, rehabPress, rehabSwipeThrow, rehabVolleyPress, REHAB, get rehabOpt() { return rehabOpt; }, set rehabOpt(v) { rehabOpt = v; }, select: onSelectItem, playSfx, sfxKind, SFX, nextTargetKey, setSeason, startWalk, exitToWalk, walkKeys, rig, look, walkable, booths, goHome, exitHome, goPlaza,
-  get profile() { return profile; }, quitWork, openJobList, openCafeOrder, sitCafe, endPlay, CAFE_ORDER, doLeisure, LEISURE, home, FURN, goFurniture, furnShop, pickFurn, exitFurniture, cheatCover() { const r = state.round; if (r && r.cover) { r.cover.surf.clearAll(); coverProgress(r, 1, performance.now()); } }, seasonal, LAKE, toWorld, nearbyActions, openShop, openBadgeBook, openSettings, openAreaPicker,
+  get profile() { return profile; }, quitWork, openJobList, openCafeOrder, sitCafe, endPlay, CAFE_ORDER, doLeisure, LEISURE, home, HOME_LEVELS, upgradeHome, askUpgrade, homeLv, FURN, goFurniture, furnShop, pickFurn, exitFurniture, cheatCover() { const r = state.round; if (r && r.cover) { r.cover.surf.clearAll(); coverProgress(r, 1, performance.now()); } }, seasonal, LAKE, toWorld, nearbyActions, openShop, openBadgeBook, openSettings, openAreaPicker,
   // テスト用：オープニングを とばして 家を 用意する
-  quickStart(homeKey, mode) { profile = { name: 'テスト', gender: 'n', mode: mode || 'money', home: homeKey || 'downtown', money: 0, badges: {}, owned: [], since: new Date().toISOString() }; saveProfile(); closeModal(); buildHome(); renderWallet(); goPlaza(); },
+  quickStart(homeKey, mode) { profile = { name: 'テスト', gender: 'n', mode: mode || 'money', home: homeKey || 'downtown', homeLv: 0, money: 0, badges: {}, owned: [], since: new Date().toISOString() }; saveProfile(); closeModal(); buildHome(); renderWallet(); goPlaza(); },
 };
 // 最初は 島ぜんたいを 見わたす。名前が まだ なら オープニング、家が あれば 家から 出発
 rig.position.copy(OVERVIEW.pos); rig.rotation.y = OVERVIEW.yaw; look.pitch = OVERVIEW.pitch;
