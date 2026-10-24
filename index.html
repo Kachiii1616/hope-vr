@@ -8393,17 +8393,28 @@ function chipWork(job) {
   return vs.length > 1 ? SEASON_NAME[season] + '：' + vs.map((v) => v.short || v.work).join('・') : vs[0].work;
 }
 // あそびの島に いる ときは 下の チップを 島の 行き先に かえる（Work Island の お店は 連絡船で もどってから）
-const ISLE_CHIP_COLOR = { keiba: '#c0533a', paddock: '#6b8e23', amuse: '#b8860b', casino: '#8b1e2d', ferris: '#2d6fa3', back: '#e0662f' };
+const ISLE_CHIP_COLOR = { keiba: '#c0533a', paddock: '#6b8e23', ferris: '#2d6fa3', back: '#e0662f' };
 let chipMode = 'main'; let chipCheckAt = 0;
 function isleChipMode() {
   const pl = state.where === 'play' ? state.play : null;
   if (pl && (pl.kind === 'boat' || (pl.kind === 'iba' && pl.room === 'iba'))) return false; // 船の 上・居場所の 部屋は Work Island あつかい
   return isleNow();
 }
+// HOPE アミューズメントは あそびごとに チップを 分ける（手前の フロア：スロット・ルーレット・ブラックジャック、奥の カジノ フロア：バカラ・ポーカー）
+const AMUSE_CHIPS = ['slot', 'roulette', 'bj', 'baccarat', 'poker'];
+function isleChips() {
+  const out = [];
+  ISLE_DEST.forEach(([id, name, note]) => {
+    if (id === 'walk') return;
+    if (id !== 'amuse') { out.push([id, name, note, ISLE_CHIP_COLOR[id]]); return; }
+    AMUSE_CHIPS.forEach((k) => out.push([k, CAS_GAMES[k] || IBA_GAMES[k], CAS_NOTE[k] || IBA_NOTE[k], IBA_COLOR[k]]));
+  });
+  return out;
+}
 function isleChipNow() {
   const kc = kcNow(); if (kc) return kc.at === 'paddock' ? 'paddock' : 'keiba';
-  if (casNow()) return 'amuse';
-  const ib = ibaNow(); if (ib && ib.room === 'casino') return 'amuse'; // カジノ フロアも HOPE アミューズメントの 中
+  const cs = casNow(); if (cs) return cs.at;
+  const ib = ibaNow(); if (ib && ib.room === 'casino') return ib.at; // カジノ フロアも HOPE アミューズメントの 中
   if (state.where === 'play' && state.play && state.play.kind === 'ferris') return 'ferris';
   return null;
 }
@@ -8411,6 +8422,11 @@ function isleChipGo(id) {
   if (id === isleChipNow()) return;
   if (state.phase === 'work' || state.phase === 'between') { toast('作業が おわってから 行けます'); return; }
   if (kcNow() && (id === 'keiba' || id === 'paddock')) { playSfx('pop'); if (id === 'keiba') kcWindow(); else kcPaddock(); renderHud(); return; }
+  if (AMUSE_CHIPS.includes(id)) { // 建物の 中なら そのまま 台へ（フロアも うつる）。外からは 入ってから
+    const inside = casNow() || (ibaNow() && ibaNow().room === 'casino');
+    if (!inside) { if (state.where === 'play' && state.play) endPlay(); openCasino(casOutside()); }
+    playSfx('pop'); if (CAS_GAMES[id]) casSit(id); else ibaSit(id); renderHud(); return;
+  }
   if (state.where === 'play' && state.play) endPlay(); // いまの 場所を 出てから 行く
   isleGo(id);
 }
@@ -8418,10 +8434,10 @@ function renderChips() {
   chipsEl.innerHTML = '';
   chipMode = isleChipMode() ? 'isle' : 'main';
   if (chipMode === 'isle') {
-    ISLE_DEST.filter((d) => d[0] !== 'walk').forEach(([id, name, note]) => {
+    isleChips().forEach(([id, name, note, color]) => {
       const el = document.createElement('button');
       el.type = 'button'; el.className = 'chip'; el.dataset.isle = id;
-      el.innerHTML = '<i style="background:' + ISLE_CHIP_COLOR[id] + '"></i>' + esc(name) + '<span>' + esc(note) + '</span>';
+      el.innerHTML = '<i style="background:' + color + '"></i>' + esc(name) + '<span>' + esc(note) + '</span>';
       el.setAttribute('aria-current', String(isleChipNow() === id));
       el.addEventListener('click', () => isleChipGo(id));
       chipsEl.appendChild(el);
