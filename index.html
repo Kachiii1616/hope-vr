@@ -10522,6 +10522,17 @@ function casinoRefill() {
   const pl = ibaNow(); if (pl && pl.at === 'baccarat') bacShow(IBA.st.baccarat); else if (pl && pl.at === 'poker') pkShow(IBA.st.poker); else renderHud();
 }
 const refillDef = (w) => ({ label: 'メダルを もらう（50）', act: casinoRefill, w: w || 0.5 });
+// 休けいの 声かけ：バカラと ポーカーを あわせて 10 回 あそぶ ごとに、つぎを 配る 前に 休けいを すすめる（止めは しない。えらぶのは 本人）
+const CASINO_REST_EVERY = 10;
+function casinoCount() { CASINO.plays = (CASINO.plays || 0) + 1; if (CASINO.plays % CASINO_REST_EVERY === 0) { CASINO.rest = true; playSfx('metal'); } }
+function casinoRestView(st, show, result) {
+  st.extraPaint = null; // 札は 字だけに する（カードは 台の 上に のこる）
+  return {
+    msg: [result, { text: 'カジノで ' + CASINO.plays + ' 回 あそびました。ひと休み しませんか', color: '#2d5fa3' }, 'お水を のむ・のびを する・目を やすめる'],
+    defs: [{ label: '休けいする（席を 立つ）', act: () => { CASINO.rest = false; ibaStand(); toast('おつかれさまです。つぎは 何時まで あそぶか きめて おくと 安心です'); }, w: 0.5, color: '#2f7d4f' },
+      { label: 'つづける', act: () => { CASINO.rest = false; show(st); }, w: 0.3, color: '#5a6470' }],
+  };
+}
 
 // ===========================================================================
 // バカラ：プレイヤーと バンカー、合計の 下 1 けたが 9 に 近い ほうが 勝ち（10・J・Q・K は 0、A は 1）
@@ -10598,7 +10609,7 @@ function bacDone(st) {
   const net = pay - B.bet.amt;
   B.result = { text: head + '　' + (net > 0 ? 'あたり！ +' + net + 'まい' : net === 0 ? 'メダルは もどりました' : 'はずれ -' + B.bet.amt + 'まい'), color: net > 0 ? '#2f7d4f' : net === 0 ? '#3d4a54' : '#c0392b' };
   ibaLog('baccarat', BAC_SIDE[B.bet.side] + 'に ' + B.bet.amt + 'まい → ' + head + ' ' + (net > 0 ? '+' + net : net === 0 ? '±0' : String(net)) + '（のこり ' + d.medals + 'まい）');
-  if (profile) saveProfile(); playSfx(net > 0 ? 'coin' : 'pop'); toast(B.result.text); bacShow(st);
+  if (profile) saveProfile(); playSfx(net > 0 ? 'coin' : 'pop'); toast(B.result.text); casinoCount(); bacShow(st);
 }
 function bacShow(st) {
   const B = st.B; const R = B.R; const md = ibaData().medals; const shown = R ? R.order.slice(0, B.shown) : [];
@@ -10620,7 +10631,7 @@ function bacShow(st) {
   };
   const betText = BAC_SIDE[bet.side] + 'に ' + bet.amt + 'まい　｜　メダル ' + md + 'まい';
   let msg; let defs;
-  if (B.phase === 'deal') { msg = ['配って います…', betText]; defs = []; } else {
+  if (B.phase === 'deal') { msg = ['配って います…', betText]; defs = []; } else if (CASINO.rest) ({ msg, defs } = casinoRestView(st, bacShow, B.result)); else {
     msg = [B.result || 'どちらが 勝つか えらんで「配る」', B.result ? betText : '9 に 近い ほうが 勝ち（10・絵札は 0）　' + betText];
     defs = Object.keys(BAC_SIDE).map((k) => ({ label: BAC_SIDE[k], act: () => { B.side = k; bacShow(st); }, on: B.side === k, row: 0, w: 0.28 }))
       .concat([1, 5, 10].map((a) => ({ label: a + 'まい', act: () => { B.amt = a; bacShow(st); }, on: B.amt === a, row: 1, w: 0.18 })))
@@ -10743,7 +10754,7 @@ function pkFinish(st, win, show) {
   P.resultText = (win.includes(0) ? (win.length > 1 ? '引き分け（山分け）' : 'あなたの 勝ち！') : win.map((i) => PK_SEATS[i]).join('と ') + 'の 勝ち') + '　' + how + '・ポット ' + P.pot + 'まい';
   P.net = net;
   ibaLog('poker', (win.includes(0) ? (win.length > 1 ? '引き分け' : '勝ち') : P.folded[0] ? 'おりた' : '負け') + '（' + how + '）' + (net >= 0 ? '+' : '') + net + 'まい（のこり ' + d.medals + 'まい）');
-  if (profile) saveProfile(); playSfx(win.includes(0) ? 'coin' : 'pop'); toast(P.resultText); pkShow(st);
+  if (profile) saveProfile(); playSfx(win.includes(0) ? 'coin' : 'pop'); toast(P.resultText); casinoCount(); pkShow(st);
 }
 function pkShow(st) {
   const P = st.P; const md = ibaData().medals;
@@ -10773,7 +10784,8 @@ function pkShow(st) {
     });
   };
   let msg; let defs;
-  if (!P || P.phase === 'done') {
+  if (P && P.phase === 'done' && CASINO.rest) ({ msg, defs } = casinoRestView(st, pkShow, { text: P.resultText, color: P.win.includes(0) ? '#2f7d4f' : '#c0392b' }));
+  else if (!P || P.phase === 'done') {
     msg = P ? [{ text: P.resultText, color: P.win.includes(0) ? '#2f7d4f' : '#c0392b' }, (P.net >= 0 ? '+' : '') + P.net + 'まい　｜　メダル ' + md + 'まい']
       : ['2 まいの 手札と 場の 5 まいで 役を つくる', 'あなた＋コンピューター 2 人。1 回に 多くて ' + PK_NEED + 'まい つかいます（メダル ' + md + 'まい）', 'ペア → ツーペア → スリーカード → ストレート → フラッシュ → フルハウス → フォーカード の じゅんに 強い'];
     defs = [md < PK_NEED ? refillDef() : { label: P ? 'つぎの 手を 配る' : '配る', act: () => pkNew(st), w: 0.45, color: '#c0392b' }];
@@ -11209,7 +11221,7 @@ $('btn-season').addEventListener('click', () => setSeason(season === 'winter' ? 
 $('btn-home').addEventListener('click', () => goHome());
 $('btn-settings').addEventListener('click', openSettings);
 window.hopeTown = {
-  CASINO, CASINO_SITE, casinoRefill, bacPlay, bacPayout, bacTotal, bacDeal, pkEval, pkHandName, pkEquity, pkNew, pkAct,
+  CASINO, CASINO_SITE, casinoRefill, casinoCount, CASINO_REST_EVERY, bacPlay, bacPayout, bacTotal, bacDeal, pkEval, pkHandName, pkEquity, pkNew, pkAct,
   IBA, IBA_SITE, openIba, ibaSit, ibaStand, ibaClickables, ibaData, sgLegal, sgPlay, sgThink, igoThink, igoScore, mjShanten, mjComplete, mjYaku, mjCounts, KC, openKeiba, kcWindow, kcSeat, keibaBuy, keibaStart, keibaNew, kcClickables, walkable, kcOutside, shogiTap, igoTap, mjTap, mjRon,
   state, goBooth, pickVariant, startSession, openRehab, startRehab, rehabPress, rehabSwipeThrow, rehabVolleyPress, REHAB, get rehabOpt() { return rehabOpt; }, set rehabOpt(v) { rehabOpt = v; }, select: onSelectItem, playSfx, sfxKind, SFX, nextTargetKey, setSeason, startWalk, exitToWalk, walkKeys, rig, look, walkable, booths, goHome, exitHome, goPlaza,
   get profile() { return profile; }, quitWork, openJobList, openCafeOrder, sitCafe, endPlay, CAFE_ORDER, doLeisure, LEISURE, home, HOME_LEVELS, upgradeHome, askUpgrade, homeLv, FURN, goFurniture, furnShop, pickFurn, exitFurniture, cheatCover() { const r = state.round; if (r && r.cover) { r.cover.surf.clearAll(); coverProgress(r, 1, performance.now()); } }, seasonal, LAKE, toWorld, nearbyActions, openShop, openBadgeBook, openSettings, openAreaPicker, openLookMaker, lookOf,
