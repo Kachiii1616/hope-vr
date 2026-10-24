@@ -10196,7 +10196,8 @@ function kbHorse(color, coat, n) { // 馬と 騎手（実物大。頭が +z）
   const tag = labelSprite(String(n), { h: 0.5, bg: color, fg: color === '#f2f2f2' || color === '#e3b23c' ? '#1f2a33' : '#ffffff' }); tag.position.set(0, 3.1, 0); g.add(tag);
   const lead = new THREE.Group(); lead.visible = false; g.add(lead); // パドックの 引き手（馬の 左がわ）と 引き綱（はみの 左の 輪から 引き手の 手へ）
   const hand = person('#3d6f9e', '#3d4a54', true); hand.scale.setScalar(4.3); hand.position.set(-0.75, 0, 1.0); lead.add(hand);
-  const lb = bit(-1); const mid = new THREE.Vector3(-0.45, 1.05, 1.25); seg(lb, mid, 0.014, '#c0392b', lead); seg(mid, [-0.6, 0.78, 1.1], 0.014, '#c0392b', lead);
+  const grip = new THREE.Vector3(0.0609, 0.0968, 0.002).multiplyScalar(4.3).add(hand.position); // 引き手の 馬がわの 手（person の 手の 玉の 中心）
+  const lb = bit(-1); const mid = lb.clone().lerp(grip, 0.5).add(new THREE.Vector3(-0.05, -0.12, 0)); seg(lb, mid, 0.014, '#c0392b', lead); seg(mid, grip, 0.014, '#c0392b', lead); // 少し たるませる
   g.userData.legs = legs; g.userData.body = body; g.userData.lead = lead; return g;
 }
 
