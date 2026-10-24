@@ -11128,7 +11128,6 @@ function buildIsle() {
   // 観覧車（島の 北東。ゆっくり まわる。乗れないが 島の めじるし）
   const fw = new THREE.Group(); fw.position.copy(FERRIS.at); scene.add(fw);
   [-1, 1].forEach((sd) => [-1, 1].forEach((sx) => { const leg = put(box(0.35, FERRIS.hub + 0.6, 0.35), '#e9ecef', sx * 2.6, (FERRIS.hub + 0.6) / 2, sd * 1.1, fw); leg.rotation.z = -sx * 0.24; }));
-  put(box(1.6, 2.4, 2.8), '#e0662f', 0, 1.2, 2.6, fw); // 乗り場の 小屋
   const wheel = new THREE.Group(); wheel.position.y = FERRIS.hub; fw.add(wheel); FERRIS.wheel = wheel;
   [-0.75, 0.75].forEach((z) => { const rim = new THREE.Mesh(new THREE.TorusGeometry(FERRIS.r, 0.1, 6, 120), cmat('#e9ecef')); rim.position.z = z; wheel.add(rim); });
   put(cyl(0.45, 0.45, 1.9, 12), '#c9ced6', 0, 0, 0, wheel).rotation.x = Math.PI / 2;
@@ -11145,10 +11144,9 @@ function buildIsle() {
     const glass = put(box(1.26, 0.7, 1.06), '#bfe3f2', 0, -0.68, 0, car); glass.material = mat('#bfe3f2', { transparent: true, opacity: 0.18, roughness: 0.1, depthWrite: false }); // うすい ガラス
     FERRIS.cars.push(car);
   }
-  const fb = makeButton('観覧車に のる（きっぷ ' + FERRIS_PRICE + '円）', '#e0662f', 1.5, 0.26); fb.position.set(0, 1.3, 4.03); fw.add(fb); // 乗り場の 小屋の きっぷ売り場
-  fb.userData.ibaAct = () => { if (state.where === 'walk') rideFerris(); }; plazaClickables.push(fb);
-  const fs = kcPlate('観覧車', 2.2, 0.6, '#e0662f', '#ffffff'); fs.position.set(0, 3.0, 4.01); fw.add(fs);
+  buildFerrisStation(fw, put);
   ISLE.rects.push([FERRIS.at.x - 3.4, FERRIS.at.x + 3.4, FERRIS.at.z - 1.6, FERRIS.at.z + 4.1]);
+  ISLE.rects.push([FERRIS.at.x + 3.4, FERRIS.at.x + 5.2, FERRIS.at.z + 2.3, FERRIS.at.z + 4.1]); // きっぷ売り場
   { const C = CASINO_SITE; ISLE.rects.push([C.pos.x - C.W / 2, C.pos.x + C.W / 2, C.pos.z - C.D / 2, C.pos.z + C.D / 2]); } // HOPE アミューズメント（外観は 本島の 町と いっしょに 建てる）
   // 案内板（桟橋の 前）
   const gb = new Board(3.2, 1.6, 220); gb.draw((ctx, W, H) => { ctx.fillStyle = '#fffdf8'; roundRect(ctx, 0, 0, W, H, 20); ctx.fill(); ctx.fillStyle = '#2d6fa3'; ctx.fillRect(0, 0, W, H * 0.24);
@@ -11318,7 +11316,7 @@ function boatRide(b, now) { // 乗っている 人（自分）は へさきの �
   rig.position.set(seat.x, seat.y, seat.z); rig.rotation.y = b.g.rotation.y - Math.PI / 2;
 }
 function stepBoats(now) {
-  if (FERRIS.wheel) { const dt = Math.min(0.1, (now - (FERRIS.last || now)) / 1000); FERRIS.last = now; if (!reduceMotion || (state.play && state.play.kind === 'ferris')) FERRIS.ang += dt * FERRIS.speed; FERRIS.wheel.rotation.z = FERRIS.ang; FERRIS.cars.forEach((c) => { c.rotation.z = -FERRIS.ang; }); }
+  if (FERRIS.wheel) { const dt = Math.min(0.1, (now - (FERRIS.last || now)) / 1000); FERRIS.last = now; if (!reduceMotion || (state.play && state.play.kind === 'ferris')) FERRIS.ang += dt * FERRIS.speed; FERRIS.wheel.rotation.z = FERRIS.ang; FERRIS.cars.forEach((c) => { c.rotation.z = -FERRIS.ang; }); if (FERRIS.crew) FERRIS.crew.guide.rotation.y = FERRIS.crew.y0 + Math.sin(now / 1800) * 0.45; }
   BOATS.list.forEach((b) => {
     const T = b.trip; const ph = b.at === 'main' ? 0 : 2; const bob = Math.sin(now / 900 + ph) * 0.05;
     const ms = T ? Math.max(0, now - T.t0) : 0; const run = T && ms < BOAT_TIME; const rock = reduceMotion ? 0 : run ? 1 : 0.35; // 走って いる ときは 大きく ゆれる
@@ -11342,12 +11340,65 @@ function stepBoats(now) {
     b.g.position.y = -0.2 + bob;
   });
 }
+// 観覧車の のりば（いちばん 下の ゴンドラの 前）：屋根つきの のりば・ならぶ 列の ロープ・入口の ゲート・係の 人（ゴンドラの 横で 案内）・
+//   運転係の 操作台・きっぷ売り場（窓口の 中に 係の 人）・料金の 看板・ならんで いる お客さん。fw の ローカルは +z が 南（入口の 方）
+function ferrisCrew(color) { // 観覧車の 係の 人（制服と 帽子・名札）
+  const p = person(color, '#2f3540', true, 'short');
+  part(p, new THREE.SphereGeometry(PERSON_HEAD_R + 0.009, 20, 8, 0, TAU, 0, Math.PI / 2), color, 0, PERSON_HEAD_Y + 0.006, -0.002);
+  part(p, box(0.08, 0.007, 0.05), shade(color, 0.7), 0, PERSON_HEAD_Y + 0.03, PERSON_HEAD_R + 0.008).rotation.x = 0.15; // つば
+  p.scale.setScalar(4.4); return p;
+}
+function buildFerrisStation(fw, put) {
+  const CREW = '#c0392b';
+  // のりばの ゆか（ゴンドラの ゆかと 同じ 高さ）と 黄色の 線（ここで 止まる）
+  put(box(5.8, 0.05, 2.7), '#d9d2c3', 0, 0.025, 2.15, fw);
+  put(box(1.6, 0.052, 0.12), '#f2c230', 0, 0.026, 0.95, fw);
+  // 屋根（赤白の しま）と 柱。ゴンドラの とおり道（z ±0.62）には かからない
+  [-2.75, 2.75].forEach((x) => [0.95, 3.35].forEach((z) => put(cyl(0.07, 0.07, 2.6, 10), '#e9ecef', x, 1.3, z, fw)));
+  for (let i = 0; i < 6; i++) put(box(1.0, 0.12, 2.9), i % 2 ? '#ffffff' : '#e0662f', -2.5 + i * 1.0, 2.66, 2.15, fw);
+  put(box(6.1, 0.3, 0.06), '#e0662f', 0, 2.55, 3.62, fw);
+  const fs = kcPlate('観覧車　のりば', 2.6, 0.42, '#ffffff', '#e0662f'); fs.position.set(0, 2.56, 3.66); fw.add(fs);
+  // ならぶ 列（ポールと ロープ）：入口（南西）から ゲートまで
+  const pole = (x, z) => { put(cyl(0.035, 0.05, 0.9, 10), '#c9a640', x, 0.45, z, fw); put(ball(0.05, 10, 8), '#c9a640', x, 0.92, z, fw); };
+  [-2.4, -1.3].forEach((x) => { [3.3, 2.45, 1.6].forEach((z) => pole(x, z)); put(cyl(0.018, 0.018, 1.7, 6), '#b8283a', x, 0.8, 2.45, fw).rotation.x = Math.PI / 2; }); // 南北に のびる 列
+  // 入口の ゲート（回転バー）と「のりば」「出口」の 札
+  put(box(0.18, 0.9, 0.5), '#8f99a3', -2.3, 0.45, 1.3, fw); put(box(0.7, 0.05, 0.05), '#d0453a', -1.95, 0.85, 1.3, fw);
+  const ent = kcPlate('入口 →', 0.8, 0.24, '#2f7d4f', '#ffffff'); ent.position.set(-1.85, 1.95, 3.36); fw.add(ent);
+  const ex = kcPlate('← 出口', 0.8, 0.24, '#2d6fa3', '#ffffff'); ex.position.set(1.85, 1.95, 3.36); fw.add(ex);
+  // ならんで いる お客さん（ゴンドラの 方を 向く）
+  [['#4f9a45', 3.0, 'pony', 1], ['#2f6fc4', 2.45, 'short', 1], ['#e07fa4', 2.0, 'twin', 0.78]].forEach(([c, z, hair, k]) => {
+    const g = person(c, '#3d4a54', false, hair); g.scale.setScalar(4.4 * k); g.position.set(-1.85, 0.05, z); g.rotation.y = Math.PI; fw.add(g);
+  });
+  // 係の 人：ゴンドラの 横で ドアを おさえて 案内（すこし 向きを かえて お客さんを 見る）と、操作台の 運転係
+  const guide = ferrisCrew(CREW); guide.position.set(0.95, 0.05, 1.15); guide.rotation.y = -2.4; fw.add(guide);
+  const op = ferrisCrew(CREW); op.position.set(2.25, 0.05, 1.55); op.rotation.y = -Math.PI / 2 - 0.3; fw.add(op);
+  put(box(0.6, 0.95, 0.45), '#5a6470', 1.85, 0.5, 1.55, fw); const panel = put(box(0.62, 0.05, 0.5), '#3d4a54', 1.85, 1.0, 1.55, fw); panel.rotation.z = 0.25;
+  [['#d0453a', -0.12], ['#4f9a45', 0.0], ['#f2c230', 0.12]].forEach(([c, dz]) => put(cyl(0.035, 0.035, 0.04, 10), c, 1.86, 1.04, 1.55 + dz, fw));
+  FERRIS.crew = { guide, y0: guide.rotation.y };
+  // きっぷ売り場（のりばの 東。窓口の 中に 係の 人）
+  const kb = new THREE.Group(); kb.position.set(4.3, 0, 3.2); fw.add(kb);
+  const kp = (geo, c, x, y, z) => put(geo, c, x, y, z, kb);
+  kp(box(1.6, 2.3, 0.08), '#f4f1ea', 0, 1.15, -0.6); [-0.78, 0.78].forEach((x) => kp(box(0.08, 2.3, 1.2), '#f4f1ea', x, 1.15, 0));
+  kp(box(1.6, 0.95, 0.08), '#f4f1ea', 0, 0.475, 0.58); kp(box(1.6, 0.55, 0.08), '#f4f1ea', 0, 2.03, 0.58); // 窓口の 下と 上
+  kp(box(1.7, 0.05, 0.3), '#8a6a46', 0, 0.98, 0.66); // 台
+  kp(box(1.9, 0.12, 1.5), '#e0662f', 0, 2.36, 0.05); kp(box(1.9, 0.18, 0.06), '#ffffff', 0, 2.24, 0.82);
+  const seller = ferrisCrew(CREW); seller.position.set(0, 0.25, -0.05); kb.add(seller);
+  const ks = kcPlate('きっぷ売り場', 1.4, 0.3, '#e0662f', '#ffffff'); ks.position.set(0, 2.03, 0.63); kb.add(ks);
+  const fb = makeButton('観覧車に のる（きっぷ ' + FERRIS_PRICE + '円）', '#e0662f', 1.5, 0.24); fb.position.set(0, 0.62, 0.64); kb.add(fb);
+  fb.userData.ibaAct = () => { if (state.where === 'walk') rideFerris(); }; plazaClickables.push(fb);
+  // 料金の 看板（売り場の 横）
+  const pb = new Board(0.9, 1.1, 300); pb.draw((ctx, W, H) => { ctx.fillStyle = '#fffdf8'; roundRect(ctx, 0, 0, W, H, 16); ctx.fill(); ctx.fillStyle = '#e0662f'; ctx.fillRect(0, 0, W, H * 0.22);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#ffffff'; ctx.font = '700 ' + Math.round(H * 0.11) + 'px ' + FONT_BODY; ctx.fillText('りょうきん', W / 2, H * 0.11);
+    ctx.fillStyle = '#1f2a33'; ctx.font = '700 ' + Math.round(H * 0.1) + 'px ' + FONT_BODY; ctx.fillText('1 回 ' + FERRIS_PRICE + ' 円', W / 2, H * 0.36);
+    ctx.font = '400 ' + Math.round(H * 0.075) + 'px ' + FONT_BODY; ctx.fillText('1 周 約 70 秒', W / 2, H * 0.53); ctx.fillText('小さい 子は おとなと', W / 2, H * 0.7); ctx.fillText('いっしょに', W / 2, H * 0.83); });
+  pb.mesh.position.set(-1.25, 1.35, 0.02); kb.add(pb.mesh); kp(box(0.06, 1.3, 0.06), '#5a4a3a', -1.25, 0.65, -0.03);
+}
 // 観覧車に のる（お金モードは きっぷ 300 円。バッジモードは ごちそう）。いちばん 下の ゴンドラに のって 1 周
 function rideFerris() {
   if (profile && profile.mode === 'money') {
     if (profile.money < FERRIS_PRICE) { toast('お金が たりません（観覧車 ' + yen(FERRIS_PRICE) + '）'); return; }
-    profile.money -= FERRIS_PRICE; saveProfile(); renderWallet(); playSfx('coin'); toast('観覧車の きっぷを 買いました（' + yen(FERRIS_PRICE) + '）');
-  } else toast('観覧車の きっぷを うけとりました');
+    profile.money -= FERRIS_PRICE; saveProfile(); renderWallet(); playSfx('coin'); toast('観覧車の きっぷを 買いました（' + yen(FERRIS_PRICE) + '）。係の 人「足もとに 気をつけて どうぞ」');
+  } else toast('観覧車の きっぷを うけとりました。係の 人「足もとに 気をつけて どうぞ」');
   leaveForPlay();
   const v = new THREE.Vector3(); let car = FERRIS.cars[0]; let lo = Infinity;
   FERRIS.wheel.parent.updateMatrixWorld(true); FERRIS.cars.forEach((c) => { c.getWorldPosition(v); if (v.y < lo) { lo = v.y; car = c; } });
