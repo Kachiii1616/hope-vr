@@ -10087,8 +10087,14 @@ function kbHorse(color, coat, n) { // 馬と 騎手（実物大。頭が +z）
   const body = new THREE.Group(); g.add(body); const bput = (geo, c, x, y, z) => { const m = new THREE.Mesh(geo, cmat(c)); m.position.set(x, y, z); body.add(m); return m; };
   bput(ball(0.5, 16, 12), coat, 0, 1.38, 0).scale.set(0.56, 0.62, 1.5);
   const neck = bput(cyl(0.17, 0.26, 0.85, 10), coat, 0, 1.78, 0.78); neck.rotation.x = 0.8;
-  const mane = bput(box(0.06, 0.12, 0.8), '#2a1c14', 0, 1.9, 0.68); mane.rotation.x = 0.8;
+  const mane = bput(box(0.07, 0.8, 0.1), '#2a1c14', 0, 1.92, 0.64); mane.rotation.x = 0.8; // たてがみ（首の 上がわに そって）
   const head = bput(box(0.22, 0.26, 0.62), coat, 0, 2.02, 1.16); head.rotation.x = 0.55;
+  // 頭絡（鼻の まわりの 鼻革・耳の うしろの 項革・その あいだの ほお革）と はみ。頭と 同じ 向きの グループに つける
+  const hg = new THREE.Group(); hg.position.copy(head.position); hg.rotation.x = head.rotation.x; body.add(hg); const strap = '#3a2a1e';
+  [[0.2, 0.135], [-0.2, 0.15]].forEach(([z, r]) => { const t = new THREE.Mesh(new THREE.TorusGeometry(r, 0.018, 6, 20), cmat(strap)); t.scale.set(0.85, 1, 1); t.position.z = z; hg.add(t); });
+  [-1, 1].forEach((sd) => { const c = new THREE.Mesh(box(0.02, 0.03, 0.4), cmat(strap)); c.position.set(sd * 0.117, 0.02, 0); hg.add(c); // ほお革
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.03, 0.008, 6, 12), cmat('#c9ced6')); ring.rotation.y = Math.PI / 2; ring.position.set(sd * 0.125, -0.07, 0.2); hg.add(ring); });
+  hg.updateMatrix(); const bit = (sd) => new THREE.Vector3(sd * 0.125, -0.07, 0.2).applyMatrix4(hg.matrix);
   [-1, 1].forEach((sd) => { const e = bput(new THREE.ConeGeometry(0.04, 0.14, 6), coat, sd * 0.07, 2.32, 0.98); e.rotation.x = -0.2; });
   bput(ball(0.5, 16, 12), '#ffffff', 0, 1.38, -0.05).scale.set(0.585, 0.655, 0.6); // ゼッケン（体に まいた 白い 布）
   bput(ball(0.5, 12, 8), '#3a2a1e', 0, 1.69, -0.02).scale.set(0.34, 0.08, 0.4); // くら
@@ -10096,7 +10102,7 @@ function kbHorse(color, coat, n) { // 馬と 騎手（実物大。頭が +z）
   const tailG = new THREE.Group(); tailG.position.set(0, 1.5, -0.69); tailG.rotation.x = 0.42; body.add(tailG); // しっぽ（おしりの 上から 下へ たれる）
   const tl = new THREE.Mesh(cyl(0.085, 0.03, 0.8, 8), cmat('#2a1c14')); tl.position.y = -0.38; tailG.add(tl);
   // 騎手（勝負服は 馬の 色）：あぶみに 立って 前かがみ
-  const seg = (a, b, r, c) => { const A = new THREE.Vector3(...a); const B = new THREE.Vector3(...b); const m = new THREE.Mesh(cyl(r, r * 0.9, A.distanceTo(B), 8), cmat(c)); m.position.copy(A).add(B).multiplyScalar(0.5); m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), B.clone().sub(A).normalize()); body.add(m); return m; };
+  const seg = (a, b, r, c, parent) => { const A = a.isVector3 ? a : new THREE.Vector3(...a); const B = b.isVector3 ? b : new THREE.Vector3(...b); const m = new THREE.Mesh(cyl(r, r * 0.9, A.distanceTo(B), 8), cmat(c)); m.position.copy(A).add(B).multiplyScalar(0.5); m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), B.clone().sub(A).normalize()); (parent || body).add(m); return m; };
   const jk = bput(box(0.3, 0.42, 0.28), color, 0, 2.06, 0.12); jk.rotation.x = 0.85;
   bput(ball(0.14, 12, 10), color, 0, 2.34, 0.4); // ヘルメット
   bput(ball(0.5, 12, 8), '#ffffff', 0, 1.88, -0.06).scale.set(0.3, 0.18, 0.3); // おしり（白い ズボン）
@@ -10106,6 +10112,7 @@ function kbHorse(color, coat, n) { // 馬と 騎手（実物大。頭が +z）
     bput(box(0.08, 0.05, 0.16), '#1f1a16', sd * 0.29, 1.47, 0.12); // くつ
     seg([sd * 0.29, 1.66, 0.1], [sd * 0.29, 1.47, 0.1], 0.008, '#8a8f96'); // あぶみの 革
     const a = bput(cyl(0.045, 0.045, 0.42, 8), color, sd * 0.17, 2.04, 0.42); a.rotation.x = 1.2; // うで
+    seg(bit(sd), [sd * 0.15, 2.1, 0.62], 0.011, '#3a2a1e'); // 手綱（はみから 騎手の 手へ）
   });
   const legs = [[-0.14, 0.48], [0.14, 0.48], [-0.14, -0.5], [0.14, -0.5]].map(([x, z]) => {
     const L = new THREE.Group(); L.position.set(x, 1.34, z); body.add(L); // 足の つけね（体の 中）
@@ -10113,7 +10120,9 @@ function kbHorse(color, coat, n) { // 馬と 騎手（実物大。頭が +z）
     const hf = new THREE.Mesh(box(0.13, 0.1, 0.16), cmat('#2b2f33')); hf.position.y = -1.27; L.add(hf); return L;
   });
   const tag = labelSprite(String(n), { h: 0.5, bg: color, fg: color === '#f2f2f2' || color === '#e3b23c' ? '#1f2a33' : '#ffffff' }); tag.position.set(0, 3.1, 0); g.add(tag);
-  const lead = person('#3d6f9e', '#3d4a54', true); lead.scale.setScalar(4.3); lead.position.set(-0.75, 0, 1.0); lead.visible = false; g.add(lead); // パドックの 引き手（馬の 左がわ）
+  const lead = new THREE.Group(); lead.visible = false; g.add(lead); // パドックの 引き手（馬の 左がわ）と 引き綱（はみの 左の 輪から 引き手の 手へ）
+  const hand = person('#3d6f9e', '#3d4a54', true); hand.scale.setScalar(4.3); hand.position.set(-0.75, 0, 1.0); lead.add(hand);
+  const lb = bit(-1); const mid = new THREE.Vector3(-0.45, 1.05, 1.25); seg(lb, mid, 0.014, '#c0392b', lead); seg(mid, [-0.6, 0.78, 1.1], 0.014, '#c0392b', lead);
   g.userData.legs = legs; g.userData.body = body; g.userData.lead = lead; return g;
 }
 
