@@ -2514,13 +2514,12 @@ function person(bodyColor, legColor, nameTag, hair) {
   const H = PERSON_HEAD_Y; const R = PERSON_HEAD_R;
   part(g, ball(R, 36, 28), PERSON_SKIN, 0, H, 0);
   [-1, 1].forEach((sd) => part(g, ball(0.012, 12, 10), PERSON_SKIN, sd * 0.064, H - 0.01, -0.004).scale.set(0.6, 1, 0.9));
-  // 目（顔の まん中より 少し 下・大きめ。黒目に 白い ひかり 2 つ）・ほっぺ・小さな 口
+  // 目（顔の まん中より 少し 下・大きめ。黒目に 白い ひかり 1 つ）・ほっぺ・小さな 口
   const onFace = (x, y, off) => Math.sqrt(Math.max(0, R * R - x * x - y * y)) + off; // 顔の 表面の z
   [-1, 1].forEach((sd) => {
     const ex = sd * 0.023; const ey = -0.011;
     part(g, ball(0.0095, 16, 12), '#2e2420', ex, H + ey, onFace(ex, ey, -0.002)).scale.set(1, 1.25, 0.55);
     part(g, ball(0.0034, 10, 8), '#ffffff', ex + 0.0032, H + ey + 0.0048, onFace(ex + 0.0032, ey + 0.0048, 0.0022));
-    part(g, ball(0.0016, 8, 6), '#ffffff', ex - 0.003, H + ey - 0.0045, onFace(ex - 0.003, ey - 0.0045, 0.0022));
     part(g, ball(0.0125, 16, 10), '#f2a7b8', sd * 0.041, H - 0.025, onFace(sd * 0.041, -0.025, -0.004)).scale.set(1.3, 0.75, 0.35);
   });
   const mouth = part(g, new THREE.TorusGeometry(0.0095, 0.0022, 8, 16, Math.PI), PERSON_INK, 0, H - 0.028, onFace(0, -0.028, 0.0005)); mouth.rotation.set(-0.45, 0, Math.PI); mouth.scale.y = 0.6;
