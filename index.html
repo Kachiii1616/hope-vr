@@ -2455,7 +2455,7 @@ const ITEM_MODELS = {
 };
 
 // 人（カフェの お客さま・介護施設の 利用者）
-//   イラスト風：大きめの 頭・黒目に 白い ひかり・ピンクの ほっぺ・にっこり 口・ななめの 前髪・V ネックの セーター（えりは なし）。
+//   イラスト風：大きめの 頭・黒目に 白い ひかり・ピンクの ほっぺ・にっこり 口・ななめの 前髪・丸首の セーター。
 //   正面は +z。hair は PERSON_HAIRS の キー（'short' みじかい・'bob' ボブ など）。書かなければ 服の 色で 'bob' か 'short'（町の 人が ばらけるように）。
 //   look（キャラメイク）：{ skin, hairColor, eyes }。書かなければ ふつうの 見た目
 const PERSON_SKIN = '#f3dbc8';
@@ -2464,36 +2464,10 @@ const PERSON_INK = '#3a2c27';
 const PERSON_PROFILE = [[0, 0.088], [0.05, 0.088], [0.06, 0.091], [0.065, 0.098], [0.0665, 0.11], [0.065, 0.15], [0.06, 0.18], [0.053, 0.199], [0.043, 0.212], [0.03, 0.221], [0.017, 0.226], [0, 0.228]];
 const PERSON_DEPTH = 0.86;
 const PERSON_BODY = new THREE.LatheGeometry(PERSON_PROFILE.map(([x, y]) => new THREE.Vector2(x, y)), 36);
-// 高さ y の ところの 体の はんけい
-function personRadius(y) {
-  for (let i = 1; i < PERSON_PROFILE.length; i++) {
-    const [r0, y0] = PERSON_PROFILE[i - 1]; const [r1, y1] = PERSON_PROFILE[i];
-    if (y <= y1 && y1 > y0) return r0 + (r1 - r0) * Math.max(0, (y - y0) / (y1 - y0));
-  }
-  return 0;
-}
-// 正面から 見た 形（x, y）を 胸に はりつける（体の 表面より off だけ 前に 出す）
-//   胸は 丸いので、三角を 細かく 分けてから のせる（大きい 三角の ままだと まん中が 体に しずむ）
-function chestPatch(pts, off) {
-  const flat = new THREE.ShapeGeometry(new THREE.Shape(pts.map(([x, y]) => new THREE.Vector2(x, y)))).toNonIndexed().attributes.position;
-  let tris = [];
-  for (let i = 0; i < flat.count; i += 3) tris.push([0, 1, 2].map((k) => [flat.getX(i + k), flat.getY(i + k)]));
-  const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
-  for (let n = 0; n < 3; n++) {
-    tris = tris.flatMap(([a, b, c]) => { const ab = mid(a, b); const bc = mid(b, c); const ca = mid(c, a); return [[a, ab, ca], [ab, b, bc], [ca, bc, c], [ab, bc, ca]]; });
-  }
-  const xyz = [];
-  tris.forEach((t) => t.forEach(([x, y]) => { const r = personRadius(y); xyz.push(x, y, PERSON_DEPTH * Math.sqrt(Math.max(0, r * r - x * x)) + off); }));
-  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(xyz, 3));
-  const nrm = []; for (let i = 0; i < xyz.length; i += 3) { const v = new THREE.Vector3(xyz[i] / PERSON_DEPTH, 0.03, xyz[i + 2]).normalize(); nrm.push(v.x, v.y, v.z); } // 体の 面に そった 向き（三角の かどが 目立たないように）
-  geo.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3));
-  return geo;
-}
-// えりもと：首の つけねから はだの V。y は 正面から 見た 高さ
+// えりもと：丸首（首の つけねに 服と 同じ 色の 細い ふち）
 const NECK_Y = 0.222; // 首の つけね
 const PERSON_HEAD_Y = 0.287; // 頭の 中心（あごが えりもとに のる 高さ。首は ほとんど 見せない）
 const PERSON_HEAD_R = 0.066;
-const PERSON_NECK_V = chestPatch([[-0.0125, NECK_Y], [0.0125, NECK_Y], [0, NECK_Y - 0.022]], 0.0015);
 const PERSON_HAIRS = { short: 'みじかい', bob: 'ボブ', long: 'ロング', pony: 'ポニーテール', twin: 'ツインテール', bun: 'おだんご' };
 const PERSON_EYES = { round: 'まる', smile: 'にっこり', dot: 'てん' };
 // 色を 少し こく（かげの 色）
@@ -2523,9 +2497,7 @@ function person(bodyColor, legColor, nameTag, hair, look) {
   });
   // 首（みじかく。あごの 下に かくれる）と えりもと
   part(g, cyl(0.016, 0.018, 0.03, 16), SKIN, 0, 0.234, 0);
-  part(g, PERSON_NECK_V, shade(SKIN, 0.93), 0, 0, 0, { side: THREE.DoubleSide }); // あごの かげに なる ので 少し こく
-  // 首の つけねの 前（上から 見ても V が 首まで つづく）
-  part(g, new THREE.CylinderGeometry(0.0165, 0.0235, 0.0045, 6, 1, true, -0.62, 1.24), shade(SKIN, 0.93), 0, NECK_Y + 0.0022, 0, { side: THREE.DoubleSide }).scale.z = PERSON_DEPTH;
+  const band = part(g, new THREE.TorusGeometry(0.0195, 0.0035, 10, 32), shade(bodyColor, 0.9), 0, NECK_Y + 0.003, 0); band.rotation.x = Math.PI / 2; band.scale.y = PERSON_DEPTH; // 丸首の ふち
   if (nameTag) part(g, box(0.05, 0.026, 0.004), '#ffffff', 0, 0.162, 0.058);
   // 頭（体より 大きめ）
   const H = PERSON_HEAD_Y; const R = PERSON_HEAD_R;
