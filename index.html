@@ -11600,7 +11600,7 @@ const amuseRules = () => ({ // SL_PAY などは この あとで 決まるので
   slot: ['スロット', ['BET（1 か 3 まい）を えらんで、レバーか スピン ボタンで まわす。STOP ボタンで リールを 1 つずつ 止める',
     '3 つ そろうと かけた まい数の 7＝' + SL_PAY[0] + '倍・BAR＝' + SL_PAY[1] + '倍・ベル＝' + SL_PAY[2] + '倍・スイカ＝' + SL_PAY[3] + '倍・チェリー＝' + SL_PAY[4] + '倍',
     'チェリーは そろわなくても OK：左から 2 つ ならぶと 2 倍、左はしに 1 つで 1 倍（かけた 分が もどる）']],
-  roulette: ['ルーレット', ['0〜36 の 37 こ（ヨーロッパ式）。かける ところと まい数（1・5・10）を えらんで まわす',
+  roulette: ['ルーレット', ['0〜36 の 37 こ（ヨーロッパ式）。かけ表の 絵の マス（台の 上・札・画面の カード）を えらび、まい数（1・5・10）を えらんで まわす',
     '赤・黒・奇数・偶数・1〜18・19〜36 → あたると 2 倍（0 は どれにも 入らない）',
     '1〜12・13〜24・25〜36 → 3 倍。数字 1 つ → 36 倍']],
   bj: ['ブラックジャック', ['カードの 合計を 21 に 近づける。2〜10 は そのまま、J・Q・K は 10、A は 1 か 11（つごうの よい ほう）',
@@ -11630,12 +11630,19 @@ function renderCasinoHud(el) {
   const others = Object.keys(CAS_GAMES).filter((k) => k !== pl.at).map((k) => '<button type="button" data-cas-go="' + k + '">' + CAS_GAMES[k] + '</button>').join('') + ['baccarat', 'poker'].map((k) => '<button type="button" data-iba-go="' + k + '">' + IBA_GAMES[k] + '（奥）</button>').join('');
   el.innerHTML = '<span class="tag">HOPE アミューズメント</span><h2>' + (st ? CAS_GAMES[pl.at] : 'あそびを えらぶ') + '</h2>' +
     (st ? '<div class="feedback">' + st.msg.map((m) => esc(m.text || m)).join('<br>') + '</div>' +
+      (pl.at === 'roulette' ? '<canvas id="rl-cv" role="img" aria-label="ルーレットの かけ表。マスを タップすると そこに かけます" style="display:block;width:100%;aspect-ratio:2.26;border-radius:6px;margin-top:6px;cursor:pointer;touch-action:manipulation"></canvas>' : '') +
       '<div class="row">' + st.btnDefs.map((d, i) => '<button type="button"' + (d.on ? ' class="primary"' : '') + ' data-cas-btn="' + i + '">' + esc(d.label) + '</button>').join('') + '</div>'
       : '<div>スロット・ルーレット・ブラックジャックが できます。奥の アーチの むこうは バカラ・ポーカー フロアです。台の 札を えらぶ（VR では ゆびさして トリガー）と 席に つきます。メダルは あそび用です（いま ' + ibaData().medals + 'まい）。</div>') +
     '<div class="row">' + others + '<button type="button" id="cas-rules">ルール説明書</button>' + (st ? '<button type="button" id="cas-stand">席を 立つ</button>' : '') + '<button type="button" id="cas-out">外に 出る</button></div>';
   el.querySelectorAll('[data-cas-go]').forEach((b) => { b.onclick = () => casSit(b.dataset.casGo); });
   el.querySelectorAll('[data-iba-go]').forEach((b) => { b.onclick = () => ibaSit(b.dataset.ibaGo); });
   el.querySelectorAll('[data-cas-btn]').forEach((b) => { b.onclick = () => { const d = st.btnDefs[Number(b.dataset.casBtn)]; if (d) { playSfx('pop'); d.act(); } }; });
+  const cv = $('rl-cv');
+  if (cv) {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2); cv.width = Math.round((cv.clientWidth || 300) * dpr); cv.height = Math.round(cv.width / 2.26);
+    rlPaintLay(cv.getContext('2d'), 0, 0, cv.width, cv.height, st.R);
+    cv.onclick = (e) => { const r = cv.getBoundingClientRect(); rlPick(st, rlHit((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height)); };
+  }
   $('cas-rules').onclick = () => openAmuseRules(pl.at);
   if ($('cas-stand')) $('cas-stand').onclick = casStand;
   $('cas-out').onclick = endPlay;
@@ -11741,19 +11748,61 @@ const rlColor = (n) => (n === 0 ? '#2f8a3a' : RL_RED.has(n) ? '#c0392b' : '#1f2a
 const RL_BETS = { red: ['赤', 2, (n) => RL_RED.has(n)], black: ['黒', 2, (n) => n > 0 && !RL_RED.has(n)], odd: ['奇数', 2, (n) => n % 2 === 1], even: ['偶数', 2, (n) => n > 0 && n % 2 === 0],
   low: ['1〜18', 2, (n) => n >= 1 && n <= 18], high: ['19〜36', 2, (n) => n >= 19], d1: ['1〜12', 3, (n) => n >= 1 && n <= 12], d2: ['13〜24', 3, (n) => n >= 13 && n <= 24], d3: ['25〜36', 3, (n) => n >= 25], num: ['数字', 36, null] };
 const RL_TOP = 0.82; const RL_WX = -0.72;
+const RL_OUT = ['low', 'even', 'red', 'black', 'odd', 'high']; // 下の 段の ならび
+const RL_LAY = { w: 1.4, d: 0.62, x: 0.5, z: 0.05 }; // 台の 上の かけ表（m）
+// かけ表の マス（0〜1 の わりあい）。台・札・画面の カードの 絵で 同じ ものを 使う
+const RL_CELLS = (() => {
+  const cw = 1 / 13; const ch = 0.2; const out = [{ type: 'num', num: 0, u0: 0, v0: 0, u1: cw, v1: 0.6 }];
+  for (let n = 1; n <= 36; n++) { const c = Math.ceil(n / 3); const r = 2 - ((n - 1) % 3); out.push({ type: 'num', num: n, u0: c * cw, v0: r * ch, u1: (c + 1) * cw, v1: (r + 1) * ch }); }
+  ['d1', 'd2', 'd3'].forEach((k, i) => out.push({ type: k, u0: cw + i * 4 * cw, v0: 0.62, u1: cw + (i + 1) * 4 * cw, v1: 0.79 }));
+  RL_OUT.forEach((k, i) => out.push({ type: k, u0: cw + i * 2 * cw, v0: 0.81, u1: cw + (i + 1) * 2 * cw, v1: 0.98 }));
+  return out;
+})();
+const rlIsSel = (c, R) => c.type === R.type && (c.type !== 'num' || c.num === R.num);
+const rlCellColor = (c) => (c.type === 'num' ? rlColor(c.num) : c.type === 'red' ? '#c0392b' : c.type === 'black' ? '#1f2a33' : '#1f6f3a');
+const rlCellText = (c) => (c.type === 'num' ? String(c.num) : RL_BETS[c.type][0]);
+function rlPaintLay(ctx, x, y, w, h, R) { // かけ表の 絵。R が あれば かけて いる マスに チップを 描く
+  ctx.fillStyle = '#1f6f3a'; ctx.fillRect(x, y, w, h); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  RL_CELLS.forEach((c) => {
+    const u0 = x + c.u0 * w; const v0 = y + c.v0 * h; const cw = (c.u1 - c.u0) * w; const chh = (c.v1 - c.v0) * h;
+    ctx.fillStyle = rlCellColor(c); ctx.fillRect(u0 + 1, v0 + 1, cw - 2, chh - 2);
+    if (c.type === 'd1' || c.type === 'd2' || c.type === 'd3') { ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(1, h * 0.006); ctx.strokeRect(u0 + 1, v0 + 1, cw - 2, chh - 2); }
+    ctx.fillStyle = '#ffffff'; ctx.font = '700 ' + Math.round(c.type === 'num' ? h * 0.1 : h * 0.08) + 'px ' + FONT_BODY; ctx.fillText(rlCellText(c), u0 + cw / 2, v0 + chh / 2);
+  });
+  const sel = R && RL_CELLS.find((c) => rlIsSel(c, R));
+  if (sel) { // えらんで いる マス：金の わく＋チップ
+    const u0 = x + sel.u0 * w; const v0 = y + sel.v0 * h; const cw = (sel.u1 - sel.u0) * w; const chh = (sel.v1 - sel.v0) * h;
+    ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = Math.max(2, h * 0.025); ctx.strokeRect(u0 + 1, v0 + 1, cw - 2, chh - 2);
+    const r = Math.min(h * 0.075, cw * 0.38); const cx = u0 + cw - r * 0.9; const cy = v0 + chh - r * 0.9;
+    ctx.fillStyle = '#e0662f'; ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU); ctx.fill(); ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(1, r * 0.25); ctx.setLineDash([r * 0.4, r * 0.3]); ctx.stroke(); ctx.setLineDash([]);
+  }
+}
+function rlPaintPocket(ctx, cx, cy, r, n) { // 出た 数字（玉が 入った ポケットの 色の まる）。n が null なら まだ
+  ctx.fillStyle = n === null ? '#c9ced6' : rlColor(n); ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU); ctx.fill();
+  ctx.strokeStyle = '#e3b23c'; ctx.lineWidth = r * 0.12; ctx.stroke();
+  ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = '700 ' + Math.round(r * (n !== null && n > 9 ? 0.9 : 1.05)) + 'px ' + FONT_BODY; ctx.fillText(n === null ? '?' : String(n), cx, cy + r * 0.04);
+}
+const rlHit = (u, v) => RL_CELLS.find((c) => u >= c.u0 && u < c.u1 && v >= c.v0 && v < c.v1);
+function rlPick(st, c) { const R = st.R; if (R.spin || !c) return; R.type = c.type; if (c.type === 'num') R.num = c.num; playSfx('pop'); rlShow(st); }
+// 札の 絵の 中の かけ表の 場所（わりあい）
+const RL_PANEL_LAY = { x: 0.3, y: 0.4, w: 0.67, h: 0.44 };
 function buildRoulette(st) {
   const put = (geo, col, x, y, z, parent) => { const m = new THREE.Mesh(geo, cmat(col)); m.position.set(x, y, z); (parent || st.g).add(m); return m; };
   put(box(2.6, 0.08, 1.4), '#5a3a22', 0, RL_TOP - 0.04, 0); put(box(2.5, 0.01, 1.3), '#1f6f3a', 0, RL_TOP + 0.005, 0);
   [[-1.2, -0.6], [1.2, -0.6], [-1.2, 0.6], [1.2, 0.6]].forEach(([x, z]) => put(box(0.08, RL_TOP - 0.08, 0.08), '#3a2a1a', x, (RL_TOP - 0.08) / 2, z));
   // 盤（かけ表）
-  const lay = new Board(1.4, 0.62, 500); lay.draw((ctx, W, H) => {
-    ctx.fillStyle = '#1f6f3a'; ctx.fillRect(0, 0, W, H); const cw = W / 13; const ch = H * 0.6 / 3;
-    ctx.fillStyle = rlColor(0); ctx.fillRect(0, 0, cw, ch * 3); ctx.fillStyle = '#fff'; ctx.font = '700 ' + Math.round(ch * 0.5) + 'px ' + FONT_BODY; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('0', cw / 2, ch * 1.5);
-    for (let n = 1; n <= 36; n++) { const c = Math.ceil(n / 3); const r = 2 - ((n - 1) % 3); ctx.fillStyle = rlColor(n); ctx.fillRect(c * cw + 1, r * ch + 1, cw - 2, ch - 2); ctx.fillStyle = '#fff'; ctx.fillText(String(n), c * cw + cw / 2, r * ch + ch / 2); }
-    ctx.font = '700 ' + Math.round(H * 0.08) + 'px ' + FONT_BODY; [['1〜12', 0], ['13〜24', 1], ['25〜36', 2]].forEach(([t, i]) => { ctx.strokeStyle = '#fff'; ctx.strokeRect(cw + i * 4 * cw, H * 0.62, 4 * cw, H * 0.17); ctx.fillStyle = '#fff'; ctx.fillText(t, cw + i * 4 * cw + 2 * cw, H * 0.705); });
-    [['1〜18', '#1f6f3a'], ['偶数', '#1f6f3a'], ['赤', '#c0392b'], ['黒', '#1f2a33'], ['奇数', '#1f6f3a'], ['19〜36', '#1f6f3a']].forEach(([t, c], i) => { ctx.fillStyle = c; ctx.fillRect(cw + i * 2 * cw + 1, H * 0.81, 2 * cw - 2, H * 0.17); ctx.fillStyle = '#fff'; ctx.fillText(t, cw + i * 2 * cw + cw, H * 0.895); });
+  const L = RL_LAY; const lay = new Board(L.w, L.d, 500); lay.draw((ctx, W, H) => rlPaintLay(ctx, 0, 0, W, H, null));
+  lay.mesh.rotation.x = -Math.PI / 2; lay.mesh.position.set(L.x, RL_TOP + 0.012, L.z); st.g.add(lay.mesh);
+  // マスを ゆびさす・タップすると そこに かける（台の 上と 札の 絵の どちらでも）
+  const hitMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false });
+  RL_CELLS.forEach((c) => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry((c.u1 - c.u0) * L.w, (c.v1 - c.v0) * L.d), hitMat); m.rotation.x = -Math.PI / 2;
+    m.position.set(L.x + ((c.u0 + c.u1) / 2 - 0.5) * L.w, RL_TOP + 0.016, L.z + ((c.v0 + c.v1) / 2 - 0.5) * L.d); st.g.add(m); st.clicks.push(ibaClick(m, () => rlPick(st, c)));
+    const P = RL_PANEL_LAY; const pw = 0.9; const ph = 0.5; // 札（0.9 × 0.5 m）の 上の 絵
+    const q = new THREE.Mesh(new THREE.PlaneGeometry((c.u1 - c.u0) * P.w * pw, (c.v1 - c.v0) * P.h * ph), hitMat);
+    q.position.set((P.x + (c.u0 + c.u1) / 2 * P.w - 0.5) * pw, (0.5 - (P.y + (c.v0 + c.v1) / 2 * P.h)) * ph, 0.004); st.pg.add(q); st.clicks.push(ibaClick(q, () => rlPick(st, c)));
   });
-  lay.mesh.rotation.x = -Math.PI / 2; lay.mesh.position.set(0.5, RL_TOP + 0.012, 0.05); st.g.add(lay.mesh);
+  st.chipG = new THREE.Group(); st.g.add(st.chipG);
   // 回転盤
   const wg = new THREE.Group(); wg.position.set(RL_WX, RL_TOP, 0); st.g.add(wg); st.wheel = wg;
   put(cyl(0.42, 0.44, 0.1, 40), '#5a3a22', RL_WX, RL_TOP + 0.05, 0); // 外わく（まわらない）
@@ -11772,13 +11821,22 @@ function buildRoulette(st) {
 }
 function rlShow(st) {
   const R = st.R; const md = ibaData().medals; const B = RL_BETS[R.type];
-  const bet = (R.type === 'num' ? R.num + ' 番' : B[0]) + '・' + R.amt + 'まい（あたると ' + B[1] + ' 倍）';
-  const msg = [R.spin ? 'ボールが まわって います…' : R.last || 'かける ところと まい数を えらんで スピン', 'メダル ' + md + 'まい　｜　' + bet, R.hist.length ? 'さいきん：' + R.hist.slice(-8).join(' ') : ''];
-  const defs = R.spin ? [] : ['red', 'black', 'odd', 'even', 'low', 'high'].map((k) => ({ label: RL_BETS[k][0], act: () => { R.type = k; rlShow(st); }, on: R.type === k, row: 0, w: 0.13 }))
-    .concat(['d1', 'd2', 'd3', 'num'].map((k) => ({ label: RL_BETS[k][0], act: () => { R.type = k; rlShow(st); }, on: R.type === k, row: 1, w: 0.19 })))
-    .concat(R.type === 'num' ? [{ label: '◀', act: () => { R.num = (R.num + 36) % 37; rlShow(st); }, row: 2, w: 0.12 }, { label: R.num + ' 番', act: () => {}, on: true, row: 2, w: 0.16 }, { label: '▶', act: () => { R.num = (R.num + 1) % 37; rlShow(st); }, row: 2, w: 0.12 }] : [])
-    .concat([1, 5, 10].map((a) => ({ label: a + 'まい', act: () => { R.amt = a; rlShow(st); }, on: R.amt === a, row: 3, w: 0.17 })))
-    .concat([md < 1 ? casMedalBtn(st, rlShow, 3) : { label: 'スピン', act: () => rlSpin(st), row: 3, w: 0.26, color: '#c0392b' }]);
+  const bet = (R.type === 'num' ? R.num + ' 番' : B[0]) + 'に ' + R.amt + 'まい（あたると ' + B[1] + ' 倍）';
+  // 台の 上の チップ（かけて いる マスに）
+  while (st.chipG.children.length) st.chipG.remove(st.chipG.children[0]);
+  const sel = RL_CELLS.find((c) => rlIsSel(c, R)); const L = RL_LAY;
+  if (sel) { const n = Math.min(14, 1 + Math.floor(R.amt / 2)); const cx = L.x + ((sel.u0 + sel.u1) / 2 - 0.5) * L.w; const cz = L.z + ((sel.v0 + sel.v1) / 2 - 0.5) * L.d;
+    for (let k = 0; k < n; k++) { const m = new THREE.Mesh(CHIP_GEO, cmat(k % 3 === 2 ? '#f2efe8' : '#e0662f')); m.position.set(cx + (k % 2) * 0.002, RL_TOP + 0.016 + k * 0.0065, cz); st.chipG.add(m); } }
+  // 札の 絵：左に 出た 数字、右に かけ表（タップで かける）、下に これまでの 数字
+  st.extraPaint = (ctx, W, H) => {
+    const r = H * 0.15; rlPaintPocket(ctx, W * 0.15, H * 0.6, r, R.spin ? null : R.hist.length ? R.hist[R.hist.length - 1] : null);
+    ctx.fillStyle = '#5a6470'; ctx.font = '400 ' + Math.round(H * 0.045) + 'px ' + FONT_BODY; ctx.textAlign = 'center'; ctx.fillText(R.spin ? 'まわって います' : R.hist.length ? '出た 数字' : 'まだ です', W * 0.15, H * 0.6 + r * 1.35);
+    const P = RL_PANEL_LAY; rlPaintLay(ctx, P.x * W, P.y * H, P.w * W, P.h * H, R);
+    R.hist.slice(-10).forEach((n, i) => { const cx = W * (0.33 + i * 0.065); rlPaintPocket(ctx, cx, H * 0.925, H * 0.045, n); });
+  };
+  const msg = [R.spin ? 'ボールが まわって います…' : R.last ? { text: R.last, color: R.won ? '#2f7d4f' : '#c0392b' } : '絵の マスを えらんで かけ、スピン', 'メダル ' + md + 'まい　｜　' + bet];
+  const defs = R.spin ? [] : [1, 5, 10].map((a) => ({ label: a + 'まい', act: () => { R.amt = a; rlShow(st); }, on: R.amt === a, row: 0, w: 0.17 }))
+    .concat([md < R.amt ? casMedalBtn(st, rlShow, 0) : { label: 'スピン', act: () => rlSpin(st), row: 0, w: 0.26, color: '#c0392b' }]);
   casUpdate(st, msg, defs);
 }
 function rlSpin(st) {
@@ -11799,7 +11857,7 @@ function stepRoulette(st, now) {
   if (t >= 1) {
     R.spin = null; const n = P.n; const B = RL_BETS[R.type]; const hit = R.type === 'num' ? n === R.num : B[2](n); const pay = hit ? R.amt * B[1] : 0;
     ibaData().medals += pay; if (profile) saveProfile(); R.hist.push(n);
-    R.last = n + '（' + (n === 0 ? '緑' : RL_RED.has(n) ? '赤' : '黒') + '）… ' + (hit ? 'あたり！ メダル ' + pay + 'まい' : 'はずれ');
+    R.last = n + '（' + (n === 0 ? '緑' : RL_RED.has(n) ? '赤' : '黒') + '）… ' + (hit ? 'あたり！ メダル ' + pay + 'まい' : 'はずれ'); R.won = hit;
     if (hit && B[1] >= 3) ibaLog('roulette', (R.type === 'num' ? R.num + ' 番' : B[0]) + ' あたり +' + pay + '（のこり ' + ibaData().medals + 'まい）');
     playSfx(hit ? 'coin' : 'pop'); if (hit) toast(R.last); rlShow(st);
   }
@@ -12317,7 +12375,7 @@ $('btn-home').addEventListener('click', () => goHome());
 $('btn-settings').addEventListener('click', openSettings);
 window.hopeTown = { scene, camera,
   CASINO, CASINO_SITE, casinoRefill, casinoCount, CASINO_REST_EVERY, bacPlay, bacPayout, bacTotal, bacDeal, pkEval, pkHandName, pkEquity, pkNew, pkAct,
-  IBA, IBA_SITE, openIba, ibaSit, ibaStand, ibaClickables, ibaData, sgLegal, sgPlay, sgThink, igoThink, igoScore, mjShanten, mjComplete, mjYaku, mjCounts, ISLE, BOATS, boardBoat, boatTrip, openCasino, casSit, casStand, CAS, slSpin, slStop, rlSpin, bjDeal, bjHit, bjStand, rideFerris, FERRIS, goBoatPier, KC, openKeiba, kcWindow, kcSeat, kcPaddock, keibaBuy, keibaStart, keibaNew, kcClickables, walkable, kcOutside, shogiTap, igoTap, mjTap, mjRon,
+  RL_CELLS, rlPick, rlHit, IBA, IBA_SITE, openIba, ibaSit, ibaStand, ibaClickables, ibaData, sgLegal, sgPlay, sgThink, igoThink, igoScore, mjShanten, mjComplete, mjYaku, mjCounts, ISLE, BOATS, boardBoat, boatTrip, openCasino, casSit, casStand, CAS, slSpin, slStop, rlSpin, bjDeal, bjHit, bjStand, rideFerris, FERRIS, goBoatPier, KC, openKeiba, kcWindow, kcSeat, kcPaddock, keibaBuy, keibaStart, keibaNew, kcClickables, walkable, kcOutside, shogiTap, igoTap, mjTap, mjRon,
   state, goBooth, pickVariant, startSession, openRehab, startRehab, rehabPress, rehabSwipeThrow, rehabVolleyPress, REHAB, get rehabOpt() { return rehabOpt; }, set rehabOpt(v) { rehabOpt = v; }, select: onSelectItem, playSfx, sfxKind, SFX, nextTargetKey, setSeason, startWalk, exitToWalk, walkKeys, rig, look, walkable, booths, goHome, exitHome, goPlaza,
   get profile() { return profile; }, quitWork, openJobList, openCafeOrder, sitCafe, endPlay, CAFE_ORDER, doLeisure, LEISURE, home, HOME_LEVELS, upgradeHome, askUpgrade, homeLv, FURN, goFurniture, furnShop, pickFurn, exitFurniture, cheatCover() { const r = state.round; if (r && r.cover) { r.cover.surf.clearAll(); coverProgress(r, 1, performance.now()); } }, seasonal, LAKE, toWorld, nearbyActions, openShop, openBadgeBook, openSettings, openAreaPicker, openLookMaker, lookOf,
   // テスト用：オープニングを とばして 家を 用意する
