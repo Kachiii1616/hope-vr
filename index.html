@@ -148,6 +148,20 @@ button.primary { background: var(--accent); color: var(--accent-ink); border-col
 .choices label:has(input:checked) { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 .choices small { display: block; font-weight: 400; color: var(--ink-soft); }
 .modal-card .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+/* キャラメイク（左に 見本、右に えらぶ ところ。せまい 画面では 上下） */
+.modal-card.wide { width: min(780px, 100%); }
+.look-wrap { display: grid; grid-template-columns: minmax(160px, 220px) 1fr; gap: 14px; align-items: start; }
+.look-view { position: sticky; top: 0; }
+.look-view canvas { display: block; width: 100%; aspect-ratio: 3 / 4; border-radius: 14px; background: #dfe8ee; touch-action: none; cursor: grab; }
+.look-view small { display: block; text-align: center; color: var(--ink-soft); font-size: 12px; }
+.look-opts .field { font-weight: 700; margin: 10px 0 4px; }
+.look-opts .field:first-child { margin-top: 0; }
+.look-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.look-row button { padding: 5px 10px; font-size: 14px; }
+.look-row button[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 2px var(--accent); }
+.look-row .swatch { width: 34px; height: 34px; padding: 0; border-radius: 50%; background: var(--c); border: 2px solid var(--line); }
+.look-row .swatch[aria-pressed="true"] { box-shadow: 0 0 0 3px var(--accent); border-color: #ffffff; }
+@media (max-width: 560px) { .look-wrap { grid-template-columns: 1fr; } .look-view { position: static; width: min(200px, 60%); margin: 0 auto; } }
 .pick-list { display: grid; gap: 8px; margin-top: 8px; }
 /* 作業一覧（画面いっぱい） */
 .modal.full { padding: 0; }
@@ -2442,7 +2456,8 @@ const ITEM_MODELS = {
 
 // 人（カフェの お客さま・介護施設の 利用者）
 //   イラスト風：大きめの 頭・黒目に 白い ひかり・ピンクの ほっぺ・にっこり 口・ななめの 前髪・白い えり・V ネックの セーター。
-//   正面は +z。hair は 'bob'（肩までの ボブ）か 'short'（みじかい 髪）。書かなければ 服の 色で きめる（町の 人が ばらけるように）。
+//   正面は +z。hair は PERSON_HAIRS の キー（'short' みじかい・'bob' ボブ など）。書かなければ 服の 色で 'bob' か 'short'（町の 人が ばらけるように）。
+//   look（キャラメイク）：{ skin, hairColor, eyes }。書かなければ ふつうの 見た目
 const PERSON_SKIN = '#f3dbc8';
 const PERSON_INK = '#3a2c27';
 // セーターの 形（まるい たまご形。すそと 肩は 角を 丸める）。[はんけい, 高さ]。前後は PERSON_DEPTH で 少し うすく
@@ -2480,9 +2495,15 @@ const PERSON_HEAD_Y = 0.287; // 頭の 中心（あごが えりもとに のる
 const PERSON_HEAD_R = 0.066;
 const PERSON_NECK_V = chestPatch([[-0.0125, NECK_Y], [0.0125, NECK_Y], [0, NECK_Y - 0.022]], 0.0015);
 const PERSON_COLLAR = [-1, 1].map((sd) => chestPatch([[sd * 0.0125, NECK_Y], [sd * 0.02, NECK_Y], [sd * 0.03, NECK_Y - 0.009], [sd * 0.0065, NECK_Y - 0.03], [sd * 0.0015, NECK_Y - 0.021]], 0.003));
-function person(bodyColor, legColor, nameTag, hair) {
+const PERSON_HAIRS = { short: 'みじかい', bob: 'ボブ', long: 'ロング', pony: 'ポニーテール', twin: 'ツインテール', bun: 'おだんご' };
+const PERSON_EYES = { round: 'まる', smile: 'にっこり', dot: 'てん' };
+// 色を 少し こく（かげの 色）
+const shade = (hex, k) => '#' + new THREE.Color(hex).multiplyScalar(k).getHexString();
+function person(bodyColor, legColor, nameTag, hair, look) {
   const g = new THREE.Group();
-  const hairColor = nameTag ? '#d8d8d8' : '#3d2c26';
+  look = look || {};
+  const SKIN = look.skin || PERSON_SKIN;
+  const hairColor = look.hairColor || (nameTag ? '#d8d8d8' : '#3d2c26');
   if (!hair) hair = [...bodyColor].reduce((a, c) => a + c.charCodeAt(0), 0) % 2 ? 'bob' : 'short';
   // 足と くつ
   [-1, 1].forEach((sd) => {
@@ -2499,27 +2520,33 @@ function person(bodyColor, legColor, nameTag, hair) {
     part(g, ball(AR, 16, 12), bodyColor, top[0], top[1], 0);
     const arm = part(g, cyl(AR, AR, ARM, 16), bodyColor, (top[0] + end[0]) / 2, (top[1] + end[1]) / 2, 0); arm.rotation.z = sd * TILT;
     part(g, ball(AR, 16, 12), bodyColor, end[0], end[1], 0);
-    part(g, ball(0.0175, 16, 12), PERSON_SKIN, end[0] + sd * 0.002, end[1] - 0.012, 0.002);
+    part(g, ball(0.0175, 16, 12), SKIN, end[0] + sd * 0.002, end[1] - 0.012, 0.002);
   });
   // 首（みじかく。あごの 下に かくれる）と えりもと
-  part(g, cyl(0.016, 0.018, 0.03, 16), PERSON_SKIN, 0, 0.234, 0);
-  part(g, PERSON_NECK_V, '#e3b89c', 0, 0, 0, { side: THREE.DoubleSide }); // あごの かげに なる ので 少し こく
+  part(g, cyl(0.016, 0.018, 0.03, 16), SKIN, 0, 0.234, 0);
+  part(g, PERSON_NECK_V, shade(SKIN, 0.93), 0, 0, 0, { side: THREE.DoubleSide }); // あごの かげに なる ので 少し こく
   // 首の つけねの 前（上から 見ても V と えりが 首まで つづく）
-  [[-0.62, 1.24, '#e3b89c'], [0.62, 0.48, '#ffffff'], [-1.1, 0.48, '#ffffff']].forEach(([a0, len, c]) => {
+  [[-0.62, 1.24, shade(SKIN, 0.93)], [0.62, 0.48, '#ffffff'], [-1.1, 0.48, '#ffffff']].forEach(([a0, len, c]) => {
     part(g, new THREE.CylinderGeometry(0.0165, 0.0235, 0.0045, 6, 1, true, a0, len), c, 0, NECK_Y + 0.0022, 0, { side: THREE.DoubleSide }).scale.z = PERSON_DEPTH;
   });
   PERSON_COLLAR.forEach((geo) => part(g, geo, '#ffffff', 0, 0, 0, { side: THREE.DoubleSide }));
   if (nameTag) part(g, box(0.05, 0.026, 0.004), '#ffffff', 0, 0.162, 0.058);
   // 頭（体より 大きめ）
   const H = PERSON_HEAD_Y; const R = PERSON_HEAD_R;
-  part(g, ball(R, 36, 28), PERSON_SKIN, 0, H, 0);
-  [-1, 1].forEach((sd) => part(g, ball(0.012, 12, 10), PERSON_SKIN, sd * 0.064, H - 0.01, -0.004).scale.set(0.6, 1, 0.9));
+  part(g, ball(R, 36, 28), SKIN, 0, H, 0);
+  [-1, 1].forEach((sd) => part(g, ball(0.012, 12, 10), SKIN, sd * 0.064, H - 0.01, -0.004).scale.set(0.6, 1, 0.9));
   // 目（顔の まん中より 少し 下・大きめ。黒目に 白い ひかり 1 つ）・ほっぺ・小さな 口
   const onFace = (x, y, off) => Math.sqrt(Math.max(0, R * R - x * x - y * y)) + off; // 顔の 表面の z
   [-1, 1].forEach((sd) => {
     const ex = sd * 0.023; const ey = -0.011;
-    part(g, ball(0.0095, 16, 12), '#2e2420', ex, H + ey, onFace(ex, ey, -0.002)).scale.set(1, 1.25, 0.55);
-    part(g, ball(0.0034, 10, 8), '#ffffff', ex + 0.0032, H + ey + 0.0048, onFace(ex + 0.0032, ey + 0.0048, 0.0022));
+    if (look.eyes === 'smile') { // にっこり：上に まるい 線
+      const arc = part(g, new THREE.TorusGeometry(0.0085, 0.0022, 8, 16, Math.PI), '#2e2420', ex, H + ey - 0.004, onFace(ex, ey, 0.0004)); arc.rotation.x = -0.18;
+    } else if (look.eyes === 'dot') { // てん：小さな 黒目
+      part(g, ball(0.0058, 14, 10), '#2e2420', ex, H + ey, onFace(ex, ey, -0.001)).scale.set(1, 1.15, 0.55);
+    } else {
+      part(g, ball(0.0095, 16, 12), '#2e2420', ex, H + ey, onFace(ex, ey, -0.002)).scale.set(1, 1.25, 0.55);
+      part(g, ball(0.0034, 10, 8), '#ffffff', ex + 0.0032, H + ey + 0.0048, onFace(ex + 0.0032, ey + 0.0048, 0.0022));
+    }
     part(g, ball(0.0125, 16, 10), '#f2a7b8', sd * 0.041, H - 0.025, onFace(sd * 0.041, -0.025, -0.004)).scale.set(1.3, 0.75, 0.35);
   });
   const mouth = part(g, new THREE.TorusGeometry(0.0095, 0.0022, 8, 16, Math.PI), PERSON_INK, 0, H - 0.028, onFace(0, -0.028, 0.0005)); mouth.rotation.set(-0.45, 0, Math.PI); mouth.scale.y = 0.6;
@@ -2528,11 +2555,27 @@ function person(bodyColor, legColor, nameTag, hair) {
   top.rotation.x = -0.42;
   const bang = part(g, new THREE.SphereGeometry(R + 0.004, 36, 12, 0, TAU, 0, Math.PI * 0.36), hairColor, 0, H, 0, { side: THREE.DoubleSide });
   bang.rotation.set(0.32, 0, 0.3);
-  if (hair === 'bob') {
+  if (hair === 'bob' || hair === 'long') {
     // あごの 下まで とどく 丸い ボブ（すそは 内まき。顔の 前は あける）。頭の てっぺんから 1 まいで かぶせて、上の かぶりと すきまを つくらない
     const side = part(g, new THREE.SphereGeometry(R + 0.009, 36, 18, Math.PI * 0.82, Math.PI * 1.36, 0, Math.PI * 0.78), hairColor, 0, H - 0.01, -0.002, { side: THREE.DoubleSide });
     side.scale.set(1.03, 1.1, 1);
   }
+  // ロング：せなかに おちる 髪（ボブの うしろに 丸い たば）
+  if (hair === 'long') part(g, ball(0.064, 32, 20), hairColor, 0, H - 0.05, -0.028).scale.set(1.06, 1.55, 0.62);
+  // ポニーテール：うしろの 高い ところで むすぶ
+  if (hair === 'pony') {
+    part(g, ball(0.012, 14, 10), shade(hairColor, 0.8), 0, H + 0.012, -R - 0.004);
+    const tail = part(g, ball(0.024, 24, 16), hairColor, 0, H - 0.03, -R - 0.016); tail.scale.set(0.85, 1.9, 0.8); tail.rotation.x = 0.18;
+  }
+  // ツインテール：耳の 上で 2 つに むすぶ
+  if (hair === 'twin') {
+    [-1, 1].forEach((sd) => {
+      part(g, ball(0.011, 14, 10), shade(hairColor, 0.8), sd * (R + 0.002), H + 0.012, -0.012);
+      const tail = part(g, ball(0.022, 24, 16), hairColor, sd * (R + 0.014), H - 0.026, -0.014); tail.scale.set(0.8, 1.9, 0.8); tail.rotation.z = sd * 0.15;
+    });
+  }
+  // おだんご：頭の うしろ上に まるい たば
+  if (hair === 'bun') part(g, ball(0.03, 28, 20), hairColor, 0, H + 0.05, -0.04);
   return g;
 }
 
@@ -3415,10 +3458,36 @@ function trophyMesh(color, ghost) {
   [-1, 1].forEach((sd) => part(g, new THREE.TorusGeometry(0.045, 0.012, 8, 16), c, sd * 0.11, 0.27, 0, ex));
   return g;
 }
-// 自分の 姿（家の 中）。性別は 髪型と 服だけに 使う
-function avatar(gender) {
-  const g = person(gender === 'f' ? '#e4a3b4' : gender === 'm' ? '#9ebbdf' : '#a9cf9a', '#3d4a54', false, gender === 'f' ? 'bob' : 'short');
-  if (gender === 'n') {
+// キャラメイク：えらべる 色と こもの。はじめの 見た目は 性別で きめる（キャラメイクで かえられる）
+const LOOK_OPTS = {
+  hair: PERSON_HAIRS,
+  hairColor: { '#3d2c26': 'こげ茶', '#1f1a1a': '黒', '#7a4a2c': '茶色', '#d9b25a': '金色', '#e79bb3': 'ピンク', '#5a7fbf': '青', '#d8d8d8': '白' },
+  skin: { '#f8e6d6': 'あかるい', '#f3dbc8': 'ふつう', '#e2b894': 'こんがり', '#b98563': 'こい' },
+  eyes: PERSON_EYES,
+  top: { '#e4a3b4': 'ピンク', '#9ebbdf': '水色', '#a9cf9a': 'みどり', '#f2d27a': 'きいろ', '#f0a46a': 'オレンジ', '#b9a3d9': 'むらさき', '#f4f1ea': '白', '#46587a': 'こん' },
+  bottom: { '#3d4a54': 'グレー', '#2f4f7a': 'デニム', '#c49a6c': 'ベージュ', '#2a2a2e': '黒', '#6f8f5a': 'カーキ' },
+  acc: { none: 'なし', cap: 'ぼうし', ribbon: 'リボン', glasses: 'めがね' },
+};
+const LOOK_LABELS = { hair: '髪型', hairColor: '髪の 色', skin: '肌の 色', eyes: '目', top: '服の 色', bottom: 'ズボンの 色', acc: 'こもの' };
+const defaultLook = (gender) => ({ hair: gender === 'f' ? 'bob' : 'short', hairColor: '#3d2c26', skin: PERSON_SKIN, eyes: 'round',
+  top: gender === 'f' ? '#e4a3b4' : gender === 'm' ? '#9ebbdf' : '#a9cf9a', bottom: '#3d4a54', acc: gender === 'n' ? 'cap' : 'none' });
+// えらべる ものの 中に ない 値（古い 記録・こわれた 値）は はじめの 見た目に もどす
+const lookOf = (p) => { const d = defaultLook(p && p.gender); const l = (p && p.look) || {}; Object.keys(d).forEach((k) => { if (LOOK_OPTS[k][l[k]] !== undefined) d[k] = l[k]; }); return d; };
+// 自分の 姿（家の 中・キャラメイクの 見本）
+function avatar(look) {
+  const g = person(look.top, look.bottom, false, look.hair, look);
+  const H = PERSON_HEAD_Y; const R = PERSON_HEAD_R;
+  if (look.acc === 'ribbon') { // 頭の 右上に リボン
+    const rb = new THREE.Group(); rb.position.set(0.04, H + 0.054, 0.01); rb.rotation.set(0.2, 0, -0.5); g.add(rb);
+    [-1, 1].forEach((sd) => { const w = part(rb, ball(0.016, 20, 14), '#e0566f', sd * 0.016, 0, 0); w.scale.set(1.1, 0.75, 0.5); w.rotation.z = sd * -0.25; });
+    part(rb, ball(0.007, 12, 10), '#c8405a', 0, 0, 0.002);
+  }
+  if (look.acc === 'glasses') { // めがね：目の まわりに わく
+    const z = Math.sqrt(R * R - 0.023 * 0.023 - 0.011 * 0.011) + 0.004;
+    [-1, 1].forEach((sd) => part(g, new THREE.TorusGeometry(0.0135, 0.0018, 8, 28), '#3a2c27', sd * 0.023, H - 0.011, z));
+    part(g, cyl(0.0014, 0.0014, 0.02, 8), '#3a2c27', 0, H - 0.008, z + 0.002).rotation.z = Math.PI / 2;
+  }
+  if (look.acc === 'cap') {
     // ぼうし：頭に かぶせる（髪と 同じ だけ うしろに かたむけ、つばは ひたいの 上）
     const cap = new THREE.Group(); cap.position.set(0, PERSON_HEAD_Y, 0); cap.rotation.x = -0.3; g.add(cap);
     const CR = PERSON_HEAD_R + 0.0095;
@@ -3645,7 +3714,7 @@ function refreshHome() {
   const HD = home.HD;
   const t = trophyLevel();
   [['#c7834a', 1, -0.5], ['#b8c2ca', 2, 0], ['#e3b23c', 3, 0.5]].forEach(([c, lv, x]) => { const tr = trophyMesh(c, t < lv); tr.position.set(x, 0.91, -HD / 2 + 0.22); inner.add(tr); });
-  const me = avatar(profile.gender); me.scale.setScalar(4.6); me.position.set(1.35, 0.1, -1.3); me.rotation.y = -0.35; inner.add(me);
+  const me = avatar(lookOf(profile)); me.scale.setScalar(4.6); me.position.set(1.35, 0.1, -1.3); me.rotation.y = -0.35; inner.add(me);
   CATALOG.forEach((it) => {
     if (!profile.owned.includes(it.id)) return;
     const m = FURNITURE[it.id](); m.position.set(it.at[0], it.at[1] + (it.id === 'picture' || it.id === 'rug' ? 0 : 0.1), it.at[2]); m.rotation.y = it.ry; inner.add(m);
@@ -8339,11 +8408,11 @@ function renderHud() {
         return '<div class="tag" style="margin-top:8px">建てかえ（いまは ' + homeName() + '）</div><div class="row" style="margin-top:2px">' + (home.upAsk
           ? '<button type="button" class="primary" id="h-up-yes">' + esc(L.name) + 'に 建てかえる（' + homeCost(L) + '）</button><button type="button" id="h-up-no">やめる</button>'
           : '<button type="button" id="h-up"' + (homeCan(L) ? '' : ' aria-disabled="true" style="opacity:0.6"') + '>' + esc(L.name) + 'に 建てかえ<small style="display:block;font-weight:400">' + homeCost(L) + '</small></button>') + '</div>'; })() +
-      '<div class="row"><button type="button" class="primary" id="h-out">外に出る</button><button type="button" id="h-badges">バッジ帳</button><button type="button" id="h-plaza">島ぜんたい</button></div>' +
+      '<div class="row"><button type="button" class="primary" id="h-out">外に出る</button><button type="button" id="h-badges">バッジ帳</button><button type="button" id="h-look">キャラメイク</button><button type="button" id="h-plaza">島ぜんたい</button></div>' +
       // 余暇の すごしかた（お金が かからない・かかる）
       [['お金が かからない よか', true], ['お金が かかる よか', false]].map(([t, free]) => '<div class="tag" style="margin-top:8px">' + t + '</div><div class="row" style="margin-top:2px">' +
         LEISURE.filter((l) => leisureFree(l) === free && l.ok()).map((l) => '<button type="button" data-leisure="' + l.id + '">' + esc(l.name) + (l.label ? '<small style="display:block;font-weight:400">' + esc(l.label) + '</small>' : '') + '</button>').join('') + '</div>').join('');
-    $('h-out').onclick = exitHome; $('h-badges').onclick = openBadgeBook; $('h-plaza').onclick = goPlaza;
+    $('h-out').onclick = exitHome; $('h-badges').onclick = openBadgeBook; $('h-plaza').onclick = goPlaza; $('h-look').onclick = () => openLookMaker();
     if ($('h-up')) $('h-up').onclick = askUpgrade; if ($('h-up-yes')) $('h-up-yes').onclick = upgradeHome; if ($('h-up-no')) $('h-up-no').onclick = cancelUpgrade;
     el.querySelectorAll('[data-leisure]').forEach((btn) => { btn.onclick = () => doLeisure(btn.dataset.leisure); });
     return;
@@ -10005,7 +10074,7 @@ function openModal(html, mount) {
   if (mount) mount(modalCard);
   const f = modalCard.querySelector('input[type="text"], .primary, button'); if (f) f.focus();
 }
-function closeModal() { modal.hidden = true; modalCard.innerHTML = ''; modalCard.classList.remove('full'); modal.classList.remove('full'); }
+function closeModal() { modal.hidden = true; modalCard.innerHTML = ''; modalCard.classList.remove('full', 'wide'); modal.classList.remove('full'); }
 window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !modal.hidden && modal.dataset.closable === '1') closeModal(); });
 const radio = (name, opts, cur) => '<div class="choices" role="radiogroup">' + Object.entries(opts).map(([v, t]) => '<label><input type="radio" name="' + name + '" value="' + v + '"' + (v === cur ? ' checked' : '') + '> ' + t + '</label>').join('') + '</div>';
 const pickVal = (name) => { const el = modalCard.querySelector('input[name="' + name + '"]:checked'); return el ? el.value : null; };
@@ -10022,7 +10091,7 @@ function openOpening() {
   modal.dataset.closable = '0';
   openModal('<h2>HOPE しごとタウンへ ようこそ</h2><p>Work Island で、いろいろな しごとを 体験します。はじめに あなたの ことを 教えてください。</p><p>VR ゴーグルの 人は、VR に 入る 前に この 画面で 名前を 入れて ください（名前の らんを えらぶと キーボードが 出ます）。</p>' +
     '<label class="field" for="op-name">名前</label><input type="text" id="op-name" maxlength="12" placeholder="例：みな" autocomplete="off">' +
-    '<div class="field">性別（家の 中の 自分の 姿に 使います）</div>' + radio('op-g', GENDER, 'n') +
+    '<div class="field">性別（つぎの キャラメイクの はじめの 見た目に 使います）</div>' + radio('op-g', GENDER, 'n') +
     '<div class="field">あそびかた</div>' + radio('op-m', MODE_HTML, 'money') +
     (cloud.url ? '<label class="field" for="op-id">利用者ID（記録を スプレッドシートに 残す・ほかの 端末から ひきつぐ）</label><input type="text" id="op-id" maxlength="32" placeholder="例：A001" autocomplete="off" value="' + esc(cloud.id) + '">' : '') +
     '<div class="row"><button type="button" class="primary" id="op-go">フェリーで 出発</button><button type="button" id="op-skip">オープニングを とばす</button>' + (cloud.url ? '<button type="button" id="op-load">IDで つづきから</button>' : '') + '</div>',
@@ -10040,7 +10109,7 @@ function openOpening() {
       const name = $('op-name').value.trim() || 'あなた';
       profile = { name, gender: pickVal('op-g') || 'n', mode: pickVal('op-m') || 'money', home: null, homeLv: 0, money: 0, badges: {}, owned: [], since: new Date().toISOString() };
       saveProfile(); renderWallet();
-      if (skip) openAreaPicker(true); else playFerry();
+      openLookMaker(() => { if (skip) openAreaPicker(true); else playFerry(); });
     };
     $('op-go').onclick = () => start(false); $('op-skip').onclick = () => start(true);
   });
@@ -10123,13 +10192,61 @@ function openAreaPicker(first) {
     requestAnimationFrame(() => select(sel));
   });
 }
+// キャラメイク：見本を 見ながら 髪型・色・目・こもの を えらぶ。done は 決めた あとに よぶ（オープニングの つづき など）
+function openLookMaker(done) {
+  if (!profile) { openOpening(); return; }
+  const first = !!done; modal.dataset.closable = first ? '0' : '1';
+  const cur = lookOf(profile); const start = Object.assign({}, cur);
+  const row = (k) => '<div class="field">' + LOOK_LABELS[k] + '</div><div class="look-row" role="group" aria-label="' + LOOK_LABELS[k] + '">' +
+    Object.entries(LOOK_OPTS[k]).map(([v, t]) => (v[0] === '#'
+      ? '<button type="button" class="swatch" style="--c:' + v + '" data-k="' + k + '" data-v="' + v + '" aria-label="' + t + '" title="' + t + '"></button>'
+      : '<button type="button" data-k="' + k + '" data-v="' + v + '">' + t + '</button>')).join('') + '</div>';
+  openModal('<h2>キャラメイク</h2><p>家の 中の 自分の 姿を つくります。あとから 設定や 家の 中で いつでも かえられます。</p>' +
+    '<div class="look-wrap"><div class="look-view"><canvas id="lk-cv" role="img" aria-label="自分の 姿の 見本"></canvas><small>ドラッグで まわせます</small></div>' +
+    '<div class="look-opts">' + Object.keys(LOOK_LABELS).map(row).join('') + '</div></div>' +
+    '<div class="row"><button type="button" class="primary" id="lk-ok">' + (first ? 'これで きめる' : '保存') + '</button><button type="button" id="lk-reset">はじめの 見た目</button>' + (first ? '' : '<button type="button" id="lk-close">やめる</button>') + '</div>',
+  (card) => {
+    // 見本：モーダルの 中に 小さな 3D（とじたら 止めて すてる）
+    const cv = $('lk-cv');
+    const r = new THREE.WebGLRenderer({ canvas: cv, antialias: true }); r.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2)); r.outputEncoding = renderer.outputEncoding;
+    const sc = new THREE.Scene(); sc.background = new THREE.Color('#dfe8ee');
+    sc.add(new THREE.HemisphereLight(0xffffff, 0x8899aa, 0.9)); const sun = new THREE.DirectionalLight(0xffffff, 0.8); sun.position.set(1, 2, 2); sc.add(sun);
+    const cam = new THREE.PerspectiveCamera(24, 3 / 4, 0.1, 10); cam.position.set(0, 0.26, 1.05); cam.lookAt(0, 0.19, 0);
+    const turn = new THREE.Group(); sc.add(turn); let yaw = 0.35; let drag = null; let idle = 0;
+    const build = () => { while (turn.children.length) turn.remove(turn.children[0]); turn.add(avatar(cur)); };
+    const paint = () => {
+      card.querySelectorAll('[data-k]').forEach((b) => b.setAttribute('aria-pressed', String(cur[b.dataset.k] === b.dataset.v)));
+      build();
+    };
+    card.querySelectorAll('[data-k]').forEach((b) => { b.onclick = () => { cur[b.dataset.k] = b.dataset.v; paint(); }; });
+    cv.addEventListener('pointerdown', (e) => { drag = e.clientX; cv.setPointerCapture(e.pointerId); });
+    cv.addEventListener('pointermove', (e) => { if (drag === null) return; yaw += (e.clientX - drag) * 0.012; drag = e.clientX; idle = performance.now(); });
+    cv.addEventListener('pointerup', () => { drag = null; });
+    const loop = () => {
+      if (!cv.isConnected) { r.dispose(); r.forceContextLoss(); return; } // モーダルを とじた
+      const w = cv.clientWidth; if (w && cv.width !== Math.round(w * r.getPixelRatio())) r.setSize(w, w * 4 / 3, false);
+      if (drag === null && performance.now() - idle > 2500) yaw += 0.006; // さわって いない ときは ゆっくり まわる
+      turn.rotation.y = yaw; r.render(sc, cam); requestAnimationFrame(loop);
+    };
+    card.classList.add('wide');
+    paint(); requestAnimationFrame(loop);
+    requestAnimationFrame(() => { card.scrollTop = 0; }); // はじめは 見本が 見える ところから
+    $('lk-reset').onclick = () => { Object.assign(cur, defaultLook(profile.gender)); paint(); };
+    $('lk-ok').onclick = () => {
+      profile.look = Object.assign({}, cur); saveProfile(); if (home.group) refreshHome(); closeModal(); renderHud();
+      if (done) done(); else toast('見た目を 保存しました');
+    };
+    if ($('lk-close')) $('lk-close').onclick = () => { Object.assign(cur, start); closeModal(); };
+  });
+}
 // 設定
 function openSettings() {
   if (!profile) { openOpening(); return; }
   modal.dataset.closable = '1';
   openModal('<h2>設定</h2>' +
     '<label class="field" for="st-name">名前</label><input type="text" id="st-name" maxlength="12" value="' + esc(profile.name) + '" autocomplete="off">' +
-    '<div class="field">性別（家の 中の 自分の 姿）</div>' + radio('st-g', GENDER, profile.gender) +
+    '<div class="field">性別</div>' + radio('st-g', GENDER, profile.gender) +
+    '<div class="field">自分の 姿</div><div class="row" style="margin-top:0"><button type="button" id="st-look">キャラメイク</button></div>' +
     '<div class="field">あそびかた</div>' + radio('st-m', MODE_HTML, profile.mode) +
     '<div class="field">効果音（物に さわった ときの 音）</div>' + radio('st-sfx', { on: '鳴らす', off: '鳴らさない' }, sfxOn ? 'on' : 'off') +
     '<p>あそびかたを かえても、いままでの バッジ・お金・家具は のこります。</p>' +
@@ -10147,6 +10264,7 @@ function openSettings() {
       saveProfile(); buildHome(); renderWallet(); closeModal(); renderHud(); toast('保存しました');
     };
     $('st-move').onclick = () => openAreaPicker(false);
+    $('st-look').onclick = () => openLookMaker();
     const setCloud = () => { cloud.url = $('st-url').value.trim(); cloud.id = $('st-id').value.trim(); saveCloudCfg(); };
     $('st-cloud').onclick = () => { setCloud(); if (!cloudOn()) { $('st-cloud-status').textContent = 'URL と 利用者IDを 入れて ください'; return; } $('st-cloud-status').textContent = '保存中…'; cloudPost({ action: 'saveProfile', profile }).then(() => { $('st-cloud-status').textContent = cloudStatus; }); };
     $('st-pull').onclick = () => { setCloud(); $('st-cloud-status').textContent = '読みこみ中…'; cloudLoad(cloud.id).then((j) => { if (j && j.profile) { profile.updatedAt = ''; adoptCloudProfile(j.profile); renderHud(); $('st-cloud-status').textContent = '読みこみました（' + esc(profile.name) + 'さん）'; } else $('st-cloud-status').textContent = j ? 'この IDの 記録は ありません' : 'つながりません'; }); };
@@ -10324,7 +10442,7 @@ $('btn-settings').addEventListener('click', openSettings);
 window.hopeTown = {
   IBA, IBA_SITE, openIba, ibaSit, ibaStand, ibaClickables, ibaData, sgLegal, sgPlay, sgThink, igoThink, igoScore, mjShanten, mjComplete, mjYaku, mjCounts, keibaStart, shogiTap, igoTap, mjTap, mjRon,
   state, goBooth, pickVariant, startSession, openRehab, startRehab, rehabPress, rehabSwipeThrow, rehabVolleyPress, REHAB, get rehabOpt() { return rehabOpt; }, set rehabOpt(v) { rehabOpt = v; }, select: onSelectItem, playSfx, sfxKind, SFX, nextTargetKey, setSeason, startWalk, exitToWalk, walkKeys, rig, look, walkable, booths, goHome, exitHome, goPlaza,
-  get profile() { return profile; }, quitWork, openJobList, openCafeOrder, sitCafe, endPlay, CAFE_ORDER, doLeisure, LEISURE, home, HOME_LEVELS, upgradeHome, askUpgrade, homeLv, FURN, goFurniture, furnShop, pickFurn, exitFurniture, cheatCover() { const r = state.round; if (r && r.cover) { r.cover.surf.clearAll(); coverProgress(r, 1, performance.now()); } }, seasonal, LAKE, toWorld, nearbyActions, openShop, openBadgeBook, openSettings, openAreaPicker,
+  get profile() { return profile; }, quitWork, openJobList, openCafeOrder, sitCafe, endPlay, CAFE_ORDER, doLeisure, LEISURE, home, HOME_LEVELS, upgradeHome, askUpgrade, homeLv, FURN, goFurniture, furnShop, pickFurn, exitFurniture, cheatCover() { const r = state.round; if (r && r.cover) { r.cover.surf.clearAll(); coverProgress(r, 1, performance.now()); } }, seasonal, LAKE, toWorld, nearbyActions, openShop, openBadgeBook, openSettings, openAreaPicker, openLookMaker, lookOf,
   // テスト用：オープニングを とばして 家を 用意する
   quickStart(homeKey, mode) { profile = { name: 'テスト', gender: 'n', mode: mode || 'money', home: homeKey || 'downtown', homeLv: 0, money: 0, badges: {}, owned: [], since: new Date().toISOString() }; saveProfile(); closeModal(); buildHome(); renderWallet(); goPlaza(); },
 };
