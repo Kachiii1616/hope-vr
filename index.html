@@ -11195,9 +11195,21 @@ function welcomeArch(at, put) {
     }
     const line = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([0, 0.25, 0.5, 0.75, 1].map((t) => new THREE.Vector3(at.x + (tip - at.x) * t, 3.7 - 1.2 * t - Math.sin(t * Math.PI) * 0.55, z))), 16, 0.012, 4), cmat('#ffffff')); scene.add(line);
   });
-  // 花の プランター（アーチの 足もと）
+  // 花の プランター（アーチの 足もと）：木の 箱に 土と 葉っぱ、くきの 先に 5 まいの 花びらの 花
   zs.forEach((dz) => { const q = new THREE.Vector3(at.x - 0.7, 0, at.z + dz * 1.15); put(box(0.9, 0.4, 0.5), '#8a6a46', q.x, 0.2, q.z);
-    for (let k = 0; k < 6; k++) put(ball(0.11, 8, 6), PC[(k * 2) % PC.length], q.x - 0.33 + k * 0.13, 0.48, q.z + ((k % 2) - 0.5) * 0.18); });
+    put(box(0.94, 0.05, 0.54), '#6b4a32', q.x, 0.42, q.z); put(box(0.84, 0.03, 0.44), '#5a3d28', q.x, 0.41, q.z); // ふちの 木わくと 土
+    for (let k = 0; k < 5; k++) { const lf = put(ball(0.09, 8, 6), '#4f9a45', q.x - 0.34 + k * 0.17, 0.45, q.z + ((k % 2) - 0.5) * 0.2); lf.scale.set(1.3, 0.45, 0.8); lf.rotation.y = k; } // 葉っぱの しげみ
+    for (let k = 0; k < 8; k++) flowerAt(put, q.x - 0.36 + k * 0.103, 0.42, q.z + ((k % 2) - 0.5) * 0.2, PC[(k * 2) % PC.length], 0.22 + (k % 3) * 0.06, k); });
+}
+function flowerAt(put, x, y, z, color, h, k) { // 花 1 本（くき・葉 2 まい・花びら 5 まい・まんなか）。y は 土の 高さ、h は くきの 長さ
+  put(cyl(0.008, 0.01, h, 5), '#3f8a3a', x, y + h / 2, z);
+  [-1, 1].forEach((sd) => { const l = put(ball(0.04, 6, 4), '#5cb04f', x + sd * 0.035, y + h * 0.4, z); l.scale.set(1.6, 0.3, 0.6); l.rotation.z = sd * 0.5; });
+  const top = y + h; const tilt = 0.25;
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * TAU + k; const pe = put(ball(0.05, 8, 6), color, x + Math.cos(a) * 0.055, top, z + Math.sin(a) * 0.055);
+    pe.scale.set(1.25, 0.35, 0.75); pe.rotation.set(0, -a, tilt, 'YXZ');
+  }
+  put(ball(0.03, 8, 6), color === '#f4d03f' ? '#a0662f' : '#f4d03f', x, top + 0.012, z).scale.y = 0.6; // まんなか（黄色の 花は 茶色）
 }
 function islePierFun(now) { // ふうせんと 旗を ゆらす（島の 近くに いる ときだけ）
   if (reduceMotion || !(rig.position.x < -100)) return; const t = now / 1000;
@@ -11210,7 +11222,31 @@ function boatKiosk(at, yaw, side) {
   const put = (geo, color, x, y, z) => { const m = new THREE.Mesh(geo, cmat(color)); m.position.set(x, y, z); g.add(m); return m; };
   put(box(2.2, 2.4, 1.2), '#f4f4f0', 0, 1.2, 0); put(box(2.5, 0.14, 1.5), '#2d6fa3', 0, 2.47, 0);
   put(box(1.4, 0.7, 0.04), '#bfe3f2', 0, 1.45, 0.61);
-  const t = kcPlate(side === 'main' ? '連絡船のりば　あそびの島 行き' : '連絡船のりば　Work Island 行き', 2.6, 0.36, '#2d6fa3', '#ffffff'); t.position.set(0, 2.15, 0.62); g.add(t);
+  const t = kcPlate(side === 'main' ? '連絡船のりば　あそびの島 行き' : '連絡船のりば　Work Island 行き', 2.6, 0.36, '#ff8fab', '#ffffff'); t.position.set(0, 2.15, 0.62); g.add(t);
+  // 係の 人（マリンの 制服と 帽子）：小屋の よこで お客さんを むかえる
+  const L = side === 'main' ? 1 : -1; // あそびの島は 小屋の 右に アーチの 柱が あるので、看板も 係の 人も 左に（ボタンには かからない）
+  const crew = ferrisCrew('#2f6fa8'); if (L > 0) { crew.position.set(-1.6, 0.02, 0.75); crew.rotation.y = 0.35; } else { crew.position.set(-1.0, 0.02, 1.05); crew.rotation.y = 0.2; } g.add(crew);
+  // 立て看板（係の 人の 反対がわ。パステルの ピンクと ミント）
+  const sb = new Board(0.9, 1.1, 260); const toIsle = side === 'main';
+  sb.draw((ctx, W, H) => {
+    ctx.fillStyle = '#9ad9c8'; roundRect(ctx, 0, 0, W, H, W * 0.12); ctx.fill();
+    ctx.fillStyle = '#fff4f7'; roundRect(ctx, W * 0.05, W * 0.05, W * 0.9, H - W * 0.1, W * 0.09); ctx.fill();
+    ctx.fillStyle = '#ff8fab'; roundRect(ctx, W * 0.1, H * 0.06, W * 0.8, H * 0.17, H * 0.06); ctx.fill();
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#ffffff'; ctx.font = '700 ' + Math.round(H * 0.085) + 'px ' + FONT_DISPLAY; ctx.fillText('連絡船のりば', W / 2, H * 0.15);
+    // 波と 船の 絵
+    ctx.fillStyle = '#bfe8f5'; ctx.fillRect(W * 0.12, H * 0.42, W * 0.76, H * 0.08);
+    ctx.strokeStyle = '#6cc3e0'; ctx.lineWidth = W * 0.012; ctx.beginPath(); for (let i = 0; i <= 8; i++) { const x = W * (0.12 + i * 0.095); ctx.quadraticCurveTo(x - W * 0.047, H * 0.4, x, H * 0.43); } ctx.stroke();
+    ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#ff8fab'; ctx.lineWidth = W * 0.012; ctx.beginPath(); ctx.moveTo(W * 0.3, H * 0.36); ctx.lineTo(W * 0.72, H * 0.36); ctx.lineTo(W * 0.66, H * 0.43); ctx.lineTo(W * 0.34, H * 0.43); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#9ad9c8'; ctx.fillRect(W * 0.42, H * 0.29, W * 0.18, H * 0.07); ctx.fillStyle = '#ffd36e'; ctx.font = '700 ' + Math.round(H * 0.07) + 'px ' + FONT_BODY; ctx.fillText('★', W * 0.22, H * 0.31); ctx.fillText('★', W * 0.8, H * 0.29);
+    ctx.fillStyle = '#5a4a5f'; ctx.font = '700 ' + Math.round(H * 0.075) + 'px ' + FONT_DISPLAY; ctx.fillText(toIsle ? 'あそびの島 行き' : 'Work Island 行き', W / 2, H * 0.6);
+    ctx.font = '400 ' + Math.round(H * 0.058) + 'px ' + FONT_BODY; ctx.fillText(toIsle ? '往復 500円' : 'かえりは 往復きっぷで', W / 2, H * 0.72);
+    ctx.fillText('約 20 びょうで 着きます', W / 2, H * 0.81);
+    ctx.fillStyle = '#ff8fab'; ctx.font = '700 ' + Math.round(H * 0.06) + 'px ' + FONT_BODY; ctx.fillText('♡ いってらっしゃい ♡', W / 2, H * 0.91);
+  });
+  const sg = new THREE.Group(); sg.position.set(L > 0 ? 1.75 : -1.95, 0, 0.8); sg.rotation.y = -0.3 * L; g.add(sg);
+  sb.mesh.position.set(0, 0.95, 0.06); sb.mesh.rotation.x = -0.12; sg.add(sb.mesh);
+  const back = new THREE.Mesh(box(0.94, 1.14, 0.03), cmat('#9ad9c8')); back.position.set(0, 0.95, 0.04); back.rotation.x = -0.12; sg.add(back); // うらの 板
+  [-1, 1].forEach((sx) => { const leg = new THREE.Mesh(box(0.05, 1.0, 0.05), cmat('#ffffff')); leg.position.set(sx * 0.4, 0.5, -0.12); leg.rotation.x = 0.15; sg.add(leg); }); // うしろの 足（A がた）
   const btn = makeButton(side === 'main' ? 'きっぷを 買って のる' : '連絡船に のる（かえり）', '#e0662f', 1.4, 0.24); btn.position.set(0, 1.0, 0.64); g.add(btn);
   btn.userData.ibaAct = () => { if (state.where === 'walk') boardBoat(side); }; plazaClickables.push(btn); BOATS.btns[side] = btn;
   return g;
