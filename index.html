@@ -1308,8 +1308,8 @@ const SITES = {
   rice: { near: [805, 445] },               // 田んぼの 向かい（夏だけ。田植えの 苗受け）
 };
 const SHOP_SET = 6.2;
-// フェリー乗り場（地図 px）：ターミナル・噴水・とまっている フェリー・入港して おりる ところ・ようこその 門
-const PORT = { terminal: [168, 448], fountain: [148, 464], docked: [78, 488], arrive: [110, 461], gate: [131, 461], ferryTo: [77, 458] };
+// フェリー乗り場（地図 px）：ターミナル・噴水・入港して おりる ところ・ようこその 門。港に とまる 船は 自分が 乗る 船だけ（入港の フェリーと 連絡船）
+const PORT = { terminal: [168, 448], fountain: [148, 464], arrive: [110, 461], gate: [131, 461], ferryTo: [77, 458] };
 
 // 道。漁港 → 山の南 → 学校 → 首都 → 繁華街 が島の目抜き通り。
 const ROAD_W = 2.4;
@@ -1881,10 +1881,6 @@ function tree(x, z, kind) {
     addBox(bs.x + 1.2, 1.2, bs.z + 0.6, 2.2, 0.06, 1.0, '#2f7d4f'); addBox(bs.x + 1.2, 0.42, bs.z + 0.5, 1.6, 0.06, 0.4, '#a0784a');
     const tx = w(178, 476); addBox(tx.x, 0.45, tx.z, 1.6, 0.5, 3.2, '#f2c230'); addBox(tx.x, 0.95, tx.z - 0.2, 1.4, 0.5, 1.8, '#f2c230'); addBox(tx.x, 0.98, tx.z - 0.2, 1.42, 0.3, 1.6, '#3d4a54');
     [-1, 1].forEach((sx) => [-1, 1].forEach((sz) => addCyl(tx.x + sx * 0.75, 0.3, tx.z + sz * 1.0, 0.3, 0.3, 0.2, '#2b2f33', 12).rotation.z = Math.PI / 2)); block(tx.x, tx.z, 1.7);
-    // とまっている フェリー（岸壁の 南）
-    const fe = w(P.docked[0], P.docked[1]);
-    addBox(fe.x, -0.05, fe.z, 9, 1.0, 2.6, '#f4f4f0'); addBox(fe.x + 0.8, 0.9, fe.z, 5, 0.9, 2.2, '#2d6fa3');
-    addCyl(fe.x - 0.8, 1.8, fe.z, 0.3, 0.3, 1.0, '#d0453a', 12);
   })();
   // 風の丘：北西の季節風がいちばん強く当たる丘に、風車
   const hill = toWorld(150, 368); const HR = 3.6; const HH = 1.6;
@@ -3779,6 +3775,10 @@ function playFerry() {
     const hull = new THREE.Mesh(new THREE.BoxGeometry(9, 1.0, 2.8), mat('#f4f4f0')); hull.position.y = -0.05; f.add(hull);
     const cabin = new THREE.Mesh(new THREE.BoxGeometry(4, 0.9, 2.3), mat('#2d6fa3')); cabin.position.set(1.2, 0.9, 0); f.add(cabin);
     const fun = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 1.0, 12), mat('#d0453a')); fun.position.set(2.2, 1.8, 0); f.add(fun);
+    const rail = (w, d, x, z) => { const r = new THREE.Mesh(box(w, 0.05, d), cmat('#e9ecef')); r.position.set(x, 1.45, z); f.add(r); }; // へさき（前の 甲板）の 手すり
+    rail(0.05, 2.7, 4.45, 0); [-1, 1].forEach((sd) => { rail(1.4, 0.05, 3.8, sd * 1.35); for (let x = 3.2; x <= 4.45; x += 0.6) { const p = new THREE.Mesh(box(0.04, 1.0, 0.04), cmat('#e9ecef')); p.position.set(x, 0.95, sd * 1.35); f.add(p); } });
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.26, 0.07, 8, 18), cmat('#e0662f')); ring.position.set(3.5, 1.05, 1.39); f.add(ring); // うきわ
+    wakeFx(f, -4.5, 4.5, 1.4, -0.3);
     scene.add(f); opening.ferry = f;
   }
   opening.from = toWorld(-20, PORT.ferryTo[1]); opening.to = toWorld(...PORT.ferryTo); // 岸壁に 横づけ
@@ -3792,8 +3792,12 @@ function stepOpening(now) {
   if (!opening.t0) return;
   const t = Math.min(1, (now - opening.t0) / opening.dur); const e = 1 - Math.pow(1 - t, 3);
   opening.ferry.position.lerpVectors(opening.from, opening.to, e);
-  rig.position.set(opening.ferry.position.x + 3.4, 0.5, opening.ferry.position.z); rig.rotation.y = -Math.PI / 2; // へさき（前の 甲板）から 東（島）を 見る
-  if (t >= 1) { opening.t0 = 0; arriveAtPort(); }
+  const f = opening.ferry; const rock = reduceMotion ? 0 : 1; f.rotation.order = 'YXZ';
+  f.rotation.x = Math.sin(now / 1100) * 0.025 * rock; f.rotation.z = Math.sin(now / 1500 + 1) * 0.015 * rock; f.position.y = Math.sin(now / 900) * 0.05 * rock; // 波で ゆれる
+  stepWake(f, t < 0.93, now, 1 - t);
+  f.updateMatrixWorld(true); const deck = f.localToWorld(boatTmp.set(3.4, 0.5, 0));
+  rig.position.set(deck.x, deck.y, deck.z); rig.rotation.y = -Math.PI / 2; // へさき（前の 甲板）から 東（島）を 見る
+  if (t >= 1) { opening.t0 = 0; stepWake(f, false, now, 0); arriveAtPort(); }
 }
 function arriveAtPort() {
   const p = toWorld(...PORT.arrive); rig.position.set(p.x, 0.06, p.z); rig.rotation.y = -Math.PI / 2; look.yaw = 0; look.pitch = -0.04; // 岸壁に おりて、門と 港の 広場を 見る
@@ -8502,7 +8506,7 @@ function renderHud() {
     if (k === 'iba') { renderIbaHud(el); return; }
     if (k === 'keiba') { renderKeibaHud(el); return; }
     if (k === 'casino') { renderCasinoHud(el); return; }
-    const how = { ferris: '観覧車の ゴンドラに すわって います。ドラッグで 見回せます（VR は 頭を うごかして）。1 周 すると 下で おります', boat: '連絡船の ベンチに すわって います。ドラッグで 見回せます（VR は 頭を うごかして）。むこうの 島に 着くと おります', ski: '← → で よける・▲を 押すと そのまま（Shift で 速く）。下まで すべると ゴール', climb: '▲で のぼる・▼で おりる。頂上から 島ぜんたいが 見えます', swim: '▲▼で 進む・◀▶で 向きを かえる。岸から 遠くへは 行けません', sun: 'パラソルの 下で ねころんでいます。ドラッグで 見回せます', cafe: '中の 席に すわって います。ドラッグで 見回せます', terrace: '外の テラス席に すわって います。ドラッグで 見回せます', plaza: '町の テラス席に すわって います。ドラッグで 見回せます' }[k];
+    const how = { ferris: '観覧車の ゴンドラに すわって います。ドラッグで 見回せます（VR は 頭を うごかして）。1 周 すると 下で おります', boat: '連絡船の へさきの ベンチに すわって います。ドラッグで 見回せます（VR は 頭を うごかして）。横の 白い 波（航跡）・カモメ・水路の ブイが 見えます。むこうの 島に 着くと おります', ski: '← → で よける・▲を 押すと そのまま（Shift で 速く）。下まで すべると ゴール', climb: '▲で のぼる・▼で おりる。頂上から 島ぜんたいが 見えます', swim: '▲▼で 進む・◀▶で 向きを かえる。岸から 遠くへは 行けません', sun: 'パラソルの 下で ねころんでいます。ドラッグで 見回せます', cafe: '中の 席に すわって います。ドラッグで 見回せます', terrace: '外の テラス席に すわって います。ドラッグで 見回せます', plaza: '町の テラス席に すわって います。ドラッグで 見回せます' }[k];
     el.innerHTML = '<span class="tag">あそぶ</span><h2>' + PLAY_NAME[k] + '</h2><div>' + how + '</div><div class="row"><button type="button" class="primary" id="h-endplay">' + (k === 'sun' ? 'おきる' : k === 'swim' ? '岸に あがる' : k === 'cafe' || k === 'terrace' ? 'お店を 出る' : k === 'plaza' ? '席を たつ' : k === 'boat' ? 'すぐ 着く' : k === 'ferris' ? 'おりる' : 'おわる') + '</button></div>';
     $('h-endplay').onclick = endPlay;
     return;
@@ -11170,13 +11174,81 @@ function boatKiosk(at, yaw, side) {
 // ===========================================================================
 const BOAT_PRICE = 500;
 const BOAT_TIME = 14000;
+// 船の 上から 見える もの：航跡（うしろに のびる 白い 波）・へさきの しぶき・あとに のこる 泡・ついて くる カモメ・水路の ブイ・船内アナウンス
+const SEA_FX = { foam: [], tex: null, gulls: [], buoys: [] };
+function wakeTex() { // 根もとが こく、先へ いくほど うすく なる 白い すじ（u=1 が 根もと）
+  if (SEA_FX.tex) return SEA_FX.tex;
+  const c = document.createElement('canvas'); c.width = 256; c.height = 32; const ctx = c.getContext('2d');
+  for (let i = 0; i < 260; i++) { const x = Math.random() * 256; const a = Math.pow(x / 256, 1.6) * 0.9; ctx.fillStyle = 'rgba(255,255,255,' + a.toFixed(3) + ')'; ctx.beginPath(); ctx.ellipse(x, 6 + Math.random() * 20, 2 + Math.random() * 7, 1.5 + Math.random() * 3, 0, 0, TAU); ctx.fill(); }
+  const gr = ctx.createLinearGradient(0, 0, 256, 0); gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(1, 'rgba(255,255,255,0.75)'); ctx.fillStyle = gr; ctx.fillRect(0, 10, 256, 12);
+  SEA_FX.tex = new THREE.CanvasTexture(c); return SEA_FX.tex;
+}
+function wakeFx(g, stern, bow, half, wy) { // 船（前が +x）に 波の 板を つける。wy は 船から 見た 海面の 高さ
+  const fx = new THREE.Group(); fx.visible = false; g.add(fx); const tex = wakeTex(); const arms = [];
+  const arm = (L, W, x, z, yaw, op) => {
+    const geo = new THREE.PlaneGeometry(L, W); geo.translate(-L / 2, 0, 0); geo.rotateX(-Math.PI / 2);
+    const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: op, depthWrite: false })); m.position.set(x, wy, z); m.rotation.y = yaw; m.userData.op = op; fx.add(m); arms.push(m); return m;
+  };
+  [-1, 1].forEach((sd) => { arm(9, 0.7, stern, sd * half * 0.8, sd * 0.3, 0.85); arm(2.6, 0.45, bow, sd * half * 0.4, sd * 0.55, 0.9); }); // 船尾から ひろがる V の 波・へさきで わかれる しぶき
+  arm(7, half * 1.3, stern, 0, 0, 0.6); // スクリューの 白い 泡
+  g.userData.wake = { fx, arms, stern };
+}
+function stepWake(g, on, now, k) { // k（0〜1）は 波の 強さ。on の 間は 船尾に 泡を のこす
+  const w = g.userData.wake; if (!w) return; w.fx.visible = on; if (!on) return;
+  w.arms.forEach((m, i) => { m.material.opacity = m.userData.op * (0.55 + 0.45 * k) * (0.85 + 0.15 * Math.sin(now / 160 + i * 1.7)); m.scale.x = 0.5 + 0.5 * k; });
+  if (k < 0.3 || now < (w.next || 0)) return; w.next = now + 110;
+  g.updateMatrixWorld(true); const p = g.localToWorld(boatTmp2.set(w.stern - 0.6, 0, (Math.random() - 0.5) * 0.8));
+  let f = SEA_FX.foam.find((x) => !x.visible);
+  if (!f) { if (SEA_FX.foam.length >= 60) return; f = new THREE.Mesh(new THREE.CircleGeometry(1, 14), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, depthWrite: false })); f.rotation.x = -Math.PI / 2; scene.add(f); SEA_FX.foam.push(f); }
+  f.position.set(p.x, -0.33, p.z); f.userData.t0 = now; f.visible = true;
+}
+function buildGull() { // カモメ（前が +x）。つばさは 体の よこで はばたく
+  const g = new THREE.Group(); const put = (geo, c, x, y, z, par) => { const m = new THREE.Mesh(geo, cmat(c)); m.position.set(x, y, z); (par || g).add(m); return m; };
+  put(ball(0.1, 10, 8), '#ffffff', 0, 0, 0).scale.set(2.4, 0.9, 0.9); put(ball(0.07, 10, 8), '#ffffff', 0.24, 0.05, 0); put(box(0.08, 0.025, 0.025), '#f2c230', 0.33, 0.04, 0);
+  put(box(0.14, 0.02, 0.14), '#e9ecef', -0.28, 0, 0); // しっぽ
+  g.userData.wings = [-1, 1].map((sd) => { const w = new THREE.Group(); w.position.set(0, 0.04, sd * 0.07); g.add(w); put(box(0.2, 0.015, 0.42), '#d4dbe1', 0, 0, sd * 0.21, w); put(box(0.14, 0.016, 0.14), '#3d4a54', -0.02, 0, sd * 0.47, w); w.userData.sd = sd; return w; });
+  g.visible = false; scene.add(g); return g;
+}
+function stepSeaFx(now) { // 泡を 消して いく・乗って いる 船の まわりを カモメが とぶ・ブイが ゆれる
+  SEA_FX.foam.forEach((f) => { if (!f.visible) return; const u = (now - f.userData.t0) / 3800; if (u >= 1) { f.visible = false; return; } f.scale.setScalar(0.45 + u * 2.2); f.material.opacity = 0.55 * (1 - u); });
+  SEA_FX.buoys.forEach((b, i) => { b.position.y = -0.35 + Math.sin(now / 800 + i) * 0.06; b.rotation.z = Math.sin(now / 1000 + i * 2) * 0.12; });
+  const pl = state.play; const ship = state.where === 'play' && pl && pl.kind === 'boat' && pl.boat.trip ? pl.boat.g : opening.t0 ? opening.ferry : null;
+  if (!SEA_FX.gulls.length && ship) SEA_FX.gulls = [0, 1, 2].map(buildGull);
+  SEA_FX.gulls.forEach((g, k) => {
+    g.visible = !!ship; if (!ship) return;
+    const fw = boatFwd(ship.rotation.y); const s = reduceMotion ? 0.3 : 1; const a = now / 1000 * (0.45 + k * 0.1) * s + k * 2.1; const r = 5 + k * 1.6; const dir = k === 1 ? -1 : 1;
+    const cx = ship.position.x + fw.x * (2.5 - k); const cz = ship.position.z + fw.z * (2.5 - k);
+    g.position.set(cx + Math.cos(a * dir) * r, 3.4 + k * 0.7 + Math.sin(now / 700 + k) * 0.35, cz + Math.sin(a * dir) * r);
+    g.rotation.y = boatYaw(new THREE.Vector3(-Math.sin(a * dir) * dir, 0, Math.cos(a * dir) * dir)); g.rotation.z = Math.sin(now / 900 + k) * 0.15;
+    const flap = (Math.sin(now / 1000 * 0.4 + k) > 0.2 ? Math.sin(now / 110 + k) * 0.55 : 0.08) * s; // ときどき はばたいて、あとは 風に のる
+    g.userData.wings.forEach((w) => { w.rotation.x = w.userData.sd * flap; });
+  });
+}
+function buildBuoys() { // 水路の ブイ：行きと かえりの 航路の 外がわに、赤と 緑
+  const go = boatPlan('main', 'isle', 0, false).P; const back = boatPlan('isle', 'main', 0, false).P; const a = new THREE.Vector3(); const c = new THREE.Vector3();
+  [0.22, 0.4, 0.58, 0.76].forEach((t) => {
+    bez3(go[0], go[1], go[2], go[3], t, a); bez3(back[0], back[1], back[2], back[3], 1 - t, c); const mid = a.clone().add(c).multiplyScalar(0.5);
+    [[a, '#4f9a45'], [c, '#d0453a']].forEach(([p, col]) => {
+      const out = p.clone().sub(mid).setY(0).normalize(); const q = p.clone().addScaledVector(out, 4);
+      const g = new THREE.Group(); g.position.set(q.x, -0.35, q.z); scene.add(g); const put = (geo, cc, y) => { const m = new THREE.Mesh(geo, cmat(cc)); m.position.y = y; g.add(m); return m; };
+      put(cyl(0.32, 0.4, 0.5, 14), col, 0.15); put(cyl(0.34, 0.34, 0.08, 14), '#f4f4f0', 0.42); put(cyl(0.05, 0.12, 0.9, 8), col, 0.9); put(ball(0.09, 10, 8), '#fff1c2', 1.4);
+      SEA_FX.buoys.push(g);
+    });
+  });
+}
+function boatSay(T, ms) { // 船内アナウンス（乗って いる 船だけ）。見える ものを 知らせる
+  const toIsle = T.to === 'isle';
+  const L = [[1800, '横を 見ると、船が 立てる 白い 波（航跡）が うしろへ のびて います'], [4200, 'カモメが 船の まわりを とんで います'], [6800, '赤と 緑の ブイは 水路の めじるしです'],
+    [9200, toIsle ? '前に あそびの島の 観覧車が 見えて きました' : '前に Work Island の 灯台と フェリーターミナルが 見えて きました'], [BOAT_TIME + 200, 'まもなく 到着です。船の 向きを かえて、船着き場に 入ります']];
+  T.said = T.said || 0; while (T.said < L.length && ms >= L[T.said][0]) { toast('📢 ' + L[T.said][1]); T.said++; }
+}
 const BOATS = { list: [], btns: {},
   board: { main: toWorld(125, 499), isle: isW(48.6, -21.75) }, // 乗る ところ（岸）
   berth: null, // 船を とめる ところ（のりばの 船着き場。船首は 海の 方）
 };
 const BOAT_TURN = 3000; const BOAT_BACK = 3500; // 船着き場の 前で 向きを かえる・うしろ向きに 入る 時間
 function buildBoat(name) {
-  const g = new THREE.Group(); scene.add(g); const put = (geo, color, x, y, z) => { const m = new THREE.Mesh(geo, cmat(color)); m.position.set(x, y, z); g.add(m); return m; };
+  const g = new THREE.Group(); g.rotation.order = 'YXZ'; scene.add(g); const put = (geo, color, x, y, z) => { const m = new THREE.Mesh(geo, cmat(color)); m.position.set(x, y, z); g.add(m); return m; };  // ゆれ：rotation.x が 横ゆれ（船の 前が +x）、rotation.z が 縦ゆれ
   put(box(6.4, 0.9, 2.4), '#f4f4f0', -0.3, 0.15, 0); const bow = put(new THREE.CylinderGeometry(1.39, 1.39, 0.9, 3), '#f4f4f0', 3.3, 0.15, 0); bow.rotation.y = Math.PI / 2; bow.scale.set(1, 1, 0.5);
   put(box(6.42, 0.14, 2.42), '#e0662f', -0.3, 0.45, 0); put(box(6.3, 0.04, 2.26), '#c9a676', -0.3, 0.62, 0); // 甲板
   put(box(2.4, 1.3, 2.0), '#2d6fa3', 0.9, 1.29, 0); put(box(2.42, 0.5, 2.02), '#bfe3f2', 0.9, 1.45, 0); put(box(2.7, 0.1, 2.3), '#f4f4f0', 0.9, 2.0, 0); // 船室
@@ -11187,6 +11259,15 @@ function buildBoat(name) {
   put(cyl(0.03, 0.03, 1.4, 6), '#e9ecef', -3.2, 1.3, 0); put(box(0.02, 0.3, 0.5), '#e3b23c', -3.2, 1.85, 0.26); // 旗
   // 乗っている 人（ベンチに すわる）
   seatedPerson(g, '#c4577a', '#3d4a54', -2.6, -0.75, 0, { chair: null, h: 0.48, S: 3.3 }).c.position.y = 0.62; // ベンチの 座面は 甲板から 0.48 m
+  seatedPerson(g, '#3c7fc4', '#3d4a54', -1.8, -0.75, 0, { chair: null, h: 0.48, S: 3.3 }).c.position.y = 0.62;
+  // へさき（自分の すわる ベンチの 前）：旗ざお・いかりの まきあげ機・ロープの たば・うきわ
+  put(cyl(0.02, 0.02, 0.8, 6), '#e9ecef', 3.4, 1.0, 1.0); put(box(0.02, 0.16, 0.26), '#d0453a', 3.4, 1.3, 1.14); // 旗ざおは 右の はし（前の 景色を かくさない）
+  put(box(0.5, 0.22, 0.36), '#5f6b75', 3.0, 0.75, 0); put(cyl(0.09, 0.09, 0.5, 10), '#3d4a54', 3.0, 0.9, 0).rotation.x = Math.PI / 2;
+  put(new THREE.TorusGeometry(0.16, 0.04, 6, 14), '#c9a676', 3.2, 0.66, 0.6).rotation.x = Math.PI / 2;
+  [-1, 1].forEach((sd) => { put(new THREE.TorusGeometry(0.22, 0.06, 8, 18), '#e0662f', 1.6, 1.0, sd * 1.18); }); // 船室の よこの うきわ
+  put(new THREE.TorusGeometry(0.22, 0.06, 8, 18), '#e0662f', 2.12, 1.15, 0).rotation.y = Math.PI / 2; // 船室の 前の かべ
+  put(cyl(0.02, 0.02, 0.7, 6), '#e9ecef', 0.9, 2.4, 0); put(box(0.5, 0.05, 0.08), '#3d4a54', 0.9, 2.62, 0); // 屋根の アンテナ（レーダー）
+  wakeFx(g, -3.5, 3.9, 1.2, -0.13);
   return g;
 }
 const boatYaw = (d) => Math.atan2(-d.z, d.x); // 船の 前（+x）を d に 向ける
@@ -11198,6 +11279,7 @@ function initBoats() {
   BOATS.list = [mk('連絡船 うみかぜ', 'main'), mk('連絡船 しおさい', 'isle')]; // いつも それぞれの のりばに 1 そう
   BOATS.land = { isle: { pos: isW(47.4, -21.75), yaw: Math.PI / 2 }, main: { pos: toWorld(128, 500), yaw: -Math.PI / 2 } }; // おりる ところ（着いた 側）と 向き（島の 方）
   boatKiosk(toWorld(110.5, 495), Math.PI / 2, 'main'); // 岸壁の 西の はし（東を 向く）
+  buildBuoys();
 }
 function bez3(a, b, c, d, t, out) { const u = 1 - t; const k0 = u * u * u; const k1 = 3 * u * u * t; const k2 = 3 * u * t * t; const k3 = t * t * t; return out.set(k0 * a.x + k1 * b.x + k2 * c.x + k3 * d.x, a.y, k0 * a.z + k1 * b.z + k2 * c.z + k3 * d.z); }
 const boatTmp = new THREE.Vector3(); const boatTmp2 = new THREE.Vector3();
@@ -11230,16 +11312,20 @@ function boatTrip(side) {
   playSfx('horn'); toast(side === 'main' ? 'あそびの島へ 出発します' : 'Work Island へ もどります');
   boatRide(b, performance.now()); renderHud();
 }
-function boatRide(b, now) { // 乗っている 人（自分）は へさきの ベンチに すわって 前を 見る
-  b.g.updateMatrixWorld(true); const seat = b.g.localToWorld(boatTmp.set(2.45, 0, 0));
-  rig.position.set(seat.x, b.g.position.y + (renderer.xr.isPresenting ? 0.62 : 0.3), seat.z); rig.rotation.y = b.g.rotation.y - Math.PI / 2;
+function boatRide(b, now) { // 乗っている 人（自分）は へさきの ベンチに すわって 前を 見る（船と いっしょに ゆれる）
+  b.g.updateMatrixWorld(true); const seat = b.g.localToWorld(boatTmp.set(2.45, renderer.xr.isPresenting ? 0.62 : 0.3, 0));
+  rig.position.set(seat.x, seat.y, seat.z); rig.rotation.y = b.g.rotation.y - Math.PI / 2;
 }
 function stepBoats(now) {
   if (FERRIS.wheel) { const dt = Math.min(0.1, (now - (FERRIS.last || now)) / 1000); FERRIS.last = now; if (!reduceMotion || (state.play && state.play.kind === 'ferris')) FERRIS.ang += dt * FERRIS.speed; FERRIS.wheel.rotation.z = FERRIS.ang; FERRIS.cars.forEach((c) => { c.rotation.z = -FERRIS.ang; }); if (FERRIS.crew) FERRIS.crew.guide.rotation.y = FERRIS.crew.y0 + Math.sin(now / 1800) * 0.45; }
   BOATS.list.forEach((b) => {
-    const T = b.trip; const bob = Math.sin(now / 900 + (b.at === 'main' ? 0 : 2)) * 0.05;
+    const T = b.trip; const ph = b.at === 'main' ? 0 : 2; const bob = Math.sin(now / 900 + ph) * 0.05;
+    const ms = T ? Math.max(0, now - T.t0) : 0; const run = T && ms < BOAT_TIME; const rock = reduceMotion ? 0 : run ? 1 : 0.35; // 走って いる ときは 大きく ゆれる
+    b.g.rotation.x = Math.sin(now / 1100 + ph) * 0.035 * rock; b.g.rotation.z = Math.sin(now / 1500 + ph + 1) * 0.02 * rock;
+    stepWake(b.g, !!T && ms > 0 && ms < BOAT_TIME + BOAT_TURN, now, run ? Math.min(1, ms / 1500, (BOAT_TIME - ms) / 2000 + 0.25) : 0.15);
     if (!T) { b.g.position.y = -0.2 + bob; return; }
-    const ms = Math.max(0, now - T.t0); const P = T.P; const B = BOATS.berth[T.to];
+    if (T.rider) boatSay(T, ms);
+    const P = T.P; const B = BOATS.berth[T.to];
     if (ms < BOAT_TIME) { // 海を わたる（船首は 進む 向き）
       const t = ms / BOAT_TIME; const e = t * t * (3 - 2 * t);
       bez3(P[0], P[1], P[2], P[3], e, b.g.position); bez3(P[0], P[1], P[2], P[3], Math.min(1, e + 0.004), boatTmp2);
@@ -12148,6 +12234,7 @@ renderer.setAnimationLoop((now) => {
   stepSlide(dt);
   if (state.round && state.round.tick && state.phase === 'work') state.round.tick(now);
   stepOpening(now);
+  stepSeaFx(now); // 航跡の 泡・カモメ・ブイ
   updateSnow(dt, now);
   // 配慮あり：しばらく手が止まったら、つぎに選ぶものを光らせる（声かけ 1 回として数える）
   const r = state.round;
