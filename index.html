@@ -10320,7 +10320,14 @@ function buildRaceCourse() {
   KC.board = new Board(4.4, 5.94, 140); KC.board.mesh.position.set(-8.2, 7.2, -0.04); scr.add(KC.board.mesh); // 着順・オッズ（ビジョンの 左）
   KC.cam = new THREE.PerspectiveCamera(38, 640 / 352, 0.3, 260);
   // 観客（いすに すわった 人を まとめて 描く。ゴール前は 立ちあがって 歓声）。いすの 座面は だんの ゆかから 0.47 m
-  const seats = []; for (let k = 0; k < 6; k++) for (let x = -10.4; x <= 10.4; x += 0.62) { if (Math.abs(x - KC_SEAT.x) < 1.6 && Math.abs(k - KC_SEAT.row) < 2) continue; if (Math.abs(Math.abs(x) - 4) < 0.4) continue; if (Math.random() < 0.45) seats.push({ x: x + (Math.random() - 0.5) * 0.08, y: kcRowY(k) + 0.47, z: kcRowZ(k) + 0.5, yaw: Math.PI }); }
+  //   人は 大きめ（うでまで 横はば 約 0.65 m）なので 席は 0.8 m おき。となりと かさならず、3 人 以上 ぴったり ならばない（ところどころ 空く）。
+  //   自分の 席の まわり（同じ だんの 左右・前の 2 だん）は 空けて、目の 前を ふさがない
+  const seats = []; for (let k = 0; k < 6; k++) { let run = 0; for (let x = -10.4; x <= 10.4; x += 0.8) {
+    const dx = Math.abs(x - KC_SEAT.x); const dk = k - KC_SEAT.row;
+    const near = (dk === 0 && dx < 2.0) || (Math.abs(dk) === 1 && dx < 1.6) || (dk === -2 && dx < 1.2);
+    if (near || Math.abs(Math.abs(x) - 4) < 0.4 || run >= 2 || Math.random() >= 0.5) { run = 0; continue; }
+    run++; seats.push({ x: x + (Math.random() - 0.5) * 0.06, y: kcRowY(k) + 0.47, z: kcRowZ(k) + 0.5, yaw: Math.PI });
+  } }
   KC.crowd = seatedCrowd(g, seats, 3.6, 0.47); KC.crowdJump = seats.map(() => Math.random() * TAU);
   // パドック（スタンドの 西。土の 周回路・白い さく・まん中の 芝生・北に 見る 台）
   { const P = KC_PAD; const pg = new THREE.Group(); g.add(pg);
