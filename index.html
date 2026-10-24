@@ -1342,6 +1342,20 @@ const RIVERS = [
 const BEACH = [[110, 320], [130, 270], [200, 210], [300, 150], [380, 115], [430, 110], [432, 150], [380, 162], [300, 196], [230, 250], [170, 300], [150, 350]];
 // 湖（冬は スケート場）。楕円の 半径は m
 const LAKE = { at: [265, 592], rx: 40 * MAP_SCALE, rz: 36 * MAP_SCALE, blk: null };
+// 競馬場：南の 海を 埋め立てた 土地（IT街の 通りの 先）。島の 多角形とは べつに 持つ（町の 家や 木の 散らし方は かえない）
+//   KC はコース。c が コースの 中心。ローカルは +z が 北（スタンド がわ）で、world = c + (-lx, y, -lz)。L は 直線の 長さ、R は まん中の 半径、half は 芝の はば（半分）
+const RACE_LAND = [[400, 712], [480, 722], [560, 762], [604, 770], [632, 835], [634, 925], [606, 1008], [400, 1012], [362, 960], [360, 822], [378, 742]];
+const KC = { c: toWorld(495, 905), L: 16, R: 8, half: 2.6, lane: 0.72, standBack: 19.5, annex: 2.0 }; // annex は スタンドの うしろの 馬券売り場の 奥ゆき
+function insideRace(px, py) {
+  let inside = false;
+  for (let i = 0, j = RACE_LAND.length - 1; i < RACE_LAND.length; j = i++) {
+    const [xi, yi] = RACE_LAND[i]; const [xj, yj] = RACE_LAND[j];
+    if ((yi > py) !== (yj > py) && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+const kcLocal = (x, z) => [KC.c.x - x, KC.c.z - z];
+function inRaceArea(x, z) { const [lx, lz] = kcLocal(x, z); return Math.abs(lx) < 21 && lz > -15 && lz < 28; } // コース・スタンド・入口の 広場（木を 立てない）
 // 島の上の場所が空いているか（建物・木を散らすときに使う）
 const blocked = []; // { x, z, r }（m）
 const FIELDS = {}; // 外で する 農作業の 場所（paddy＝田んぼ、orchard＝りんご畑、tomato＝トマトの ハウス）
@@ -1385,7 +1399,9 @@ function block(x, z, r, w) { blocked.push({ x, z, r, w: w === undefined ? r : w 
 const WALKER_R = 0.3;
 function walkable(x, z) {
   const m = WALKER_R / MAP_SCALE; const [px, py] = toMap(x, z);
-  if (![[0, 0], [m, 0], [-m, 0], [0, m], [0, -m]].every(([ox, oy]) => insideIsland(px + ox, py + oy))) return false;
+  if (![[0, 0], [m, 0], [-m, 0], [0, m], [0, -m]].every(([ox, oy]) => insideIsland(px + ox, py + oy) || insideRace(px + ox, py + oy))) return false;
+  const [lx, lz] = kcLocal(x, z); // 競馬場は スタンドの うしろの 広場だけ 歩ける（中は 馬券売り場・観客席から 見る）
+  if (lz < KC.standBack + 0.3 + KC.annex + 0.4 && lz > -16 && (Math.abs(lx) < 11.8 || !insideIsland(px, py))) return false;
   if (blocked.some((b) => b.w > 0 && Math.hypot(b.x - x, b.z - z) < b.w + WALKER_R)) return false;
   const onRoad = roadSegs.some(([a, b]) => segDist(x, z, a, b) < ROAD_W / 2);
   return onRoad || !riverSegs.some(([a, b, w]) => segDist(x, z, a, b) < w / 2 + 0.1);
@@ -1516,7 +1532,7 @@ function addCyl(x, y, z, rt, rb, h, color, seg) {
 const booths = [];
 const plazaClickables = [];
 const overviewOnly = []; // 島ぜんたいを見ているときだけ出す（目印の旗・地域の名前）
-const OVERVIEW = { pos: new THREE.Vector3(0, 53, 80), yaw: 0, pitch: 0.62 }; // 島ぜんたいが 入る 高さ（島の 大きさに あわせる）
+const OVERVIEW = { pos: new THREE.Vector3(0, 60, 106), yaw: 0, pitch: 0.62 }; // 島ぜんたいが 入る 高さ（島の 大きさに あわせる）
 
 function overviewSign(text, sub, color, w) {
   const b = new Board(w || 6, (w || 6) / 3, 120);
@@ -1676,7 +1692,7 @@ const FURN = { near: [412, 636], W: 5.8, H: 3.4 }; // 中を 歩いて 家具を
   const side = new THREE.Vector3(1, 0, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), r.yaw).multiplyScalar(0.7); // となりの スーパーに かからないよう 道ぞいに ずらす
   FURN.pos = r.foot.clone().add(side).addScaledVector(r.front, -(ROAD_W / 2 + 0.6 + FURN.W / 2)); FURN.door = r.foot.clone().add(side).addScaledVector(r.front, -ROAD_W / 2);
   FURN.at = toMap(FURN.pos.x, FURN.pos.z); block(FURN.pos.x, FURN.pos.z, FURN.W * 0.72, FURN.W / 2 + 0.2); })(); // 歩く ときは 入口の 前まで 行ける
-// みんなの 居場所（集会所。中で 将棋・囲碁・麻雀・競馬が できる）。学校の 東の 交差点の そば、目抜き通りぞい
+// みんなの 居場所（集会所。中で 将棋・囲碁・麻雀が できる。競馬は 南の 競馬場へ）。学校の 東の 交差点の そば、目抜き通りぞい
 const IBA_SITE = { near: [432, 516], W: 5.4, H: 3.2 };
 (() => { const r = roadside(IBA_SITE.near); IBA_SITE.yaw = r.yaw; IBA_SITE.front = r.front;
   IBA_SITE.pos = r.foot.clone().addScaledVector(r.front, -(ROAD_W / 2 + 0.6 + IBA_SITE.W / 2)); IBA_SITE.door = r.foot.clone().addScaledVector(r.front, -ROAD_W / 2);
@@ -1753,6 +1769,7 @@ function treeSnow(parent, geo, x, y, z, sx, sy) {
 }
 function tree(x, z, kind) {
   const s = 0.8 + rand() * 0.5;
+  if (inRaceArea(x, z)) { rand(); return; } // 競馬場の 上には 立てない（乱数の 順は そのまま）
   const trunk = new THREE.Mesh(treeTrunk, cmat('#7a5a3a')); trunk.position.set(x, 0.6 * s, z); trunk.scale.setScalar(s); scene.add(trunk);
   if (kind === 'conifer') {
     const c = new THREE.Mesh(conifer, cmat(rand() < 0.5 ? '#3f7a3a' : '#4d8a45')); c.position.set(x, 2.2 * s, z); c.scale.setScalar(s); scene.add(c);
@@ -1992,9 +2009,9 @@ function tree(x, z, kind) {
     put(bx(1.5, 2.2, 0.06), '#8a6a46', 0, 1.1, fz + 0.01); // 戸
     [-1, 1].forEach((sd) => put(bx(1.2, 0.9, 0.04), '#bfe3f2', sd * 1.6, 1.6, fz + 0.01, { emissive: '#7ab3cc', emissiveIntensity: 0.2 }));
     const sign = textPlate('みんなの 居場所', 2.6, 0.5, '#e0662f', '#ffffff'); sign.position.set(0, H - 0.4, fz + 0.04); g.add(sign);
-    const sub = textPlate('将棋・囲碁・麻雀・競馬', 2.2, 0.3, '#ffffff', '#1f2a33'); sub.position.set(0, 2.42, fz + 0.04); g.add(sub);
+    const sub = textPlate('将棋・囲碁・麻雀', 2.2, 0.3, '#ffffff', '#1f2a33'); sub.position.set(0, 2.42, fz + 0.04); g.add(sub);
     [body, roof, sign, sub].forEach((m) => { m.userData.ibaEnter = true; plazaClickables.push(m); });
-    const pin = overviewSign('みんなの 居場所', '将棋・囲碁・麻雀・競馬', '#e0662f', 6); pin.position.set(p.x, 9, p.z); pin.lookAt(OVERVIEW.pos); scene.add(pin); overviewOnly.push(pin);
+    const pin = overviewSign('みんなの 居場所', '将棋・囲碁・麻雀', '#e0662f', 6); pin.position.set(p.x, 9, p.z); pin.lookAt(OVERVIEW.pos); scene.add(pin); overviewOnly.push(pin);
     pin.userData.ibaEnter = true; plazaClickables.push(pin);
   })();
 
@@ -3648,7 +3665,8 @@ const LEISURE = [
   { id: 'swim', name: '海で 泳ぐ', cost: 0, ok: () => season === 'summer', go: () => { goBeach(); startSwim(); } },
   { id: 'sun', name: 'ビーチで 日向ぼっこ', cost: 0, ok: () => season === 'summer', go: () => { goBeach(); startSun(); } },
   { id: 'rehab', name: 'リハビリステーション', cost: 0, ok: () => true, go: () => openRehab() },
-  { id: 'iba', name: 'みんなの 居場所（将棋・囲碁・麻雀・競馬）', cost: 0, ok: () => true, go: () => openIba() },
+  { id: 'iba', name: 'みんなの 居場所（将棋・囲碁・麻雀）', cost: 0, ok: () => true, go: () => openIba() },
+  { id: 'keiba', name: '競馬場（馬券を 買って 観戦）', cost: 0, ok: () => true, go: () => openKeiba() },
   { id: 'skate', name: '湖で スケート', price: 400, label: 'スケートぐつ 400円', ok: () => season === 'winter', go: () => { const c = LAKE.blk; startWalk(new THREE.Vector3(c.x, 0, c.z), 0); } },
   { id: 'ski', name: 'スキー', price: 500, label: 'リフト券 500円', ok: () => season === 'winter', go: () => startSki() },
   { id: 'cafe', name: 'カフェで のんびり', label: '300円〜', ok: () => true, go: () => openCafeOrder('in') },
@@ -3978,6 +3996,7 @@ function walkStep(dt) {
   if (near >= 0) { Object.keys(walkKeys).forEach((k) => { walkKeys[k] = false; }); syncPad(); goBooth(near); return; }
   if (profile && Math.hypot(FURN.door.x - p.x, FURN.door.z - p.z) < 1.3) goFurniture(); // 家具屋の 入口
   if (Math.hypot(IBA_SITE.door.x - p.x, IBA_SITE.door.z - p.z) < 1.3) { Object.keys(walkKeys).forEach((k) => { walkKeys[k] = false; }); syncPad(); openIba(ibaOutside()); } // みんなの 居場所の 入口
+  const kb = kcW(KC_BUY.x, 0, KC_BUY.z); if (Math.hypot(kb.x - p.x, kb.z - p.z) < 1.3) { Object.keys(walkKeys).forEach((k) => { walkKeys[k] = false; }); syncPad(); openKeiba(kcOutside()); } // 競馬場の 馬券売り場の まどの 前
 }
 function snapTurn(a) {
   camera.getWorldPosition(tmpHead); const before = tmpHead.clone();
@@ -8018,6 +8037,9 @@ const SFX = {
   bump() { tone(120, 0.12, { vol: 0.35 }); hiss(0.06, { filter: 'lowpass', f: 600, vol: 0.4 }); }, // ゴツン
   pop() { tone(660, 0.1, { vol: 0.2 }); }, // ポン（ほかに 合う 音が ない とき）
   horn() { [147, 185].forEach((f) => tone(f, 0.9, { type: 'triangle', vol: 0.22, attack: 0.08 })); }, // ボーッ（汽笛・ブリッジへの 連絡）
+  fanfare() { [[523, 0], [659, 0.16], [784, 0.32], [1047, 0.5], [784, 0.74], [1047, 0.9]].forEach(([f, at], i) => tone(f, i === 5 ? 0.9 : 0.2, { type: 'triangle', vol: 0.16, at })); }, // 発走の ファンファーレ
+  gate() { tone(170, 0.12, { vol: 0.35 }); hiss(0.18, { filter: 'lowpass', f: 900, vol: 0.4 }); hiss(1.4, { filter: 'lowpass', f: 500, vol: 0.25, attack: 0.2, at: 0.1 }); }, // ガシャン（ゲートが ひらく）と 足音
+  cheer() { hiss(2.4, { f: 1100, q: 0.5, vol: 0.28, attack: 0.5 }); hiss(2.0, { f: 2200, q: 0.7, vol: 0.12, attack: 0.6, at: 0.2 }); }, // ワーッ（スタンドの 歓声）
 };
 function playSfx(kind) {
   if (!sfxOn || !SFX[kind] || !sfxCtx()) return;
@@ -8115,6 +8137,7 @@ function currentClickables() {
   if (state.where === 'walk') return plazaClickables;
   if (state.where === 'home') return home.btns ? Object.values(home.btns).concat(home.leisureBtns || []) : [];
   if (state.where === 'play' && state.play && state.play.kind === 'iba') return ibaClickables();
+  if (state.where === 'play' && state.play && state.play.kind === 'keiba') return kcClickables();
   if (state.where === 'opening' || state.where === 'play') return [];
   if (state.where === 'furn') return (furnShop.btns || []).concat(furnShop.clickables); // 札の 下の ボタンも えらべる
   const b = state.booth; const list = Object.values(b.btns).filter((m) => m.visible);
@@ -8128,6 +8151,7 @@ function handleRay(ray) {
   const obj = hits[0].object;
   if (obj.userData.ibaAct) { obj.userData.ibaAct(); return; }
   if (obj.userData.ibaEnter) { openIba(); return; }
+  if (obj.userData.kcEnter) { openKeiba(); return; }
   if (obj.userData.furnBuy) { if (state.where === 'furn') { playSfx('coin'); buyFurn(obj.userData.furnBuy); } return; }
   if (obj.userData.furnCancel) { furnShop.selected = null; paintFurnTags(); renderHud(); return; }
   if (obj.userData.furnId) { if (state.where === 'furn') { playSfx(SFX_FURN[obj.userData.furnId] || 'pop'); pickFurn(obj.userData.furnId); } return; }
@@ -8189,9 +8213,9 @@ const $ = (id) => document.getElementById(id);
 const chipsEl = $('chips');
 
 // ---- 右上の 島の 地図 --------------------------------------------------------
-//   地図 px（x 90〜940・y 110〜790）を そのまま 縮めて 描く。島・道・川は 1 回だけ 描いて おき、
+//   地図 px（x 90〜940・y 110〜1015。南の 海の 競馬場まで）を そのまま 縮めて 描く。島・道・川は 1 回だけ 描いて おき、
 //   いまの 場所と 向き・いる お店は 毎回 上に 重ねる。
-const MM = { x0: 90, y0: 110, w: 850, h: 680 };
+const MM = { x0: 90, y0: 110, w: 850, h: 905 };
 const mmWrap = $('minimap'); const mmCanvas = $('minimap-canvas'); const mmCtx = mmCanvas.getContext('2d');
 let mmBase = null; let mmScale = 1;
 function mmPos(px, py) { return [(px - MM.x0) * mmScale, (py - MM.y0) * mmScale]; }
@@ -8210,6 +8234,11 @@ function paintIsland(x, sc) {
   x.fillStyle = '#4f9fc4'; x.fillRect(0, 0, MM.w * sc, MM.h * sc);
   const path = (pts) => { x.beginPath(); pts.forEach(([px, py], i) => { const [u, v] = mmPos(px, py); if (i) x.lineTo(u, v); else x.moveTo(u, v); }); };
   path(ISLAND); x.closePath(); x.fillStyle = season === 'winter' ? SNOW_TINT['#9cc47f'] : '#9cc47f'; x.fill();
+  path(RACE_LAND); x.closePath(); x.fill();
+  // 競馬場（茶色の スタンドと 緑の コース）
+  const kc = (lx, lz) => toMap(KC.c.x - lx, KC.c.z - lz); const oval = (r) => { const pts = []; for (let k = 0; k <= 40; k++) { const a = (k / 40) * TAU; const sx = Math.cos(a) >= 0 ? KC.L / 2 : -KC.L / 2; pts.push(kc(sx + r * Math.cos(a), r * Math.sin(a))); } return pts; };
+  path(oval(KC.R + KC.half)); x.closePath(); x.fillStyle = '#5f9e46'; x.fill(); path(oval(KC.R - KC.half)); x.closePath(); x.fillStyle = '#8fc56c'; x.fill();
+  path([kc(-11, 11.8), kc(11, 11.8), kc(11, KC.standBack), kc(-11, KC.standBack)]); x.closePath(); x.fillStyle = '#9a8f80'; x.fill();
   // 山
   const [mx, my] = mmPos(520, 392); x.beginPath(); x.arc(mx, my, (12.5 / MAP_SCALE) * mmScale, 0, Math.PI * 2); x.fillStyle = '#7f9161'; x.fill();
   x.beginPath(); x.arc(mx, my, (12.5 * 0.3 / MAP_SCALE) * mmScale, 0, Math.PI * 2); x.fillStyle = '#f7fbff'; x.fill();
@@ -8337,7 +8366,7 @@ function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 function renderHud() {
   $('btn-home').hidden = !home.group;
   $('place').textContent = state.where === 'plaza' ? '島ぜんたい' : state.where === 'walk' ? '島を 歩いています' : state.where === 'home' ? profile.name + 'さんの ' + homeName() + '（' + home.site.name + '）' : state.where === 'opening' ? 'フェリーで 入港中' : state.where === 'play' ? PLAY_NAME[state.play.kind] : state.where === 'furn' ? '家具屋（お店の 中）' : state.booth.job.area + '　' + state.booth.job.name + '・' + state.booth.job.work;
-  $('pad').hidden = !(state.where === 'walk' || state.where === 'furn' || (state.where === 'play' && state.play && !['sun', 'cafe', 'terrace', 'plaza', 'rehab', 'iba'].includes(state.play.kind)) || (state.where === 'booth' && state.phase === 'work' && state.round && (state.round.cover || state.round.slide)));
+  $('pad').hidden = !(state.where === 'walk' || state.where === 'furn' || (state.where === 'play' && state.play && !['sun', 'cafe', 'terrace', 'plaza', 'rehab', 'iba', 'keiba'].includes(state.play.kind)) || (state.where === 'booth' && state.phase === 'work' && state.round && (state.round.cover || state.round.slide)));
   $('btn-walk').textContent = state.where === 'walk' ? '見わたす' : '島を歩く';
   chipsEl.querySelectorAll('.chip').forEach((el, i) => el.setAttribute('aria-current', String(i === 0 ? state.where === 'plaza' : state.booth === booths[i - 1])));
   // いまの 場所の チップが 画面の外なら 見える ところまで 送る
@@ -8355,14 +8384,15 @@ function renderHud() {
   if (state.where === 'plaza') {
     el.innerHTML = '<span class="tag">Work Island</span><h2>やってみたい しごとを えらぶ</h2>' +
       '<div>島の 地域ごとに、その土地の しごとが あります。旗や お店を タップ（VR では ゆびさして トリガー）すると、その お店の前に 移動します。ドラッグで 見回せます。</div>' +
-      '<div class="row"><button type="button" class="primary" id="h-walk">島を 歩いてみる</button><button type="button" id="h-rehab">リハビリステーション</button><button type="button" id="h-iba">みんなの 居場所</button></div>';
-    $('h-walk').onclick = () => startWalk(); $('h-rehab').onclick = openRehab; $('h-iba').onclick = () => openIba();
+      '<div class="row"><button type="button" class="primary" id="h-walk">島を 歩いてみる</button><button type="button" id="h-rehab">リハビリステーション</button><button type="button" id="h-iba">みんなの 居場所</button><button type="button" id="h-keiba">競馬場</button></div>';
+    $('h-walk').onclick = () => startWalk(); $('h-rehab').onclick = openRehab; $('h-iba').onclick = () => openIba(); $('h-keiba').onclick = () => openKeiba();
     return;
   }
   if (state.where === 'play') {
     const k = state.play.kind;
     if (k === 'rehab') { renderRehabHud(el); return; }
     if (k === 'iba') { renderIbaHud(el); return; }
+    if (k === 'keiba') { renderKeibaHud(el); return; }
     const how = { ski: '← → で よける・▲を 押すと そのまま（Shift で 速く）。下まで すべると ゴール', climb: '▲で のぼる・▼で おりる。頂上から 島ぜんたいが 見えます', swim: '▲▼で 進む・◀▶で 向きを かえる。岸から 遠くへは 行けません', sun: 'パラソルの 下で ねころんでいます。ドラッグで 見回せます', cafe: '中の 席に すわって います。ドラッグで 見回せます', terrace: '外の テラス席に すわって います。ドラッグで 見回せます', plaza: '町の テラス席に すわって います。ドラッグで 見回せます' }[k];
     el.innerHTML = '<span class="tag">あそぶ</span><h2>' + PLAY_NAME[k] + '</h2><div>' + how + '</div><div class="row"><button type="button" class="primary" id="h-endplay">' + (k === 'sun' ? 'おきる' : k === 'swim' ? '岸に あがる' : k === 'cafe' || k === 'terrace' ? 'お店を 出る' : k === 'plaza' ? '席を たつ' : 'おわる') + '</button></div>';
     $('h-endplay').onclick = endPlay;
@@ -8472,7 +8502,7 @@ const inPoly = (poly, px, py) => { let ins = false; for (let i = 0, j = poly.len
 const onIce = (x, z) => season === 'winter' && LAKE.blk && ((x - LAKE.blk.x) / LAKE.rx) ** 2 + ((z - LAKE.blk.z) / LAKE.rz) ** 2 < 1;
 const onBeach = (x, z) => inPoly(BEACH, ...toMap(x, z));
 const skateV = new THREE.Vector3();
-const PLAY_NAME = { iba: 'みんなの 居場所', ski: 'スキー', climb: '山登り', swim: '海で 泳ぐ', sun: '日向ぼっこ', cafe: 'カフェで のんびり', terrace: 'カフェの テラス席', plaza: '町の テラス席', rehab: 'リハビリステーション' };
+const PLAY_NAME = { iba: 'みんなの 居場所', keiba: 'HOPE 島 競馬場', ski: 'スキー', climb: '山登り', swim: '海で 泳ぐ', sun: '日向ぼっこ', cafe: 'カフェで のんびり', terrace: 'カフェの テラス席', plaza: '町の テラス席', rehab: 'リハビリステーション' };
 const isCafePlay = (k) => k === 'cafe' || k === 'terrace' || k === 'plaza';
 // 左スティック（VR）
 function xrMove() {
@@ -8595,6 +8625,7 @@ function endPlay() {
   state.play = null;
   if (pl.kind === 'rehab') { leaveRehab(pl); return; }
   if (pl.kind === 'iba') { rig.position.y = 0; leaveIba(pl); return; }
+  if (pl.kind === 'keiba') { leaveKeiba(pl); return; }
   if (pl.kind === 'ski') { const dir = m.runs[pl.run]; startWalk(new THREE.Vector3(m.peak.x + dir.x * (m.MR + 2.5), 0, m.peak.z + dir.z * (m.MR + 2.5)), Math.atan2(-dir.x, -dir.z)); }
   else if (pl.kind === 'climb') startWalk(seasonal.trailAt.clone().add(new THREE.Vector3(1.5, 0, 1.5)), 0);
   else if (pl.kind === 'swim') startWalk(pl.land, rig.rotation.y + Math.PI);
@@ -8605,6 +8636,7 @@ function stepPlay(dt, now) {
   const pl = state.play; if (state.where !== 'play' || !pl) return;
   if (pl.kind === 'rehab') { stepRehab(pl, dt, now); return; }
   if (pl.kind === 'iba') { stepIba(pl, dt, now); return; }
+  if (pl.kind === 'keiba') { stepKeibaPlay(pl, dt, now); return; }
   const m = seasonal.mount; const xr = xrMove();
   const fwd = xr ? xr.fwd : (walkKeys.fwd ? 1 : 0) - (walkKeys.back ? 1 : 0);
   const side = xr ? xr.strafe : (walkKeys.right ? 1 : 0) - (walkKeys.left ? 1 : 0);
@@ -9178,20 +9210,21 @@ window.addEventListener('keydown', (e) => {
   else if (e.code === 'Space') { e.preventDefault(); rehabSwipeThrow(0.55, 0); }
 });
 // ===========================================================================
-// みんなの 居場所（住宅地の 集会所）：競馬・麻雀・将棋・囲碁を 実際に あそべる 部屋
+// みんなの 居場所（住宅地の 集会所）：麻雀・将棋・囲碁を 実際に あそべる 部屋（競馬は 島の 南の 競馬場。部屋の 札から 行ける）
 //   居場所づくり支援：しごとの あいまや 休みの 日に 立ちよって、ひとりでも あそべる（相手は コンピューター）。
-//   中は 島の 外に 建てた 部屋（リハビリステーションと 同じ しくみ）。入口から 4 つの 台が 見え、台の 札を えらぶと その 席に つく。
+//   中は 島の 外に 建てた 部屋（リハビリステーションと 同じ しくみ）。入口から 3 つの 台が 見え、台の 札を えらぶと その 席に つく。
 //   VR では 画面の カードが 見えないので、台の 札と ボタンで ぜんぶ できる（画面の カードにも 同じ ボタンを 出す）。
-//   競馬は メダル競馬（あそび用の メダル。お金・バッジとは べつ）。麻雀は 鳴き・リーチ なしの かんたん ルール（役が なくても あがれる）。
+//   競馬場で かける メダル（あそび用。お金・バッジとは べつ）も profile.iba に 持つ。麻雀は 鳴き・リーチ なしの かんたん ルール（役が なくても あがれる）。
 //   きろくは profile.iba（いつ・何で・どう だったか）。hope-work の 作業体験の きろく（TrialPhase）とは べつ
 // ===========================================================================
 const IBA = { at: new THREE.Vector3(-640, 0, 0), g: null, room: { w: 13, d: 9 }, entry: new THREE.Vector3(0, 0, 3.4), signs: [], exitBtn: null, st: {} };
-const IBA_GAMES = { shogi: '将棋', go: '囲碁', mahjong: '麻雀', keiba: '競馬' };
-const IBA_NOTE = { shogi: 'コンピューターと 1 局。待ったも できます', go: '9 路盤で 1 局。強さ・置き石を えらべる', mahjong: '3 人と 東風戦。強さは 3 だんかい', keiba: 'メダルを かけて レースを 見る' };
+const IBA_GAMES = { shogi: '将棋', go: '囲碁', mahjong: '麻雀' };
+const IBA_LOG_NAME = Object.assign({ keiba: '競馬' }, IBA_GAMES);
+const IBA_NOTE = { shogi: 'コンピューターと 1 局。待ったも できます', go: '9 路盤で 1 局。強さ・置き石を えらべる', mahjong: '3 人と 東風戦。強さは 3 だんかい' };
 const IBA_COLOR = { shogi: '#8a5a2b', go: '#3d4a54', mahjong: '#2f7d4f', keiba: '#c0533a' };
-const IBA_X = { shogi: -3.9, go: -1.3, mahjong: 1.3, keiba: 4.0 }; // 台の 位置（どれも 奥の かべ がわ。席は 台の 手前で 奥を 向く）
+const IBA_X = { shogi: -3.9, go: -1.3, mahjong: 1.3, keiba: 4.0 }; // 台の 位置（どれも 奥の かべ がわ。席は 台の 手前で 奥を 向く）。keiba は 競馬場への 札
 const IBA_Z = -1.4;
-const IBA_SEAT = { shogi: 0.8, go: 0.75, mahjong: 0.78, keiba: 1.05 }; // 台の 中心から 席までの 長さ
+const IBA_SEAT = { shogi: 0.8, go: 0.75, mahjong: 0.78 }; // 台の 中心から 席までの 長さ
 const IBA_TOP = 0.72; // 台の 高さ
 const IBA_START_MEDALS = 100;
 function ibaData() {
@@ -9251,18 +9284,21 @@ function buildIba() {
   // 台ごとの 札（えらぶと その 席へ）・パネル
   Object.keys(IBA_GAMES).forEach((key) => {
     const sg = overviewSign(IBA_GAMES[key], IBA_NOTE[key], IBA_COLOR[key], 1.5); sg.material.depthTest = true; sg.renderOrder = 0;
-    sg.position.set(IBA_X[key], 2.42, IBA_Z - (key === 'keiba' ? 1.05 : 0.95)); g.add(sg); IBA.signs.push(ibaClick(sg, () => ibaSit(key)));
-    const big = key === 'keiba';
-    const st = { key, x: IBA_X[key], g: new THREE.Group(), pg: new THREE.Group(), panel: new Board(big ? 1.2 : 0.9, big ? 0.74 : 0.5, 900), ph: big ? 0.74 : 0.5, btnDefs: [], btnMeshes: [], clicks: [], msg: [], title: IBA_GAMES[key] };
+    sg.position.set(IBA_X[key], 2.42, IBA_Z - 0.95); g.add(sg); IBA.signs.push(ibaClick(sg, () => ibaSit(key)));
+    const st = { key, x: IBA_X[key], g: new THREE.Group(), pg: new THREE.Group(), panel: new Board(0.9, 0.5, 900), ph: 0.5, btnDefs: [], btnMeshes: [], clicks: [], msg: [], title: IBA_GAMES[key] };
     st.g.position.set(IBA_X[key], 0, IBA_Z); g.add(st.g); IBA.st[key] = st;
-    // パネルは 相手の 顔に かからない ところ（左の おく）に 席の 方を 向けて 立てる。競馬は コースの おく
-    const [px, py, pz] = big ? [0, 1.62, -0.72] : key === 'mahjong' ? [-0.84, 1.3, -0.84] : key === 'go' ? [-0.76, 1.36, -0.44] : [-0.76, 1.26, -0.44]; // 囲碁は ボタンが 3 行（強さ・置き石）なので 少し 上
+    // パネルは 相手の 顔に かからない ところ（左の おく）に 席の 方を 向けて 立てる
+    const [px, py, pz] = key === 'mahjong' ? [-0.84, 1.3, -0.84] : key === 'go' ? [-0.76, 1.36, -0.44] : [-0.76, 1.26, -0.44]; // 囲碁は ボタンが 3 行（強さ・置き石）なので 少し 上
     st.pg.position.set(px, py, pz); st.pg.rotation.y = Math.atan2(-px, IBA_SEAT[key] - pz); st.g.add(st.pg); st.pg.add(st.panel.mesh);
     const chair = new THREE.Group(); chair.position.set(0, 0, IBA_SEAT[key] + 0.1); st.g.add(chair); // 自分の いす
     part(chair, box(0.44, 0.05, 0.42), '#8a6a46', 0, 0.44, 0); part(chair, box(0.44, 0.45, 0.05), '#8a6a46', 0, 0.68, 0.2);
     [[-0.19, -0.18], [0.19, -0.18], [-0.19, 0.18], [0.19, 0.18]].forEach(([x, z]) => part(chair, box(0.04, 0.44, 0.04), '#5a4a3a', x, 0.22, z));
   });
-  buildShogi(IBA.st.shogi); buildIgo(IBA.st.go); buildMahjong(IBA.st.mahjong); buildKeiba(IBA.st.keiba);
+  buildShogi(IBA.st.shogi); buildIgo(IBA.st.go); buildMahjong(IBA.st.mahjong);
+  // 競馬は 島の 南の 競馬場で（かべの ポスター。えらぶと 競馬場の 馬券売り場へ）
+  const kp = overviewSign('競馬は 競馬場で', '南の 海の HOPE 島 競馬場へ 行く', IBA_COLOR.keiba, 2.4); kp.material.depthTest = true; kp.renderOrder = 0;
+  kp.position.set(IBA_X.keiba, 1.75, -d / 2 + 0.08); g.add(kp); IBA.signs.push(ibaClick(kp, () => openKeiba()));
+  const kb = ibaClick(makeButton('競馬場へ 行く ▶', IBA_COLOR.keiba, 1.0, 0.2), () => openKeiba()); kb.position.set(IBA_X.keiba, 1.1, -d / 2 + 0.08); g.add(kb); IBA.signs.push(kb);
 }
 function ibaTable(st, w, dd, color) { // 台（脚つき）
   part(st.g, box(w, 0.04, dd), color || '#a77b4f', 0, IBA_TOP - 0.02, 0);
@@ -9319,8 +9355,8 @@ function ibaStand() {
 function ibaSit(key) {
   const pl = ibaNow(); if (!pl) return; const st = IBA.st[key]; pl.at = key;
   const seat = new THREE.Vector3(st.x, renderer.xr.isPresenting ? 0 : -0.35, IBA_Z + IBA_SEAT[key]);
-  rig.position.copy(IBA.g.localToWorld(seat)); rig.position.y = seat.y; rig.rotation.y = 0; look.yaw = 0; look.pitch = key === 'keiba' ? 0.2 : 0.5;
-  ({ shogi: shogiEnter, go: igoEnter, mahjong: mjEnter, keiba: keibaEnter })[key](st);
+  rig.position.copy(IBA.g.localToWorld(seat)); rig.position.y = seat.y; rig.rotation.y = 0; look.yaw = 0; look.pitch = 0.5;
+  ({ shogi: shogiEnter, go: igoEnter, mahjong: mjEnter })[key](st);
   renderHud();
 }
 function leaveIba(pl) {
@@ -9329,20 +9365,20 @@ function leaveIba(pl) {
 }
 function stepIba(pl, dt, now) {
   Object.values(IBA.st).forEach((st) => { if (st.next && now >= st.wait) { const f = st.next; st.next = null; f(); } });
-  stepKeiba(IBA.st.keiba, dt, now);
 }
 function renderIbaHud(el) {
   const pl = state.play; const st = pl.at && IBA.st[pl.at];
   const others = Object.keys(IBA_GAMES).filter((k) => k !== pl.at).map((k) => '<button type="button" data-iba-go="' + k + '">' + IBA_GAMES[k] + '</button>').join('');
-  const last = ibaData().log.slice(-3).reverse().map((r) => '<li>' + esc(IBA_GAMES[r.game] + '：' + r.result) + '</li>').join('');
+  const last = ibaData().log.slice(-3).reverse().map((r) => '<li>' + esc((IBA_LOG_NAME[r.game] || r.game) + '：' + r.result) + '</li>').join('');
   el.innerHTML = '<span class="tag">みんなの 居場所</span><h2>' + (st ? IBA_GAMES[pl.at] : 'あそびを えらぶ') + '</h2>' +
     (st ? '<div class="feedback" id="iba-msg">' + st.msg.map((m) => esc(m.text || m)).join('<br>') + '</div>' +
       '<div class="row">' + st.btnDefs.map((d, i) => '<button type="button"' + (d.on ? ' class="primary"' : '') + ' data-iba-btn="' + i + '">' + esc(d.label) + '</button>').join('') + '</div>'
-      : '<div>将棋・囲碁・麻雀・競馬が できます。台の 札を えらぶ（VR では ゆびさして トリガー）と 席に つきます。ひとりでも あそべます（相手は コンピューター）。</div>' +
+      : '<div>将棋・囲碁・麻雀が できます。台の 札を えらぶ（VR では ゆびさして トリガー）と 席に つきます。ひとりでも あそべます（相手は コンピューター）。競馬は 島の 南の 競馬場で（右の かべの ポスターから 行けます）。</div>' +
         (last ? '<label class="field">さいきんの きろく</label><ul style="margin:0;padding-left:1.2em;color:var(--ink-soft)">' + last + '</ul>' : '')) +
-    '<div class="row">' + others + (st ? '<button type="button" id="iba-stand">席を 立つ</button>' : '') + '<button type="button" id="iba-out">外に 出る</button></div>';
+    '<div class="row">' + others + '<button type="button" id="iba-keiba">競馬場へ</button>' + (st ? '<button type="button" id="iba-stand">席を 立つ</button>' : '') + '<button type="button" id="iba-out">外に 出る</button></div>';
   el.querySelectorAll('[data-iba-go]').forEach((b) => { b.onclick = () => ibaSit(b.dataset.ibaGo); });
   el.querySelectorAll('[data-iba-btn]').forEach((b) => { b.onclick = () => { const d = st.btnDefs[Number(b.dataset.ibaBtn)]; if (d) { playSfx('pop'); d.act(); } }; });
+  $('iba-keiba').onclick = () => openKeiba();
   if ($('iba-stand')) $('iba-stand').onclick = ibaStand;
   $('iba-out').onclick = endPlay;
 }
@@ -9938,116 +9974,379 @@ function mjShow(st) {
 //   馬と かけかた（単勝＝1 着を あてる・複勝＝2 着までに 入る）と メダルの 数を えらんで スタート。
 //   メダルは あそび用（お金・バッジとは べつ）。なくなったら 受付で 50 まい もらえる
 // ===========================================================================
+// ===========================================================================
+// HOPE 島 競馬場（南の 海の 埋め立て地）：馬券売り場で 馬券を 買って、スタンドの 観客席から レースを 見る
+//   メダル競馬（みんなの 居場所と 同じ あそび用の メダル。お金・バッジとは べつ）。1 レースに 馬券は 5 まいまで
+//   コースは 1 周 82 m の 楕円（左回り）。スタートは むこう正面の ゲート、1 周 半 まわって スタンド前の ゴールへ
+//   VR では 画面の カードが 見えないので、売り場と 席の 札と ボタンで ぜんぶ できる（画面の カードにも 同じ ボタン）。
+//   大型ビジョンには 先頭の 馬を 追う カメラの 映像を うつす
+// ===========================================================================
 const KB_HORSES = [['シマカゼ', '#d0392b'], ['ウミネコ', '#2f6fc4'], ['ヤマビコ', '#e3b23c'], ['ハマナス', '#4f9a45'], ['ホシゾラ', '#6b4f9e'], ['カモメ', '#f2f2f2']];
-const KB = { L: 1.0, R: 0.3, top: IBA_TOP + 0.06, z: -0.12, lane: 0.026 };
-const KB_P = 2 * KB.L + 2 * Math.PI * KB.R;
-const KB_DIST = KB_P + KB.L * 0.7; // スタート（手前の 直線の 左）→ 1 周 → ゴール（手前の 直線の 右より）
-function kbPoint(d, off, out) { // 中心線で d（手前の 直線の 左はしから 左回り）。off は 外がわへの ずれ
-  const { L, R } = KB; d = ((d % KB_P) + KB_P) % KB_P; const r = R + off;
-  if (d < L) return out.set(-L / 2 + d, KB.top, KB.z + r);
-  d -= L; if (d < Math.PI * R) { const a = d / R; return out.set(L / 2 + r * Math.sin(a), KB.top, KB.z + r * Math.cos(a)); }
-  d -= Math.PI * R; if (d < L) return out.set(L / 2 - d, KB.top, KB.z - r);
-  d -= L; const a = d / R; return out.set(-L / 2 - r * Math.sin(a), KB.top, KB.z - r * Math.cos(a));
+const KB_COATS = ['#7a4a2a', '#5a3a22', '#a0683a', '#3a2a22', '#b9b0a6', '#8a5a32'];
+const KB_P = 2 * KC.L + 2 * Math.PI * KC.R;
+const KB_START = KC.L + Math.PI * KC.R + KC.L * 0.25; // むこう正面の ゲート
+const KB_DIST = 2 * KB_P + KC.L * 0.7 - KB_START; // 1 周 半 → スタンド前の ゴール
+const KB_GOAL_X = -KC.L / 2 + KC.L * 0.7;
+const KB_TIME = 20; // 先頭が ゴールするまで およそ 20 秒
+const KB_MAX_BETS = 5;
+const KC_SEAT = { row: 3, x: 2.2 }; // 自分の 席（だんの 番号と 横の 位置）
+const kcRowZ = (k) => 12.0 + k * 1.0; // だんの 前の はし
+const kcRowY = (k) => 0.3 + k * 0.45; // だんの ゆかの 高さ
+const KC_WINDOW_X = [-3.9, -1.3, 1.3]; // 馬券売り場の まど（まん中で 買う）
+const KC_BUY = { x: -1.3, z: KC.standBack + 0.3 + KC.annex + 1.75 }; // 買う ときに 立つ ところ（スタンドの うしろ）
+const kcW = (lx, y, lz) => new THREE.Vector3(KC.c.x - lx, y, KC.c.z - lz);
+const kcOutside = () => ({ pos: kcW(KC_BUY.x, 0, KC_BUY.z + 2.9), yaw: 0 }); // 出ると 広場（北を 向く＝島の 方）
+const kcNow = () => (state.where === 'play' && state.play && state.play.kind === 'keiba' ? state.play : null);
+function kbPoint(d, off, out) { // 中心線で d（スタンド前の 直線の 左はしから 左回り）。off は 外がわへの ずれ。コースの ローカル
+  const { L, R } = KC; d = ((d % KB_P) + KB_P) % KB_P; const r = R + off; const y = 0.05;
+  if (d < L) return out.set(-L / 2 + d, y, r);
+  d -= L; if (d < Math.PI * R) { const a = d / R; return out.set(L / 2 + r * Math.sin(a), y, r * Math.cos(a)); }
+  d -= Math.PI * R; if (d < L) return out.set(L / 2 - d, y, -r);
+  d -= L; const a = d / R; return out.set(-L / 2 - r * Math.sin(a), y, -r * Math.cos(a));
 }
-function kbHorse(color, n) { // 小さな 馬と 騎手（頭が +z）
-  const g = new THREE.Group(); const B = '#7a4a2a';
-  part(g, ball(0.5, 12, 10), B, 0, 0.05, 0).scale.set(0.035, 0.032, 0.075);
-  const neck = part(g, cyl(0.011, 0.015, 0.05, 8), B, 0, 0.07, 0.04); neck.rotation.x = 0.7;
-  part(g, box(0.018, 0.018, 0.04), B, 0, 0.088, 0.065);
-  const legs = [[-0.012, 0.03], [0.012, 0.03], [-0.012, -0.03], [0.012, -0.03]].map(([x, z]) => { const L = new THREE.Group(); L.position.set(x, 0.04, z); g.add(L); part(L, cyl(0.004, 0.004, 0.04, 6), B, 0, -0.02, 0); return L; });
-  const tail = part(g, cyl(0.003, 0.006, 0.035, 6), '#3a2a1a', 0, 0.06, -0.075); tail.rotation.x = -0.8;
-  part(g, box(0.026, 0.03, 0.022), color, 0, 0.095, 0.005); part(g, ball(0.011, 10, 8), color, 0, 0.118, 0.008); // 騎手（勝負服）
-  part(g, box(0.042, 0.02, 0.03), '#ffffff', 0, 0.06, -0.012); // ゼッケン
-  const tag = labelSprite(String(n), { h: 0.03, bg: color, fg: color === '#f2f2f2' || color === '#e3b23c' ? '#1f2a33' : '#ffffff' }); tag.position.set(0, 0.17, 0); g.add(tag);
-  g.scale.setScalar(1.3);
-  g.userData.legs = legs; return g;
+const kbOff = (k) => -1.8 + k * KC.lane;
+function kbHorse(color, coat, n) { // 馬と 騎手（実物大。頭が +z）
+  const g = new THREE.Group(); const put = (geo, c, x, y, z) => { const m = new THREE.Mesh(geo, cmat(c)); m.position.set(x, y, z); g.add(m); return m; };
+  const body = new THREE.Group(); g.add(body); const bput = (geo, c, x, y, z) => { const m = new THREE.Mesh(geo, cmat(c)); m.position.set(x, y, z); body.add(m); return m; };
+  bput(ball(0.5, 16, 12), coat, 0, 1.38, 0).scale.set(0.56, 0.62, 1.5);
+  const neck = bput(cyl(0.17, 0.26, 0.85, 10), coat, 0, 1.78, 0.78); neck.rotation.x = 0.8;
+  const mane = bput(box(0.06, 0.12, 0.8), '#2a1c14', 0, 1.9, 0.68); mane.rotation.x = 0.8;
+  const head = bput(box(0.22, 0.26, 0.62), coat, 0, 2.02, 1.16); head.rotation.x = 0.55;
+  [-1, 1].forEach((sd) => { const e = bput(new THREE.ConeGeometry(0.04, 0.14, 6), coat, sd * 0.07, 2.32, 0.98); e.rotation.x = -0.2; });
+  bput(box(0.6, 0.06, 0.62), '#ffffff', 0, 1.67, -0.05); // ゼッケンの 上（くら）
+  [-1, 1].forEach((sd) => { const t = kcPlate(String(n), 0.44, 0.36, '#ffffff', '#1f2a33'); t.position.set(sd * 0.3, 1.45, -0.05); t.rotation.y = sd * Math.PI / 2; body.add(t); }); // ゼッケン
+  const tail = bput(cyl(0.035, 0.09, 0.75, 8), '#2a1c14', 0, 1.25, -0.88); tail.rotation.x = -0.45;
+  // 騎手（勝負服は 馬の 色）
+  const jk = bput(box(0.3, 0.42, 0.28), color, 0, 2.02, 0.12); jk.rotation.x = 0.85;
+  bput(ball(0.14, 12, 10), color, 0, 2.3, 0.4); bput(box(0.34, 0.16, 0.42), '#ffffff', 0, 1.8, -0.08);
+  [-1, 1].forEach((sd) => { const a = bput(cyl(0.045, 0.045, 0.42, 8), color, sd * 0.17, 2.0, 0.42); a.rotation.x = 1.2; });
+  const legs = [[-0.17, 0.5], [0.17, 0.5], [-0.17, -0.52], [0.17, -0.52]].map(([x, z]) => {
+    const L = new THREE.Group(); L.position.set(x, 1.15, z); body.add(L);
+    const m = new THREE.Mesh(cyl(0.065, 0.075, 1.05, 8), cmat(coat)); m.position.y = -0.53; L.add(m);
+    const hf = new THREE.Mesh(box(0.13, 0.1, 0.16), cmat('#2b2f33')); hf.position.y = -1.08; L.add(hf); return L;
+  });
+  const tag = labelSprite(String(n), { h: 0.5, bg: color, fg: color === '#f2f2f2' || color === '#e3b23c' ? '#1f2a33' : '#ffffff' }); tag.position.set(0, 3.1, 0); g.add(tag);
+  g.userData.legs = legs; g.userData.body = body; return g;
 }
-function buildKeiba(st) {
-  ibaTable(st, 2.0, 1.1, '#6b4a2a');
-  const { L, R } = KB; const outer = R + 0.1; const inner = R - 0.1;
+
+// ---- 埋め立て地・コース・スタンド・馬券売り場・大型ビジョン ---------------------
+function buildRaceCourse() {
+  const land = new THREE.Mesh(new THREE.ExtrudeGeometry(pxShape(RACE_LAND), { depth: 1.2, bevelEnabled: false, curveSegments: 1 }), [cmat('#9cc47f'), cmat('#dcc893')]);
+  land.rotation.x = -Math.PI / 2; land.position.y = -1.2; scene.add(land);
+  for (let i = blocked.length - 1; i >= 0; i--) if (blocked[i].r === 0.9 && inRaceArea(blocked[i].x, blocked[i].z)) blocked.splice(i, 1); // 立てなかった 木の ぶん
+  const g = new THREE.Group(); g.position.copy(KC.c); g.rotation.y = Math.PI; scene.add(g); KC.g = g;
+  const put = (geo, color, x, y, z, parent) => { const m = new THREE.Mesh(geo, cmat(color)); m.position.set(x, y, z); (parent || g).add(m); return m; };
+  const { L, R, half } = KC;
   const stadium = (r) => { const s = []; for (let k = 0; k <= 24; k++) { const a = -Math.PI / 2 + (k / 24) * Math.PI; s.push(new THREE.Vector2(L / 2 + r * Math.cos(a), r * Math.sin(a))); } for (let k = 0; k <= 24; k++) { const a = Math.PI / 2 + (k / 24) * Math.PI; s.push(new THREE.Vector2(-L / 2 + r * Math.cos(a), r * Math.sin(a))); } return s; };
-  const ring = new THREE.Shape(stadium(outer)); ring.holes.push(new THREE.Path(stadium(inner).reverse()));
-  const track = new THREE.Mesh(new THREE.ShapeGeometry(ring), mat('#7fb35a', { roughness: 0.95 })); track.rotation.x = -Math.PI / 2; track.position.set(0, KB.top - 0.01, KB.z); st.g.add(track); // 芝の コース
-  const infield = new THREE.Mesh(new THREE.ShapeGeometry(new THREE.Shape(stadium(inner))), mat('#a8d08a')); infield.rotation.x = -Math.PI / 2; infield.position.set(0, KB.top - 0.012, KB.z); st.g.add(infield);
-  part(st.g, box(1.9, 0.05, 1.0), '#5f8f45', 0, IBA_TOP + 0.02, 0); // 台の 上の 地面
-  [outer, inner].forEach((r) => { const pts = stadium(r).map((v) => new THREE.Vector3(v.x, KB.top + 0.012, KB.z - v.y)); st.g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts.concat([pts[0]])), new THREE.LineBasicMaterial({ color: '#ffffff' }))); }); // 白い さく
-  const fx = -L / 2 + KB.L * 0.7; part(st.g, box(0.01, 0.002, 0.2), '#ffffff', fx, KB.top + 0.002, KB.z + R); // ゴール板
-  const goal = textPlate('ゴール', 0.12, 0.04, '#c0392b', '#ffffff'); goal.position.set(fx, KB.top + 0.12, KB.z + R + 0.12); st.g.add(goal); part(st.g, cyl(0.003, 0.003, 0.1, 6), '#ffffff', fx, KB.top + 0.05, KB.z + R + 0.12);
-  part(st.g, box(0.5, 0.12, 0.08), '#d9dde0', 0, KB.top + 0.06, KB.z - R - 0.2); part(st.g, box(0.52, 0.02, 0.1), '#c0533a', 0, KB.top + 0.13, KB.z - R - 0.2); // スタンド
-  st.horses = KB_HORSES.map(([, c], k) => { const h = kbHorse(c, k + 1); st.g.add(h); return h; });
-  keibaNew(st); // 馬を ゲートに ならべて おく
+  const flat = (shape, color, y) => { const m = new THREE.Mesh(new THREE.ShapeGeometry(shape), cmat(color)); m.rotation.x = -Math.PI / 2; m.position.y = y; g.add(m); return m; };
+  const ring = new THREE.Shape(stadium(R + half)); ring.holes.push(new THREE.Path(stadium(R - half).reverse()));
+  flat(new THREE.Shape(stadium(R + half + 1.6)), '#d6cdb5', 0.03); // コースの まわりの 通路
+  flat(ring, '#5f9e46', 0.045); // 芝の コース
+  flat(new THREE.Shape(stadium(R - half)), '#8fc56c', 0.04); // 内がわの 芝生
+  const pond = new THREE.Mesh(new THREE.CircleGeometry(1, 28), cmat('#5aa7d2')); pond.rotation.x = -Math.PI / 2; pond.scale.set(4.2, 1.6, 1); pond.position.set(-2.5, 0.05, 0.6); g.add(pond); // 池
+  [[-10.6, 0], [-9.4, 2.6], [10.6, 0.4], [9.6, -2.4]].forEach(([x, z]) => { put(cyl(0.12, 0.16, 1.2, 8), '#7a5a3a', x, 0.6, z); put(ball(0.9, 10, 8), '#4f8a3a', x, 1.7, z); });
+  ['#e05a6a', '#f2c230', '#f6f1e6', '#e0662f'].forEach((c, i) => put(box(1.6, 0.18, 0.5), c, -6 + i * 1.7, 0.1, 3.4)); // 花だん
+  // さく（白い 柵。内がわは ゲートを よける ところだけ あける）
+  const posts = []; const gateX = KC.L / 4;
+  [R + half + 0.15, R - half - 0.15].forEach((r, inner) => {
+    const runs = []; let run = []; const n = Math.round(KB_P);
+    for (let i = 0; i <= n; i++) {
+      const p = kbPoint((i / n) * KB_P, r - R, new THREE.Vector3());
+      if (inner && p.z < 0 && Math.abs(p.x - gateX) < 1.9) { if (run.length > 1) runs.push(run); run = []; continue; }
+      p.y = 0.88; run.push(p); if (i % 2 === 0 && i < n) posts.push([p.x, p.z]);
+    }
+    if (run.length > 1) runs.push(run);
+    if (inner && runs.length === 2) runs.splice(0, 2, runs[1].concat(runs[0].slice(1))); // 1 本に つなぐ
+    runs.forEach((c) => g.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(c), c.length * 2, 0.05, 6, false), cmat('#ffffff'))));
+  });
+  const postMesh = new THREE.InstancedMesh(box(0.08, 0.9, 0.08), cmat('#ffffff'), posts.length); const mtx = new THREE.Matrix4(); postMesh.frustumCulled = false;
+  posts.forEach(([x, z], i) => { mtx.makeTranslation(x, 0.45, z); postMesh.setMatrixAt(i, mtx); }); g.add(postMesh);
+  // ゴール（スタンド前）：白い 線・ゴール板・決勝の 柱
+  put(box(0.12, 0.01, half * 2), '#ffffff', KB_GOAL_X, 0.055, R);
+  put(cyl(0.08, 0.08, 3.2, 10), '#ffffff', KB_GOAL_X, 1.6, R - half - 0.5);
+  const disk = put(cyl(0.55, 0.55, 0.06, 24), '#c0392b', KB_GOAL_X, 3.3, R - half - 0.5); disk.rotation.z = Math.PI / 2;
+  const goal = kcPlate('ゴール', 1.4, 0.5, '#c0392b', '#ffffff'); goal.position.set(KB_GOAL_X, 2.3, R + half + 0.4); goal.rotation.y = Math.PI; g.add(goal);
+  const goal2 = goal.clone(); goal2.rotation.y = 0; goal2.position.z = R + half + 0.42; g.add(goal2); // スタンドから 見える 面
+  // ゲート（むこう正面。6 つの 枠。スタートで 前の 戸が ひらき、そのあと 内がわへ よける）
+  const gate = new THREE.Group(); const gx = gateX - 0.1; gate.position.set(gx, 0, 0); g.add(gate); KC.gate = gate; KC.gateZ = 0;
+  const gz = (k) => -(R + kbOff(k)); const zs = KB_HORSES.map((_, k) => gz(k)); const z0 = Math.max(...zs) + KC.lane / 2; const z1 = Math.min(...zs) - KC.lane / 2;
+  for (let k = 0; k <= KB_HORSES.length; k++) put(box(2.6, 2.0, 0.06), '#2f7d4f', 0, 1.0, z0 - k * KC.lane, gate);
+  put(box(2.7, 0.25, z0 - z1 + 0.1), '#2f7d4f', 0, 2.55, (z0 + z1) / 2, gate); [-1.3, 1.3].forEach((x) => [z0 + 0.1, z1 - 0.1].forEach((z) => put(box(0.12, 2.6, 0.12), '#f6f1e6', x, 1.3, z, gate)));
+  const gnum = new Board(z0 - z1, 0.3, 300); gnum.draw((ctx, W, H) => { ctx.fillStyle = '#2f7d4f'; ctx.fillRect(0, 0, W, H); KB_HORSES.forEach(([, c], k) => { const cx = (k + 0.5) * W / KB_HORSES.length; ctx.fillStyle = c; ctx.fillRect(cx - H * 0.4, H * 0.1, H * 0.8, H * 0.8); ctx.fillStyle = c === '#f2f2f2' || c === '#e3b23c' ? '#1f2a33' : '#ffffff'; ctx.font = '700 ' + Math.round(H * 0.6) + 'px ' + FONT_BODY; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(k + 1), cx, H * 0.53); }); });
+  gnum.mesh.position.set(1.36, 2.55, (z0 + z1) / 2); gnum.mesh.rotation.y = Math.PI / 2; gate.add(gnum.mesh); // うしろ（+x）と 前（-x）の 面
+  const gnum2 = gnum.mesh.clone(); gnum2.position.x = -1.36; gnum2.rotation.y = -Math.PI / 2; gate.add(gnum2);
+  KC.doors = zs.map((z) => { const h = new THREE.Group(); h.position.set(-1.3, 0, z + KC.lane / 2 - 0.04); gate.add(h); put(box(0.04, 1.2, KC.lane - 0.1), '#e8edf1', 0, 0.95, -(KC.lane - 0.1) / 2 - 0.02, h); return h; });
+  // スタンド（北がわ。6 だんの 観客席・屋根・うしろの かべに 馬券売り場）
+  const SW = 22; const SB = KC.standBack;
+  put(box(SW + 2, 0.06, 1.3), '#c9c8c0', 0, 0.03, R + half + 1.1); // 前の 通路
+  for (let k = 0; k < 6; k++) {
+    const z = kcRowZ(k); const y = kcRowY(k);
+    put(box(SW, y, SB - z), '#c9c8c0', 0, y / 2, (z + SB) / 2);
+    put(box(SW - 0.4, 0.1, 0.42), '#2f6fc4', 0, y + 0.42, z + 0.4); put(box(SW - 0.4, 0.42, 0.06), '#2f6fc4', 0, y + 0.6, z + 0.64); // いすと せもたれ
+    [-1, 1].forEach((sd) => put(box(0.12, 0.42, 0.42), '#8a9aa6', sd * 4, y + 0.21, z + 0.4)); // 通路の 手すり
+  }
+  put(box(SW + 0.4, 6.2, 0.3), '#e6e2da', 0, 3.1, SB + 0.15); // うしろの かべ
+  [-1, 1].forEach((sd) => put(box(0.3, 6.2, SB - kcRowZ(0) + 0.3), '#e6e2da', sd * (SW / 2 + 0.05), 3.1, (kcRowZ(0) + SB) / 2)); // 横の かべ
+  const roof = put(box(SW + 1.2, 0.22, SB - kcRowZ(0) + 2.2), '#3d6f9e', 0, 6.25, (kcRowZ(0) + SB) / 2 - 0.4); roof.rotation.x = -0.06;
+  [-8, -2.7, 2.7, 8].forEach((x) => put(box(0.22, 6.2, 0.22), '#d9dde0', x, 3.1, SB - 0.2));
+  const nm = kcPlate('HOPE 島 競馬場', 8, 1.0, '#3d6f9e', '#ffffff'); nm.position.set(0, 5.4, SB + 0.32); g.add(nm); // 島の 方から 見える 名前
+  const nm2 = kcPlate('HOPE 島 競馬場', 6, 0.75, '#3d6f9e', '#ffffff'); nm2.position.set(0, 5.75, kcRowZ(0) - 0.8); nm2.rotation.y = Math.PI; g.add(nm2);
+  // 馬券売り場（スタンドの うしろに つけた 平屋。北の まどの 中に 係の 人）
+  const AZ = SB + 0.3 + KC.annex; const AX0 = -5.9; const AX1 = 3.3; const AH = 3.0; const ac = '#e6e2da';
+  put(box(AX1 - AX0, 0.16, KC.annex + 0.3), '#c0533a', (AX0 + AX1) / 2, AH, SB + 0.3 + KC.annex / 2 + 0.15); // 屋根
+  [AX0, AX1].forEach((x) => put(box(0.2, AH, KC.annex), ac, x, AH / 2, SB + 0.3 + KC.annex / 2));
+  put(box(AX1 - AX0, 1.08, 0.2), ac, (AX0 + AX1) / 2, 0.54, AZ); put(box(AX1 - AX0, AH - 2.43, 0.2), ac, (AX0 + AX1) / 2, (AH + 2.43) / 2, AZ);
+  [[AX0, -4.9], [-2.9, -2.3], [-0.3, 0.3], [2.3, AX1]].forEach(([a, b]) => put(box(b - a, 1.35, 0.2), ac, (a + b) / 2, 1.755, AZ));
+  put(box(AX1 - AX0 - 0.2, 0.02, KC.annex), '#b9ad98', (AX0 + AX1) / 2, 0.02, SB + 0.3 + KC.annex / 2); // 中の ゆか
+  const ticket = kcPlate('馬券売り場', 3.4, 0.5, '#c0533a', '#ffffff'); ticket.position.set(-1.3, 2.72, AZ + 0.11); g.add(ticket);
+  KC_WINDOW_X.forEach((x, i) => {
+    const gl = put(box(2.0, 1.35, 0.02), '#bfe3f2', x, 1.755, AZ + 0.02); gl.material = mat('#bfe3f2', { transparent: true, opacity: 0.35, roughness: 0.15 }); // まど
+    put(box(2.1, 0.06, 0.4), '#b08a5a', x, 1.08, AZ + 0.3); // カウンター
+    const n = kcPlate((i + 1) + ' 番まど', 0.6, 0.15, '#ffffff', '#1f2a33'); n.position.set(x + 0.65, 2.34, AZ + 0.11); g.add(n);
+    const staff = person(['#3d6f9e', '#c0533a', '#3d6f9e'][i], '#3d4a54', true); staff.scale.setScalar(4.3); staff.position.set(x, 0, AZ - 1.2); g.add(staff); // まどの むこう
+  });
+  // 入口の 広場（島の 通りから）・案内板
+  put(box(SW + 4, 0.02, 7.6), '#d9d4c7', 0, 0.035, SB + 4.0);
+  KC.board2 = new Board(2.2, 1.2, 320); KC.board2.mesh.position.set(5.0, 1.6, AZ + 0.6); g.add(KC.board2.mesh); // 出馬表（オッズ）
+  [3.95, 6.05].forEach((x) => put(box(0.08, 1.0, 0.08), '#5a4a3a', x, 0.5, AZ + 0.58));
+  // 大型ビジョン（むこう正面の 外。スタンドに 向ける）と 着順の 掲示板
+  const scr = new THREE.Group(); scr.position.set(0.5, 0, -(R + half + 2.4)); g.add(scr);
+  [-4.4, 4.4, -9.6, -6.8].forEach((x) => put(box(0.3, 4.0, 0.3), '#5a6470', x, 2.0, -0.1, scr));
+  put(box(11.4, 6.5, 0.3), '#2b2f33', 0, 7.2, -0.2, scr); put(box(4.8, 6.5, 0.3), '#2b2f33', -8.2, 7.2, -0.2, scr);
+  KC.rt = new THREE.WebGLRenderTarget(640, 352);
+  KC.screen = new THREE.Mesh(new THREE.PlaneGeometry(10.8, 5.94), new THREE.MeshBasicMaterial({ map: KC.rt.texture })); KC.screen.position.set(0, 7.2, -0.04); scr.add(KC.screen);
+  KC.board = new Board(4.4, 5.94, 140); KC.board.mesh.position.set(-8.2, 7.2, -0.04); scr.add(KC.board.mesh); // 着順・オッズ（ビジョンの 左）
+  KC.cam = new THREE.PerspectiveCamera(38, 640 / 352, 0.3, 260);
+  // 観客（かんたんな 形を まとめて 描く。ゴール前は とびあがる）
+  const seats = []; for (let k = 0; k < 6; k++) for (let x = -10.4; x <= 10.4; x += 0.62) { if (Math.abs(x - KC_SEAT.x) < 1.6 && Math.abs(k - KC_SEAT.row) < 2) continue; if (Math.abs(Math.abs(x) - 4) < 0.4) continue; if (Math.random() < 0.42) seats.push([x + (Math.random() - 0.5) * 0.1, kcRowY(k) + 0.42, kcRowZ(k) + 0.45]); }
+  const n = seats.length; const bodyM = new THREE.InstancedMesh(cyl(0.2, 0.24, 0.62, 8), mat('#ffffff'), n); const headM = new THREE.InstancedMesh(ball(0.13, 10, 8), mat('#ffffff'), n);
+  const col = new THREE.Color(); const shirt = ['#d0392b', '#2f6fc4', '#e3b23c', '#4f9a45', '#f6f1e6', '#6b4f9e', '#3d4a54', '#e0662f']; const skin = ['#f1c9a8', '#e3b28e', '#d9a07a'];
+  seats.forEach((p, i) => { bodyM.setColorAt(i, col.set(shirt[i % shirt.length])); headM.setColorAt(i, col.set(skin[i % 3])); });
+  bodyM.frustumCulled = false; headM.frustumCulled = false; g.add(bodyM); g.add(headM); KC.crowd = { seats, bodyM, headM, jump: seats.map(() => Math.random() * TAU) }; kcCrowd(0);
+  // 馬（ゲートに ならべて おく）
+  KC.horses = KB_HORSES.map(([, c], k) => { const h = kbHorse(c, KB_COATS[k], k + 1); g.add(h); return h; });
+  // 島から 見える 看板・えらぶと 中へ
+  const pin = overviewSign('HOPE 島 競馬場', '馬券を 買って 観客席で 見る', '#c0533a', 7); pin.position.copy(kcW(0, 13, 10)); pin.lookAt(OVERVIEW.pos); scene.add(pin); overviewOnly.push(pin);
+  pin.userData.kcEnter = true; plazaClickables.push(pin);
+  [nm, ticket].forEach((m) => { m.userData.kcEnter = true; plazaClickables.push(m); });
+  KC.win = kcPanel('馬券売り場', 1.3, 0.78); KC.win.pg.position.set(KC_BUY.x, 1.62, AZ + 0.55); g.add(KC.win.pg); // まどの 前（買う 人の 方を 向く）
+  KC.seatSt = kcPanel('観客席', 1.0, 0.6); const sy = kcRowY(KC_SEAT.row); KC.seatSt.pg.position.set(KC_SEAT.x - 0.6, sy + 0.8, kcRowZ(KC_SEAT.row) - 0.45); KC.seatSt.pg.rotation.set(-0.4, Math.atan2(0.6, 1.0), 0, 'YXZ'); g.add(KC.seatSt.pg); // 席の 左前の 下（コースに かからない）。VR の ときだけ 出す（画面では カードに 同じ ボタン）
+  KC.seatSt.pg.visible = false;
+  g.updateMatrixWorld(true);
+  keibaNew();
 }
-function keibaEnter(st) { keibaShow(st); }
-function keibaNew(st) {
-  const prev = st.K; const str = KB_HORSES.map(() => 0.93 + Math.random() * 0.14);
+function kcPlate(text, w, h, bg, fg) { // 字の 札（大きい 札は 解像度を おさえる）
+  const b = new Board(w, h, Math.min(600, 1600 / w));
+  b.draw((ctx, cw, ch) => { ctx.fillStyle = bg; roundRect(ctx, 0, 0, cw, ch, ch * 0.18); ctx.fill(); ctx.fillStyle = fg; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    let px = Math.round(ch * 0.6); ctx.font = '700 ' + px + 'px ' + FONT_BODY; while (px > 12 && ctx.measureText(text).width > cw * 0.88) { px -= 2; ctx.font = '700 ' + px + 'px ' + FONT_BODY; } ctx.fillText(text, cw / 2, ch * 0.54); });
+  return b.mesh;
+}
+function kcPanel(title, w, h) { const st = { key: 'keiba', pg: new THREE.Group(), panel: new Board(w, h, 900), ph: h, btnDefs: [], btnMeshes: [], clicks: [], msg: [], title }; st.pg.add(st.panel.mesh); return st; }
+function kcCrowd(now, cheer) {
+  const C = KC.crowd; if (!C) return; const m = new THREE.Matrix4();
+  C.seats.forEach(([x, y, z], i) => { const up = cheer ? Math.max(0, Math.sin(now / 140 + C.jump[i])) * 0.25 : 0; m.makeTranslation(x, y + 0.31 + up, z); C.bodyM.setMatrixAt(i, m); m.makeTranslation(x, y + 0.75 + up, z); C.headM.setMatrixAt(i, m); });
+  C.bodyM.instanceMatrix.needsUpdate = true; C.headM.instanceMatrix.needsUpdate = true;
+}
+function kcClickables() {
+  const out = []; [KC.win, KC.seatSt].forEach((st) => { if (st.pg.visible) out.push(...st.btnMeshes); });
+  return out.filter(ibaShown);
+}
+function kcUpdate(st, msg, defs) { st.msg = msg.filter(Boolean); ibaPaint(st); ibaButtons(st, defs); }
+
+// ---- 入る・売り場・席・出る ------------------------------------------------
+function openKeiba(from) {
+  const pl0 = kcNow(); const ib = ibaNow();
+  const fromInfo = pl0 ? pl0.from : from || (ib ? { iba: ib.from } : state.where === 'home' ? { home: true } : state.where === 'walk' ? { pos: rig.position.clone(), yaw: rig.rotation.y + look.yaw } : {});
+  if (ib) { state.play = null; IBA.g.visible = false; rig.position.y = 0; }
+  leaveForPlay();
+  state.where = 'play'; state.play = { kind: 'keiba', at: null, from: fromInfo, t0: performance.now() };
+  kcWindow(); toast('HOPE 島 競馬場へ ようこそ');
+}
+function kcWindow() {
+  const pl = kcNow(); if (!pl) return; pl.at = 'window'; rig.position.y = 0;
+  const K = KC.K; if (K.phase === 'post') { K.phase = 'bet'; } if (K.phase === 'done') keibaNew();
+  rig.position.copy(kcW(KC_BUY.x, 0, KC_BUY.z)); rig.rotation.y = Math.PI; look.yaw = 0; look.pitch = 0.08;
+  KC.win.pg.visible = true; KC.seatSt.pg.visible = false; keibaShow(); renderHud();
+}
+function kcSeat() {
+  const pl = kcNow(); if (!pl) return; pl.at = 'seat';
+  const y = kcRowY(KC_SEAT.row); const p = kcW(KC_SEAT.x, 0, kcRowZ(KC_SEAT.row) + 0.55);
+  rig.position.set(p.x, y + (renderer.xr.isPresenting ? 0 : -0.35), p.z); rig.rotation.y = Math.PI; look.yaw = 0; look.pitch = 0.12;
+  KC.win.pg.visible = false; KC.seatSt.pg.visible = renderer.xr.isPresenting;
+  const K = KC.K; if (K.phase === 'bet') { K.phase = 'post'; K.postAt = performance.now() + 6000; playSfx('fanfare'); }
+  keibaShow(); renderHud();
+}
+function leaveKeiba(pl) {
+  KC.win.pg.visible = true; KC.seatSt.pg.visible = false; rig.position.y = 0;
+  const K = KC.K; if (K.phase === 'run') { for (let n = 0; n < 4000 && K.phase === 'run'; n++) stepKeiba(0.05, performance.now() + n * 50, true); } // とちゅうで 出ても レースは 最後まで（はらいもどしも）
+  else if (K.phase === 'post') K.phase = 'bet';
+  if (pl.from.iba) openIba(pl.from.iba); else if (pl.from.home && home.group) goHome(); else if (pl.from.pos) startWalk(pl.from.pos, pl.from.yaw); else goPlaza();
+}
+
+// ---- レース ----------------------------------------------------------------
+function keibaNew() {
+  const prev = KC.K; const str = KB_HORSES.map(() => 0.93 + Math.random() * 0.14);
   const w = str.map((s) => Math.exp((s - 1) * 28)); const sum = w.reduce((a, b) => a + b, 0);
   const odds = w.map((x) => Math.min(50, Math.max(1.2, Math.round((0.8 * sum / x) * 10) / 10))); const place = odds.map((o) => Math.max(1.1, Math.round(o / 2.6 * 10) / 10));
-  st.K = { phase: 'bet', pick: prev ? prev.pick : 0, amt: prev ? prev.amt : 5, type: prev ? prev.type : 'win', str, odds, place, d: str.map(() => 0), v: str.map(() => 0), kick: str.map(() => 0.96 + Math.random() * 0.1), target: str.map(() => 0), retarget: 0, finish: [], race: 0, call: 0 };
-  kbPlace(st); keibaShow(st);
+  KC.K = { phase: 'bet', pick: prev ? prev.pick : 0, amt: prev ? prev.amt : 5, type: prev ? prev.type : 'win', bets: [], str, odds, place, d: str.map(() => 0), v: str.map(() => 0), kick: str.map(() => 0.96 + Math.random() * 0.1), target: str.map(() => 0), retarget: 0, finish: [], call: 0, no: prev ? prev.no + 1 : 1 };
+  KC.gateZ = 0; KC.gate.position.z = 0; KC.doors.forEach((h) => { h.rotation.y = 0; });
+  kbPlace(); keibaShow();
 }
 const kbTmp = new THREE.Vector3(); const kbTmp2 = new THREE.Vector3();
-function kbPlace(st) { const K = st.K; st.horses.forEach((h, k) => { const off = -0.065 + k * KB.lane; kbPoint(K.d[k], off, h.position); kbPoint(K.d[k] + 0.02, off, kbTmp2); h.rotation.y = Math.atan2(kbTmp2.x - h.position.x, kbTmp2.z - h.position.z); }); }
-function keibaShow(st) {
-  const K = st.K; const md = ibaData().medals; const H = KB_HORSES;
-  st.extraPaint = (ctx, W, Hh) => { // 出馬表（オッズ）か 順位
-    const y0 = Hh * 0.47; const rh = Hh * 0.075; ctx.font = '700 ' + Math.round(rh * 0.78) + 'px ' + FONT_BODY; ctx.textBaseline = 'middle';
-    const rows = K.phase === 'bet' ? H.map((_, k) => k) : K.d.map((_, k) => k).sort((a, b) => (K.finish.indexOf(a) + 1 || 99) - (K.finish.indexOf(b) + 1 || 99) || K.d[b] - K.d[a]);
-    rows.forEach((k, r) => {
-      const y = y0 + r * rh; ctx.fillStyle = K.pick === k ? 'rgba(224,102,47,0.18)' : r % 2 ? 'rgba(0,0,0,0.04)' : 'rgba(0,0,0,0)'; ctx.fillRect(W * 0.03, y - rh / 2, W * 0.94, rh);
-      ctx.fillStyle = H[k][1]; ctx.fillRect(W * 0.05, y - rh * 0.38, rh * 0.76, rh * 0.76); ctx.fillStyle = H[k][1] === '#f2f2f2' || H[k][1] === '#e3b23c' ? '#1f2a33' : '#ffffff'; ctx.textAlign = 'center'; ctx.fillText(String(k + 1), W * 0.05 + rh * 0.38, y);
-      ctx.textAlign = 'left'; ctx.fillStyle = '#1f2a33';
-      ctx.fillText((K.phase === 'bet' ? '' : (r + 1) + '位 ') + H[k][0], W * 0.12, y);
-      ctx.textAlign = 'right'; ctx.fillText(K.phase === 'bet' ? '単勝 ' + K.odds[k].toFixed(1) + '倍　複勝 ' + K.place[k].toFixed(1) + '倍' : K.finish.includes(k) ? 'ゴール' : Math.round(Math.min(1, K.d[k] / KB_DIST) * 100) + '%', W * 0.95, y);
-    });
-  };
-  const bet = (K.type === 'win' ? '単勝' : '複勝') + ' ' + (K.pick + 1) + '番 ' + H[K.pick][0] + '・' + K.amt + 'まい';
+function kbPlace() { const K = KC.K; KC.horses.forEach((h, k) => { const off = kbOff(k); kbPoint(KB_START + K.d[k], off, h.position); kbPoint(KB_START + K.d[k] + 0.3, off, kbTmp2); h.rotation.y = Math.atan2(kbTmp2.x - h.position.x, kbTmp2.z - h.position.z); }); }
+const kbBetShort = (b) => (b.type === 'win' ? '単' : '複') + (b.pick + 1) + '番×' + b.amt;
+const kbBetText = (b) => (b.type === 'win' ? '単勝' : '複勝') + ' ' + (b.pick + 1) + '番 ' + KB_HORSES[b.pick][0] + '・' + b.amt + 'まい';
+const kbOrder = (K) => K.d.map((_, k) => k).sort((a, b) => (K.finish.indexOf(a) + 1 || 99) - (K.finish.indexOf(b) + 1 || 99) || K.d[b] - K.d[a]);
+function kbRows(ctx, W, Hh, y0, rh, K, mode) { // 出馬表（オッズ）か 順位
+  ctx.font = '700 ' + Math.round(rh * 0.74) + 'px ' + FONT_BODY; ctx.textBaseline = 'middle'; const H = KB_HORSES;
+  const rows = mode === 'odds' ? H.map((_, k) => k) : kbOrder(K);
+  rows.forEach((k, r) => {
+    const y = y0 + r * rh; const mine = K.bets.some((b) => b.pick === k);
+    ctx.fillStyle = mode === 'odds' && K.pick === k ? 'rgba(224,102,47,0.2)' : mine ? 'rgba(242,194,48,0.22)' : r % 2 ? 'rgba(0,0,0,0.05)' : 'rgba(0,0,0,0)'; ctx.fillRect(W * 0.03, y - rh / 2, W * 0.94, rh);
+    ctx.fillStyle = H[k][1]; ctx.fillRect(W * 0.05, y - rh * 0.38, rh * 0.76, rh * 0.76); ctx.fillStyle = H[k][1] === '#f2f2f2' || H[k][1] === '#e3b23c' ? '#1f2a33' : '#ffffff'; ctx.textAlign = 'center'; ctx.fillText(String(k + 1), W * 0.05 + rh * 0.38, y);
+    ctx.textAlign = 'left'; ctx.fillStyle = '#1f2a33';
+    ctx.fillText((mode === 'odds' ? '' : (r + 1) + '位 ') + H[k][0] + (mine ? ' ★' : ''), W * 0.05 + rh, y);
+    ctx.textAlign = 'right'; ctx.fillText(mode === 'odds' ? '単 ' + K.odds[k].toFixed(1) + '　複 ' + K.place[k].toFixed(1) : K.finish.includes(k) ? 'ゴール' : Math.round(Math.min(1, K.d[k] / KB_DIST) * 100) + '%', W * 0.95, y);
+  });
+}
+function kbBoardRows(ctx, W, y0, rh, K, odds) { // 大きい 掲示板は 字を 大きく、列を へらす
+  ctx.font = '700 ' + Math.round(rh * 0.6) + 'px ' + FONT_BODY; ctx.textBaseline = 'middle'; const H = KB_HORSES;
+  (odds ? H.map((_, k) => k) : kbOrder(K)).forEach((k, r) => {
+    const y = y0 + r * rh; ctx.fillStyle = r % 2 ? 'rgba(0,0,0,0.06)' : 'rgba(0,0,0,0)'; ctx.fillRect(0, y - rh / 2, W, rh);
+    if (!odds) { ctx.fillStyle = '#1f2a33'; ctx.textAlign = 'left'; ctx.fillText((r + 1) + '', W * 0.04, y); }
+    const x0 = W * (odds ? 0.04 : 0.15); ctx.fillStyle = H[k][1]; ctx.fillRect(x0, y - rh * 0.36, rh * 0.72, rh * 0.72); ctx.fillStyle = H[k][1] === '#f2f2f2' || H[k][1] === '#e3b23c' ? '#1f2a33' : '#ffffff'; ctx.textAlign = 'center'; ctx.fillText(String(k + 1), x0 + rh * 0.36, y);
+    ctx.textAlign = 'left'; ctx.fillStyle = '#1f2a33'; ctx.fillText(H[k][0], x0 + rh * 0.9, y);
+    if (odds) { ctx.textAlign = 'right'; ctx.fillText(K.odds[k].toFixed(1), W * 0.96, y); }
+  });
+}
+function kbPaintBoard() { // 大型ビジョンの となりの 掲示板・広場の 案内板
+  const K = KC.K;
+  KC.board.draw((ctx, W, H) => {
+    ctx.fillStyle = '#16232e'; ctx.fillRect(0, 0, W, H); ctx.fillStyle = '#f2c230'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = '700 ' + Math.round(H * 0.07) + 'px ' + FONT_DISPLAY;
+    ctx.fillText(K.phase === 'done' ? '第 ' + K.no + ' レース 確定' : K.phase === 'run' ? '第 ' + K.no + ' レース 順位' : '第 ' + K.no + ' レース オッズ', W / 2, H * 0.07);
+    ctx.save(); ctx.fillStyle = '#ffffff'; ctx.fillRect(0, H * 0.14, W, H * 0.86);
+    kbBoardRows(ctx, W, H * 0.22, H * 0.115, K, K.phase === 'bet' || K.phase === 'post'); ctx.restore();
+    if (K.phase === 'bet' || K.phase === 'post') { ctx.fillStyle = '#5a6470'; ctx.textAlign = 'right'; ctx.font = '400 ' + Math.round(H * 0.035) + 'px ' + FONT_BODY; ctx.fillText('単勝 オッズ（倍）', W * 0.96, H * 0.155); }
+    if (K.phase === 'run' || K.phase === 'done') { ctx.fillStyle = '#1f2a33'; ctx.textAlign = 'center'; ctx.font = '700 ' + Math.round(H * 0.045) + 'px ' + FONT_BODY; ctx.fillText(K.callText || '', W / 2, H * 0.93); }
+  });
+  KC.board2.draw((ctx, W, H) => {
+    ctx.fillStyle = '#fffdf8'; roundRect(ctx, 0, 0, W, H, 18); ctx.fill(); ctx.fillStyle = '#c0533a'; ctx.fillRect(0, 0, W, H * 0.2);
+    ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = '700 ' + Math.round(H * 0.12) + 'px ' + FONT_DISPLAY; ctx.fillText('第 ' + K.no + ' レース', W / 2, H * 0.1);
+    ctx.save(); kbRows(ctx, W, H, H * 0.3, H * 0.115, K, 'odds'); ctx.restore();
+  });
+}
+function keibaShow() {
+  const K = KC.K; const md = ibaData().medals; const H = KB_HORSES; const pl = kcNow();
+  const bets = K.bets.length ? '馬券：' + K.bets.map(kbBetShort).join('・') : '馬券は まだ ありません';
+  // 売り場：馬・かけかた・まい数を えらんで 買う → 観客席へ
+  KC.win.extraPaint = (ctx, W, Hh) => kbRows(ctx, W, Hh, Hh * 0.56, Hh * 0.068, K, 'odds');
   let msg; let defs;
-  if (K.phase === 'bet') {
-    msg = ['馬と かけかたを えらんで スタート', 'メダル ' + md + 'まい　｜　' + bet];
-    defs = H.map((h, k) => ({ label: (k + 1) + ' ' + h[0], act: () => { K.pick = k; keibaShow(st); }, on: K.pick === k, row: k < 3 ? 0 : 1, w: 0.27 }))
-      .concat([{ label: '単勝', act: () => { K.type = 'win'; keibaShow(st); }, on: K.type === 'win', row: 2, w: 0.16 }, { label: '複勝', act: () => { K.type = 'place'; keibaShow(st); }, on: K.type === 'place', row: 2, w: 0.16 }])
-      .concat([1, 5, 10].map((a) => ({ label: a + 'まい', act: () => { K.amt = a; keibaShow(st); }, on: K.amt === a, row: 2, w: 0.15 })))
-      .concat(md < 1 ? [{ label: 'メダルを もらう（50）', act: () => { ibaData().medals += 50; if (profile) saveProfile(); toast('メダルを 50 まい もらいました'); keibaShow(st); }, row: 3, w: 0.5 }] : [{ label: 'スタート', act: () => keibaStart(st), row: 3, w: 0.4, color: '#c0392b' }]);
+  if (K.phase === 'bet' || K.phase === 'post') {
+    const now = (K.type === 'win' ? '単勝' : '複勝') + ' ' + (K.pick + 1) + '番 ' + H[K.pick][0] + '・' + K.amt + 'まい';
+    msg = ['第 ' + K.no + ' レース：馬と かけかたを えらんで 買う', 'メダル ' + md + 'まい　｜　えらんでいる：' + now, { text: bets, color: '#8a5a2b' }];
+    defs = H.map((h, k) => ({ label: (k + 1) + ' ' + h[0], act: () => { K.pick = k; keibaShow(); }, on: K.pick === k, row: k < 3 ? 0 : 1, w: 0.4 }))
+      .concat([{ label: '単勝（1着）', act: () => { K.type = 'win'; keibaShow(); }, on: K.type === 'win', row: 2, w: 0.27 }, { label: '複勝（2着まで）', act: () => { K.type = 'place'; keibaShow(); }, on: K.type === 'place', row: 2, w: 0.3 }])
+      .concat([1, 5, 10].map((a) => ({ label: a + 'まい', act: () => { K.amt = a; keibaShow(); }, on: K.amt === a, row: 2, w: 0.2 })))
+      .concat(md < 1 && !K.bets.length ? [{ label: 'メダルを もらう（50）', act: () => { ibaData().medals += 50; if (profile) saveProfile(); toast('メダルを 50 まい もらいました'); keibaShow(); }, row: 3, w: 0.5 }] : [{ label: '馬券を 買う', act: keibaBuy, row: 3, w: 0.42, color: '#c0392b' }])
+      .concat([{ label: '観客席へ ▶', act: kcSeat, row: 3, w: 0.42, color: '#2f6fc4' }, { label: '出口', act: () => endPlay(), row: 3, w: 0.22, color: '#3d4a54' }]);
+  } else {
+    msg = ['レースの あいだは 観客席へ どうぞ', bets]; defs = [{ label: '観客席へ ▶', act: kcSeat, w: 0.42, color: '#2f6fc4' }, { label: '出口', act: () => endPlay(), w: 0.22, color: '#3d4a54' }];
+  }
+  kcUpdate(KC.win, msg, defs);
+  // 席：発走を まつ → レース → 結果
+  KC.seatSt.extraPaint = null;
+  if (K.phase === 'bet' || K.phase === 'post') {
+    msg = [K.phase === 'post' ? 'まもなく 発走です' : '発走を まっています', { text: bets, color: '#8a5a2b' }, 'むこう正面の ゲートから スタート。1 周 半 まわって 目の前の ゴールへ'];
+    defs = [{ label: 'すぐ スタート', act: () => keibaStart(), w: 0.36, color: '#c0392b' }, { label: '◀ 馬券売り場', act: kcWindow, w: 0.36 }];
   } else if (K.phase === 'run') {
-    msg = [K.callText || 'スタート！', bet]; defs = [];
+    msg = [K.callText || 'スタート！', { text: bets, color: '#8a5a2b' }]; defs = [];
   } else {
     msg = [{ text: K.resultText, color: K.won ? '#2f7d4f' : '#c0392b' }, '1着 ' + (K.finish[0] + 1) + '番 ' + H[K.finish[0]][0] + '・2着 ' + (K.finish[1] + 1) + '番 ' + H[K.finish[1]][0], 'メダル ' + md + 'まい'];
-    defs = [{ label: 'つぎの レース', act: () => keibaNew(st), w: 0.4 }];
+    defs = [{ label: 'つぎの レース（売り場へ）', act: kcWindow, w: 0.5, color: '#2f6fc4' }, { label: '出口', act: () => endPlay(), w: 0.22, color: '#3d4a54' }];
   }
-  ibaUpdate(st, msg, defs);
+  kcUpdate(KC.seatSt, msg, defs);
+  kbPaintBoard();
+  if (pl) renderHud();
 }
-function keibaStart(st) {
-  const K = st.K; const d = ibaData(); if (K.phase !== 'bet') return;
+function keibaBuy() {
+  const K = KC.K; const d = ibaData(); if (K.phase !== 'bet' && K.phase !== 'post') return;
+  if (K.bets.length >= KB_MAX_BETS) { toast('馬券は 1 レース ' + KB_MAX_BETS + ' まいまでです'); return; }
   if (d.medals < K.amt) { toast('メダルが たりません'); return; }
   d.medals -= K.amt; if (profile) saveProfile();
-  K.phase = 'run'; K.t0 = performance.now(); K.callText = 'スタート！'; K.call = 0; playSfx('horn'); keibaShow(st);
+  const b = { pick: K.pick, type: K.type, amt: K.amt }; K.bets.push(b); playSfx('paper'); toast('馬券を 買いました：' + kbBetText(b)); keibaShow();
 }
-const KB_CALLS = [[0.25, '第 1 コーナーから むこう正面へ'], [0.5, '3 コーナーを まわって…'], [0.72, '4 コーナー！ 最後の 直線！'], [0.9, 'ゴール 前、まだ わからない！']];
-function stepKeiba(st, dt, now) {
-  const K = st && st.K; if (!K || K.phase !== 'run') return;
-  const vb = KB_DIST / 16; // 16 秒くらいで ゴール
-  if (now > K.retarget) { K.retarget = now + 400; K.target = K.str.map((s, k) => vb * s * (1 + (Math.random() - 0.5) * 0.22) * (K.d[k] > KB_DIST * 0.7 ? K.kick[k] : 1)); }
+function keibaStart() {
+  const K = KC.K; if (K.phase !== 'bet' && K.phase !== 'post') return;
+  K.phase = 'run'; K.t0 = performance.now(); K.callText = 'ゲートが ひらいて、スタート！'; K.call = 0; K.gateAt = K.t0;
+  KC.doors.forEach((h) => { h.rotation.y = 1.4; }); playSfx('gate'); keibaShow();
+}
+const KB_CALLS = [[0.12, '3 コーナーへ。先頭あらそい'], [0.28, '1 周目の スタンド前を 通過'], [0.42, '1・2 コーナーを まわって'], [0.6, 'むこう正面'], [0.74, '3・4 コーナー！ 外から 上がって くる'], [0.9, '最後の 直線！'], [0.96, 'ゴール 前、まだ わからない！']];
+function stepKeiba(dt, now, fast) {
+  const K = KC.K; if (!K) return;
+  if (K.phase === 'post' && now >= K.postAt) keibaStart();
+  if (K.phase !== 'run' && K.phase !== 'done') return;
+  if (K.gateAt && now - K.gateAt > 2500 && KC.gateZ < 8.4) { KC.gateZ = Math.min(8.4, KC.gateZ + dt * 2.2); KC.gate.position.z = KC.gateZ; } // ゲートは 内がわへ よける
+  const vb = KB_DIST / KB_TIME;
+  if (K.phase === 'run' && now > K.retarget) { K.retarget = now + 400; K.target = K.str.map((s, k) => vb * s * (1 + (Math.random() - 0.5) * 0.22) * (K.d[k] > KB_DIST * 0.7 ? K.kick[k] : 1) * Math.min(1, 0.35 + K.d[k] / 8)); }
+  let moving = false;
   K.d.forEach((d, k) => {
-    if (K.finish.includes(k) && d > KB_DIST + 0.25) return;
-    K.v[k] += (K.target[k] - K.v[k]) * Math.min(1, dt * 2.5); K.d[k] += K.v[k] * dt;
-    if (K.d[k] >= KB_DIST && !K.finish.includes(k)) K.finish.push(k);
-    st.horses[k].userData.legs.forEach((L, j) => { L.rotation.x = Math.sin(now / 55 + j * 1.6 + k) * 0.7; });
+    const done = K.finish.includes(k); const want = done ? 0 : K.target[k];
+    K.v[k] += (want - K.v[k]) * Math.min(1, dt * (done ? 0.45 : 2.5)); if (done && K.v[k] < 0.15) K.v[k] = 0;
+    K.d[k] += K.v[k] * dt; if (K.v[k] > 0) moving = true;
+    if (K.phase === 'run' && K.d[k] >= KB_DIST && !done) K.finish.push(k);
+    if (!fast) { const h = KC.horses[k]; const sp = Math.min(1, K.v[k] / vb); h.userData.legs.forEach((L, j) => { L.rotation.x = Math.sin(now / 55 + j * 1.6 + k) * 0.75 * sp; }); h.userData.body.position.y = Math.abs(Math.sin(now / 110 + k)) * 0.12 * sp; }
   });
-  kbPlace(st);
-  const lead = Math.max(...K.d) / KB_DIST; const c = KB_CALLS[K.call];
-  if (c && lead > c[0]) { K.call++; K.callText = c[1]; keibaShow(st); }
-  if (now - (K.paintAt || 0) > 200) { K.paintAt = now; ibaPaint(st); }
-  if (K.finish.length >= KB_HORSES.length) keibaDone(st);
+  if (!fast) kbPlace();
+  if (K.phase === 'run') {
+    const lead = Math.max(...K.d) / KB_DIST; const c = KB_CALLS[K.call];
+    if (c && lead > c[0]) { K.call++; K.callText = c[1]; if (!fast) keibaShow(); if (c[0] >= 0.9 && !fast) playSfx('cheer'); }
+    if (!fast && now - (K.paintAt || 0) > 250) { K.paintAt = now; ibaPaint(KC.seatSt); kbPaintBoard(); }
+    if (K.finish.length >= KB_HORSES.length) keibaDone(fast);
+  }
+  if (!fast) kcCrowd(now, K.phase === 'run' ? Math.max(...K.d) / KB_DIST > 0.88 : moving);
+  if (fast) kbPlace();
 }
-function keibaDone(st) {
-  const K = st.K; const d = ibaData(); K.phase = 'done';
-  const hit = K.type === 'win' ? K.finish[0] === K.pick : K.finish.slice(0, 2).includes(K.pick);
-  const pay = hit ? Math.floor(K.amt * (K.type === 'win' ? K.odds[K.pick] : K.place[K.pick])) : 0;
-  d.medals += pay; K.won = hit;
-  K.resultText = hit ? 'あたり！ メダル ' + pay + 'まい' : 'はずれ…（' + (K.pick + 1) + '番は ' + (K.finish.indexOf(K.pick) + 1) + '着）';
-  ibaLog('keiba', (K.type === 'win' ? '単勝' : '複勝') + ' ' + (K.pick + 1) + '番 ' + (hit ? 'あたり +' + pay : 'はずれ -' + K.amt) + '（のこり ' + d.medals + 'まい）');
-  playSfx(hit ? 'coin' : 'pop'); toast(K.resultText); keibaShow(st);
+function keibaDone(fast) {
+  const K = KC.K; const d = ibaData(); K.phase = 'done';
+  let pay = 0; const hits = [];
+  K.bets.forEach((b) => { const hit = b.type === 'win' ? K.finish[0] === b.pick : K.finish.slice(0, 2).includes(b.pick); if (hit) { const p = Math.floor(b.amt * (b.type === 'win' ? K.odds[b.pick] : K.place[b.pick])); pay += p; hits.push(kbBetText(b) + ' → ' + p + 'まい'); } });
+  d.medals += pay; K.won = pay > 0; const spent = K.bets.reduce((a, b) => a + b.amt, 0);
+  K.resultText = !K.bets.length ? '1着は ' + (K.finish[0] + 1) + '番 ' + KB_HORSES[K.finish[0]][0] + '（馬券なしで 観戦）' : pay ? 'あたり！ メダル ' + pay + 'まい（' + hits.join('・') + '）' : 'はずれ…（' + K.bets.map((b) => (b.pick + 1) + '番は ' + (K.finish.indexOf(b.pick) + 1) + '着').join('・') + '）';
+  K.callText = '1着 ' + (K.finish[0] + 1) + '番 ' + KB_HORSES[K.finish[0]][0];
+  if (K.bets.length) ibaLog('keiba', '第 ' + K.no + ' レース ' + K.bets.map(kbBetText).join('・') + ' ' + (pay ? 'あたり +' + pay : 'はずれ -' + spent) + '（のこり ' + d.medals + 'まい）');
+  else if (profile) saveProfile();
+  if (!fast) { playSfx(pay ? 'coin' : 'pop'); toast(K.resultText); }
+  keibaShow();
 }
+// 大型ビジョン：先頭の 馬を 横から 追う（スタート前は ゲート、ゴール後は ゴール前）
+const kcCamP = new THREE.Vector3(); const kcCamT = new THREE.Vector3(); const kcCamF = new THREE.Vector3();
+function kcRenderScreen(now) {
+  if (!KC.K || !kcNow()) return;
+  const K = KC.K; const every = K.phase === 'run' || K.phase === 'done' ? (renderer.xr.isPresenting ? 66 : 33) : 500;
+  if (now - (KC.shotAt || 0) < every) return; KC.shotAt = now;
+  if (K.phase === 'bet' || K.phase === 'post') { kbPoint(KB_START + 10, -KC.half - 1.6, kcCamP); kcCamP.y = 2.4; kbPoint(KB_START, 0, kcCamT); kcCamT.y = 1.4; }
+  else {
+    const lead = kbOrder(K)[0]; const d = KB_START + Math.min(K.d[lead], KB_DIST + 6);
+    kbPoint(d, 0, kcCamT); kbPoint(d + 1, 0, kcCamF); kcCamF.sub(kcCamT).normalize();
+    kbPoint(d - 3, -KC.half - 2.4, kcCamP); kcCamP.y = 3.0; kcCamT.addScaledVector(kcCamF, 2.5); kcCamT.y = 1.4;
+  }
+  KC.g.localToWorld(kcCamP); KC.g.localToWorld(kcCamT); KC.cam.position.copy(kcCamP); KC.cam.lookAt(kcCamT);
+  const xr = renderer.xr.enabled; renderer.xr.enabled = false; KC.screen.visible = false;
+  renderer.setRenderTarget(KC.rt); renderer.render(scene, KC.cam); renderer.setRenderTarget(null);
+  KC.screen.visible = true; renderer.xr.enabled = xr;
+}
+function stepKeibaPlay(pl, dt, now) { KC.seatSt.pg.visible = pl.at === 'seat' && renderer.xr.isPresenting; stepKeiba(dt, now); }
+function renderKeibaHud(el) {
+  const pl = state.play; const st = pl.at === 'seat' ? KC.seatSt : KC.win; const K = KC.K;
+  const last = ibaData().log.filter((r) => r.game === 'keiba').slice(-3).reverse().map((r) => '<li>' + esc(r.result) + '</li>').join('');
+  el.innerHTML = '<span class="tag">HOPE 島 競馬場</span><h2>' + (pl.at === 'seat' ? '観客席' : '馬券売り場') + '</h2>' +
+    '<div class="feedback" id="kc-msg">' + st.msg.map((m) => esc(m.text || m)).join('<br>') + '</div>' +
+    '<div class="row">' + st.btnDefs.map((d, i) => '<button type="button"' + (d.on ? ' class="primary"' : '') + ' data-kc-btn="' + i + '">' + esc(d.label) + '</button>').join('') + '</div>' +
+    (K.phase !== 'run' && last ? '<label class="field">さいきんの きろく</label><ul style="margin:0;padding-left:1.2em;color:var(--ink-soft)">' + last + '</ul>' : '') +
+    '<div>' + (pl.at === 'seat' ? 'ドラッグで 見回せます。むこうの 大型ビジョンに 先頭の 馬が うつります' : 'まどの 前の 札でも 買えます（VR では ゆびさして トリガー）') + '</div>';
+  el.querySelectorAll('[data-kc-btn]').forEach((b) => { b.onclick = () => { const d = st.btnDefs[Number(b.dataset.kcBtn)]; if (d) { playSfx('pop'); d.act(); } }; });
+}
+buildRaceCourse();
 // 歩いている とき、近くで できる こと
 function nearbyActions() {
   if (state.where !== 'walk') return [];
@@ -10063,11 +10362,12 @@ function nearbyActions() {
   const cr = booths.find((b) => b.job.id === 'care'); if (cr && Math.hypot(cr.door.x - p.x, cr.door.z - p.z) < 7) out.push(['rehab', 'リハビリステーションへ']); // 介護施設の 前から 行ける
   if (profile && Math.hypot(FURN.door.x - p.x, FURN.door.z - p.z) < 6) out.push(['furn', '家具屋に 入る']);
   if (Math.hypot(IBA_SITE.door.x - p.x, IBA_SITE.door.z - p.z) < 6) out.push(['iba', 'みんなの 居場所に 入る']);
+  if (kcOutside().pos.distanceTo(new THREE.Vector3(p.x, 0, p.z)) < 6) out.push(['keiba', '競馬場の 馬券売り場へ']);
   const cf = booths.find((b) => b.job.id === 'cafe'); if (profile && cf && Math.hypot(cf.door.x - p.x, cf.door.z - p.z) < 6) { out.push(['cafe', 'カフェで のんびり']); out.push(['terrace', 'テラス席で のんびり']); }
   if (profile && PLAZA.c && Math.hypot(PLAZA.c.x - p.x, PLAZA.c.z - p.z) < 7) out.push(['plaza', 'テラスで のんびり']);
   return out;
 }
-const PLAY_ACTS = { iba: () => openIba(ibaOutside()), rehab: () => openRehab(), ski: startSki, climb: startClimb, swim: startSwim, sun: startSun, buy: () => openYataiShop(), furn: () => goFurniture(), cafe: () => openCafeOrder('in'), terrace: () => openCafeOrder('out'), plaza: () => openCafeOrder('plaza') };
+const PLAY_ACTS = { iba: () => openIba(ibaOutside()), keiba: () => openKeiba(kcOutside()), rehab: () => openRehab(), ski: startSki, climb: startClimb, swim: startSwim, sun: startSun, buy: () => openYataiShop(), furn: () => goFurniture(), cafe: () => openCafeOrder('in'), terrace: () => openCafeOrder('out'), plaza: () => openCafeOrder('plaza') };
 let lastNearby = '';
 function checkNearby() { const k = nearbyActions().map((a) => a[0]).join(',') + (state.skating ? '|s' : ''); if (k !== lastNearby) { lastNearby = k; renderHud(); } }
 // 屋台で 買う（お客さんとして）
@@ -10444,6 +10744,7 @@ renderer.setAnimationLoop((now) => {
   if (!reduceMotion) windRotors.forEach((r) => { r.rotation.z = -(now / 1000) * 1.4 - r.userData.phase; });
   stepAnims(now);
   if (now - (drawMinimap.last || 0) > 100) { drawMinimap.last = now; drawMinimap(); } // 地図は 1 秒に 10 回で じゅうぶん
+  kcRenderScreen(now); // 競馬場の 大型ビジョン
   renderer.render(scene, camera);
 });
 
@@ -10465,7 +10766,7 @@ $('btn-season').addEventListener('click', () => setSeason(season === 'winter' ? 
 $('btn-home').addEventListener('click', () => goHome());
 $('btn-settings').addEventListener('click', openSettings);
 window.hopeTown = {
-  IBA, IBA_SITE, openIba, ibaSit, ibaStand, ibaClickables, ibaData, sgLegal, sgPlay, sgThink, igoThink, igoScore, mjShanten, mjComplete, mjYaku, mjCounts, keibaStart, shogiTap, igoTap, mjTap, mjRon,
+  IBA, IBA_SITE, openIba, ibaSit, ibaStand, ibaClickables, ibaData, sgLegal, sgPlay, sgThink, igoThink, igoScore, mjShanten, mjComplete, mjYaku, mjCounts, KC, openKeiba, kcWindow, kcSeat, keibaBuy, keibaStart, keibaNew, kcClickables, walkable, kcOutside, shogiTap, igoTap, mjTap, mjRon,
   state, goBooth, pickVariant, startSession, openRehab, startRehab, rehabPress, rehabSwipeThrow, rehabVolleyPress, REHAB, get rehabOpt() { return rehabOpt; }, set rehabOpt(v) { rehabOpt = v; }, select: onSelectItem, playSfx, sfxKind, SFX, nextTargetKey, setSeason, startWalk, exitToWalk, walkKeys, rig, look, walkable, booths, goHome, exitHome, goPlaza,
   get profile() { return profile; }, quitWork, openJobList, openCafeOrder, sitCafe, endPlay, CAFE_ORDER, doLeisure, LEISURE, home, HOME_LEVELS, upgradeHome, askUpgrade, homeLv, FURN, goFurniture, furnShop, pickFurn, exitFurniture, cheatCover() { const r = state.round; if (r && r.cover) { r.cover.surf.clearAll(); coverProgress(r, 1, performance.now()); } }, seasonal, LAKE, toWorld, nearbyActions, openShop, openBadgeBook, openSettings, openAreaPicker, openLookMaker, lookOf,
   // テスト用：オープニングを とばして 家を 用意する
