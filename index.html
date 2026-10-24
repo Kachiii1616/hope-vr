@@ -11391,7 +11391,7 @@ function stepBoats(now) {
 function ferrisCrew(color) { // 観覧車の 係の 人（制服と 帽子・名札）
   const p = person(color, '#2f3540', true, 'short');
   part(p, new THREE.SphereGeometry(PERSON_HEAD_R + 0.009, 20, 8, 0, TAU, 0, Math.PI / 2), color, 0, PERSON_HEAD_Y + 0.006, -0.002);
-  part(p, box(0.08, 0.007, 0.05), shade(color, 0.7), 0, PERSON_HEAD_Y + 0.03, PERSON_HEAD_R + 0.008).rotation.x = 0.15; // つば
+  const brim = part(p, new THREE.CylinderGeometry(0.05, 0.05, 0.005, 24, 1, false, -Math.PI / 2, Math.PI), shade(color, 0.75), 0, PERSON_HEAD_Y + 0.013, PERSON_HEAD_R * 0.66); brim.scale.x = 1.25; brim.rotation.x = 0.22; // つば（半円。帽子の ふちから 前へ 出る）
   p.scale.setScalar(4.4); return p;
 }
 function buildFerrisStation(fw, put) {
@@ -11416,10 +11416,10 @@ function buildFerrisStation(fw, put) {
     const g = person(c, '#3d4a54', false, hair); g.scale.setScalar(4.4 * k); g.position.set(-1.85, 0.05, z); g.rotation.y = Math.PI; fw.add(g);
   });
   // 係の 人：ゴンドラの 横で ドアを おさえて 案内（すこし 向きを かえて お客さんを 見る）と、操作台の 運転係
-  const guide = ferrisCrew(CREW); guide.position.set(0.95, 0.05, 1.15); guide.rotation.y = -2.4; fw.add(guide);
-  const op = ferrisCrew(CREW); op.position.set(2.25, 0.05, 1.55); op.rotation.y = -Math.PI / 2 - 0.3; fw.add(op);
-  put(box(0.6, 0.95, 0.45), '#5a6470', 1.85, 0.5, 1.55, fw); const panel = put(box(0.62, 0.05, 0.5), '#3d4a54', 1.85, 1.0, 1.55, fw); panel.rotation.z = 0.25;
-  [['#d0453a', -0.12], ['#4f9a45', 0.0], ['#f2c230', 0.12]].forEach(([c, dz]) => put(cyl(0.035, 0.035, 0.04, 10), c, 1.86, 1.04, 1.55 + dz, fw));
+  const guide = ferrisCrew(CREW); guide.position.set(1.2, 0.05, 1.75); guide.rotation.y = -2.5; fw.add(guide); // ゴンドラから 半歩 はなれて 立つ（乗った とき 景色を ふさがない）
+  const op = ferrisCrew(CREW); op.position.set(2.42, 0.05, 2.4); op.rotation.y = -Math.PI / 2 - 0.5; fw.add(op);
+  put(box(0.6, 0.95, 0.45), '#5a6470', 2.0, 0.5, 2.4, fw); const panel = put(box(0.62, 0.05, 0.5), '#3d4a54', 2.0, 1.0, 2.4, fw); panel.rotation.z = 0.25; // 操作台（のりばの 東の おく。ゴンドラから はなす）
+  [['#d0453a', -0.12], ['#4f9a45', 0.0], ['#f2c230', 0.12]].forEach(([c, dz]) => put(cyl(0.035, 0.035, 0.04, 10), c, 2.01, 1.04, 2.4 + dz, fw));
   FERRIS.crew = { guide, y0: guide.rotation.y };
   // きっぷ売り場（のりばの 東。窓口の 中に 係の 人）
   const kb = new THREE.Group(); kb.position.set(4.3, 0, 3.2); fw.add(kb);
