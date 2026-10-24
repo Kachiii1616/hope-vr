@@ -10151,7 +10151,7 @@ function kbPadPoint(s, out) { // パドックの 周回路の 上で s（南の 
   s -= L; const a = s / R; return out.set(x + R * Math.cos(a), 0.07, z - L / 2 - R * Math.sin(a));
 }
 // 毛並み：こまかい 毛の すじを かいた 小さな テクスチャ（色と 凹凸に つかう）。すじの 向きは along（'u' は テクスチャの 横・'v' は たて）
-//   毛づやは 材質の roughness を 下げて 日の 光の つやを 出す（手入れした 競走馬の 光り方）
+//   毛並み・毛づやを 出すのは パドックの 気配が よい 馬だけ（kbCoatShine）。lvl 2＝とても よい（つやが 強い）・1＝よい。ふつう 以下は ふだんの 材質
 const kbHairTex = (() => { const cache = {}; return (along, dark) => { const key = along + (dark ? 'd' : ''); if (cache[key]) return cache[key];
   const S = 128; const cv = document.createElement('canvas'); cv.width = cv.height = S; const c = cv.getContext('2d');
   c.fillStyle = '#f2f2f2'; c.fillRect(0, 0, S, S); let seed = 7; const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
@@ -10159,12 +10159,14 @@ const kbHairTex = (() => { const cache = {}; return (along, dark) => { const key
     c.strokeStyle = 'rgba(' + [v, v, v].map(Math.round).join(',') + ',' + (dark ? 0.9 : 0.45) + ')'; c.lineWidth = dark ? 1 + rnd() * 1.5 : 0.6 + rnd() * 0.8; c.beginPath();
     const w = (rnd() - 0.5) * (dark ? 4 : 1.5); if (along === 'u') { c.moveTo(a, b); c.quadraticCurveTo(a + len / 2, b + w, a + len, b); } else { c.moveTo(a, b); c.quadraticCurveTo(a + w, b + len / 2, a, b + len); } c.stroke(); }
   const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(along === 'u' ? 3 : 2, along === 'u' ? 2 : 3); t.anisotropy = 4; return (cache[key] = t); }; })();
-const kbCoatMat = (() => { const cache = new Map(); return (color, along) => { const key = color + along; if (!cache.has(key)) { const t = kbHairTex(along);
-  cache.set(key, mat(color, { map: t, bumpMap: t, bumpScale: 0.004, roughness: 0.42 })); } return cache.get(key); }; })();
+const kbCoatMat = (() => { const cache = new Map(); return (color, along, lvl) => { if (!lvl) return cmat(color); const key = color + along + lvl; if (!cache.has(key)) { const t = kbHairTex(along);
+  cache.set(key, mat(color, { map: t, bumpMap: t, bumpScale: lvl > 1 ? 0.005 : 0.003, roughness: lvl > 1 ? 0.34 : 0.5 })); } return cache.get(key); }; })();
+function kbCoatShine(h, tier) { const lvl = tier === 0 ? 2 : tier === 1 ? 1 : 0; h.userData.coat.forEach(([m, along]) => { m.material = kbCoatMat(h.userData.coatColor, along, lvl); }); }
 const kbManeMat = (() => { let m = null; return () => m || (m = mat('#2a1c14', { map: kbHairTex('v', true), bumpMap: kbHairTex('v', true), bumpScale: 0.01, roughness: 0.5 })); })();
 function kbHorse(color, coat, n) { // 馬と 騎手（実物大。頭が +z）
   const g = new THREE.Group(); const put = (geo, c, x, y, z) => { const m = new THREE.Mesh(geo, cmat(c)); m.position.set(x, y, z); g.add(m); return m; };
-  const body = new THREE.Group(); g.add(body); const bput = (geo, c, x, y, z) => { const m = new THREE.Mesh(geo, c === coat ? kbCoatMat(coat, geo.type === 'SphereGeometry' ? 'u' : 'v') : c === '#2a1c14' ? kbManeMat() : cmat(c)); m.position.set(x, y, z); body.add(m); return m; };
+  const body = new THREE.Group(); g.add(body); const coatMs = []; // 毛色の メッシュと 毛の 向き（kbCoatShine で 材質を かえる）
+  const bput = (geo, c, x, y, z) => { const m = new THREE.Mesh(geo, c === '#2a1c14' ? kbManeMat() : cmat(c)); if (c === coat) coatMs.push([m, geo.type === 'SphereGeometry' ? 'u' : 'v']); m.position.set(x, y, z); body.add(m); return m; };
   bput(ball(0.5, 16, 12), coat, 0, 1.38, 0).scale.set(0.56, 0.62, 1.5);
   const neck = bput(cyl(0.17, 0.26, 0.85, 10), coat, 0, 1.78, 0.78); neck.rotation.x = 0.8;
   const mane = bput(box(0.07, 0.8, 0.1), '#2a1c14', 0, 1.92, 0.64); mane.rotation.x = 0.8; // たてがみ（首の 上がわに そって）
@@ -10223,7 +10225,7 @@ function kbHorse(color, coat, n) { // 馬と 騎手（実物大。頭が +z）
   });
   const legs = [[-0.14, 0.48], [0.14, 0.48], [-0.14, -0.5], [0.14, -0.5]].map(([x, z]) => {
     const L = new THREE.Group(); L.position.set(x, 1.34, z); body.add(L); // 足の つけね（体の 中）
-    const m = new THREE.Mesh(cyl(0.07, 0.065, 1.24, 8), kbCoatMat(coat, 'v')); m.position.y = -0.62; L.add(m);
+    const m = new THREE.Mesh(cyl(0.07, 0.065, 1.24, 8), cmat(coat)); m.position.y = -0.62; L.add(m); coatMs.push([m, 'v']);
     const hf = new THREE.Mesh(box(0.13, 0.1, 0.16), cmat('#2b2f33')); hf.position.y = -1.27; L.add(hf); return L;
   });
   const tag = labelSprite(String(n), { h: 0.5, bg: color, fg: color === '#f2f2f2' || color === '#e3b23c' ? '#1f2a33' : '#ffffff' }); tag.position.set(0, 3.1, 0); g.add(tag);
@@ -10231,7 +10233,7 @@ function kbHorse(color, coat, n) { // 馬と 騎手（実物大。頭が +z）
   const hand = person('#3d6f9e', '#3d4a54', true); hand.scale.setScalar(4.3); hand.position.set(-0.75, 0, 1.0); lead.add(hand);
   const grip = new THREE.Vector3(0.0609, 0.0968, 0.002).multiplyScalar(4.3).add(hand.position); // 引き手の 馬がわの 手（person の 手の 玉の 中心）
   const lb = bit(-1); const mid = lb.clone().lerp(grip, 0.5).add(new THREE.Vector3(-0.05, -0.12, 0)); seg(lb, mid, 0.014, '#c0392b', lead); seg(mid, grip, 0.014, '#c0392b', lead); // 少し たるませる
-  g.userData.legs = legs; g.userData.body = body; g.userData.lead = lead; return g;
+  g.userData.legs = legs; g.userData.body = body; g.userData.lead = lead; g.userData.coat = coatMs; g.userData.coatColor = coat; return g;
 }
 
 // ---- 埋め立て地・コース・スタンド・馬券売り場・大型ビジョン ---------------------
@@ -10423,6 +10425,7 @@ function keibaNew() {
   });
   KC.K = { form, tier, pad, pw: 0, phase: 'bet', pick: prev ? prev.pick : 0, amt: prev ? prev.amt : 5, type: prev ? prev.type : 'win', bets: [], str, odds, place, d: str.map(() => 0), v: str.map(() => 0), kick: str.map(() => 0.96 + Math.random() * 0.1), target: str.map(() => 0), retarget: 0, finish: [], call: 0, no: prev ? prev.no + 1 : 1 };
   KC.gateZ = 0; KC.gate.position.z = 0; KC.doors.forEach((h) => { h.rotation.y = 0; });
+  KC.horses.forEach((h, k) => kbCoatShine(h, tier[k])); // パドックの 気配が よい 馬は 毛並みに つやが 出る
   kbPlace(); keibaShow();
 }
 const kbTmp = new THREE.Vector3(); const kbTmp2 = new THREE.Vector3();
