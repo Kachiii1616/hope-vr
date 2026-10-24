@@ -11110,7 +11110,7 @@ function buildIsle() {
   [-1, 1].forEach((sd) => [-1, 1].forEach((sx) => { const leg = put(box(0.35, FERRIS.hub + 0.6, 0.35), '#e9ecef', sx * 2.6, (FERRIS.hub + 0.6) / 2, sd * 1.1, fw); leg.rotation.z = -sx * 0.24; }));
   put(box(1.6, 2.4, 2.8), '#e0662f', 0, 1.2, 2.6, fw); // 乗り場の 小屋
   const wheel = new THREE.Group(); wheel.position.y = FERRIS.hub; fw.add(wheel); FERRIS.wheel = wheel;
-  [-0.75, 0.75].forEach((z) => { const rim = new THREE.Mesh(new THREE.TorusGeometry(FERRIS.r, 0.1, 6, 48), cmat('#e9ecef')); rim.position.z = z; wheel.add(rim); });
+  [-0.75, 0.75].forEach((z) => { const rim = new THREE.Mesh(new THREE.TorusGeometry(FERRIS.r, 0.1, 6, 120), cmat('#e9ecef')); rim.position.z = z; wheel.add(rim); });
   put(cyl(0.45, 0.45, 1.9, 12), '#c9ced6', 0, 0, 0, wheel).rotation.x = Math.PI / 2;
   FERRIS.cars = [];
   const GC = ['#d0392b', '#2f6fc4', '#e3b23c', '#4f9a45', '#6b4f9e', '#e07fa4'];
@@ -11254,7 +11254,7 @@ function rideFerris() {
 }
 const ferrisTmp = new THREE.Vector3();
 function ferrisRide(pl, now) { // ゴンドラの おくの ベンチに すわって 南（島と 競馬場の 方）を 見る
-  pl.car.updateMatrixWorld(true); pl.car.localToWorld(ferrisTmp.set(0, 0, -0.36));
+  FERRIS.wheel.updateMatrixWorld(true); pl.car.localToWorld(ferrisTmp.set(0, 0, -0.36)); // 輪から 計算しなおす（ゴンドラだけだと 輪の 回転が 1 フレーム おくれて ガクガク する）
   rig.position.set(ferrisTmp.x, ferrisTmp.y - (renderer.xr.isPresenting ? 1.6 : 2.03), ferrisTmp.z); rig.rotation.y = Math.PI;
   const turned = FERRIS.ang - pl.a0;
   if (!pl.half && turned > Math.PI) { pl.half = true; toast('てっぺんを すぎました。島が ぜんぶ 見えます'); }
