@@ -2455,7 +2455,7 @@ const ITEM_MODELS = {
 };
 
 // 人（カフェの お客さま・介護施設の 利用者）
-//   イラスト風：大きめの 頭・黒目に 白い ひかり・ピンクの ほっぺ・にっこり 口・ななめの 前髪・白い えり・V ネックの セーター。
+//   イラスト風：大きめの 頭・黒目に 白い ひかり・ピンクの ほっぺ・にっこり 口・ななめの 前髪・V ネックの セーター（えりは なし）。
 //   正面は +z。hair は PERSON_HAIRS の キー（'short' みじかい・'bob' ボブ など）。書かなければ 服の 色で 'bob' か 'short'（町の 人が ばらけるように）。
 //   look（キャラメイク）：{ skin, hairColor, eyes }。書かなければ ふつうの 見た目
 const PERSON_SKIN = '#f3dbc8';
@@ -2489,12 +2489,11 @@ function chestPatch(pts, off) {
   geo.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3));
   return geo;
 }
-// えりもと：首の つけねから はだの V、その 両がわに 白い えり（先は V の 先より 下で あわさる）。y は 正面から 見た 高さ
+// えりもと：首の つけねから はだの V。y は 正面から 見た 高さ
 const NECK_Y = 0.222; // 首の つけね
 const PERSON_HEAD_Y = 0.287; // 頭の 中心（あごが えりもとに のる 高さ。首は ほとんど 見せない）
 const PERSON_HEAD_R = 0.066;
 const PERSON_NECK_V = chestPatch([[-0.0125, NECK_Y], [0.0125, NECK_Y], [0, NECK_Y - 0.022]], 0.0015);
-const PERSON_COLLAR = [-1, 1].map((sd) => chestPatch([[sd * 0.0125, NECK_Y], [sd * 0.02, NECK_Y], [sd * 0.03, NECK_Y - 0.009], [sd * 0.0065, NECK_Y - 0.03], [sd * 0.0015, NECK_Y - 0.021]], 0.003));
 const PERSON_HAIRS = { short: 'みじかい', bob: 'ボブ', long: 'ロング', pony: 'ポニーテール', twin: 'ツインテール', bun: 'おだんご' };
 const PERSON_EYES = { round: 'まる', smile: 'にっこり', dot: 'てん' };
 // 色を 少し こく（かげの 色）
@@ -2525,11 +2524,8 @@ function person(bodyColor, legColor, nameTag, hair, look) {
   // 首（みじかく。あごの 下に かくれる）と えりもと
   part(g, cyl(0.016, 0.018, 0.03, 16), SKIN, 0, 0.234, 0);
   part(g, PERSON_NECK_V, shade(SKIN, 0.93), 0, 0, 0, { side: THREE.DoubleSide }); // あごの かげに なる ので 少し こく
-  // 首の つけねの 前（上から 見ても V と えりが 首まで つづく）
-  [[-0.62, 1.24, shade(SKIN, 0.93)], [0.62, 0.48, '#ffffff'], [-1.1, 0.48, '#ffffff']].forEach(([a0, len, c]) => {
-    part(g, new THREE.CylinderGeometry(0.0165, 0.0235, 0.0045, 6, 1, true, a0, len), c, 0, NECK_Y + 0.0022, 0, { side: THREE.DoubleSide }).scale.z = PERSON_DEPTH;
-  });
-  PERSON_COLLAR.forEach((geo) => part(g, geo, '#ffffff', 0, 0, 0, { side: THREE.DoubleSide }));
+  // 首の つけねの 前（上から 見ても V が 首まで つづく）
+  part(g, new THREE.CylinderGeometry(0.0165, 0.0235, 0.0045, 6, 1, true, -0.62, 1.24), shade(SKIN, 0.93), 0, NECK_Y + 0.0022, 0, { side: THREE.DoubleSide }).scale.z = PERSON_DEPTH;
   if (nameTag) part(g, box(0.05, 0.026, 0.004), '#ffffff', 0, 0.162, 0.058);
   // 頭（体より 大きめ）
   const H = PERSON_HEAD_Y; const R = PERSON_HEAD_R;
