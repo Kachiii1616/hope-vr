@@ -10145,10 +10145,10 @@ function kbPoint(d, off, out) { // 中心線で d（スタンド前の 直線の
 const kbOff = (k) => -1.8 + k * KC.lane;
 function kbPadPoint(s, out) { // パドックの 周回路の 上で s（南の はしの 東から 北へ）
   const { x, z, L, R } = KC_PAD; s = ((s % KB_PP) + KB_PP) % KB_PP;
-  if (s < L) return out.set(x - R, 0.05, z - L / 2 + s);
-  s -= L; if (s < Math.PI * R) { const a = s / R; return out.set(x - R * Math.cos(a), 0.05, z + L / 2 + R * Math.sin(a)); }
-  s -= Math.PI * R; if (s < L) return out.set(x + R, 0.05, z + L / 2 - s);
-  s -= L; const a = s / R; return out.set(x + R * Math.cos(a), 0.05, z - L / 2 - R * Math.sin(a));
+  if (s < L) return out.set(x - R, 0.07, z - L / 2 + s);
+  s -= L; if (s < Math.PI * R) { const a = s / R; return out.set(x - R * Math.cos(a), 0.07, z + L / 2 + R * Math.sin(a)); }
+  s -= Math.PI * R; if (s < L) return out.set(x + R, 0.07, z + L / 2 - s);
+  s -= L; const a = s / R; return out.set(x + R * Math.cos(a), 0.07, z - L / 2 - R * Math.sin(a));
 }
 function kbHorse(color, coat, n) { // 馬と 騎手（実物大。頭が +z）
   const g = new THREE.Group(); const put = (geo, c, x, y, z) => { const m = new THREE.Mesh(geo, cmat(c)); m.position.set(x, y, z); g.add(m); return m; };
@@ -10314,9 +10314,9 @@ function buildRaceCourse() {
   { const P = KC_PAD; const pg = new THREE.Group(); g.add(pg);
     const oval = (r) => { const s = []; for (let k = 0; k <= 20; k++) { const a = (k / 20) * Math.PI; s.push(new THREE.Vector2(P.x + r * Math.cos(a), -(P.z + P.L / 2 + r * Math.sin(a)))); } for (let k = 0; k <= 20; k++) { const a = Math.PI + (k / 20) * Math.PI; s.push(new THREE.Vector2(P.x + r * Math.cos(a), -(P.z - P.L / 2 + r * Math.sin(a)))); } return s; }; // y は -z（ゆかを 上向きに ねかせる ため）
     const pflat = (shape, color, y) => { const m = new THREE.Mesh(new THREE.ShapeGeometry(shape), cmat(color)); m.rotation.x = -Math.PI / 2; m.position.y = y; pg.add(m); return m; };
-    pflat(new THREE.Shape(oval(P.R + P.out + 0.75)), '#d9d4c7', 0.03); // まわりの しき石
-    const dirt = new THREE.Shape(oval(P.R + P.out - 0.12)); dirt.holes.push(new THREE.Path(oval(P.R - P.inn + 0.12).reverse())); pflat(dirt, '#c9a36b', 0.04);
-    pflat(new THREE.Shape(oval(P.R - P.inn + 0.12)), '#8fc56c', 0.045);
+    pflat(new THREE.Shape(oval(P.R + P.out + 0.75)), '#d9d4c7', 0.055); // まわりの しき石（島の 広場の 板 y=0.05 より 上。北の はしが 広場に かかる）
+    const dirt = new THREE.Shape(oval(P.R + P.out - 0.12)); dirt.holes.push(new THREE.Path(oval(P.R - P.inn + 0.12).reverse())); pflat(dirt, '#c9a36b', 0.065);
+    pflat(new THREE.Shape(oval(P.R - P.inn + 0.12)), '#8fc56c', 0.07);
     [P.R + P.out, P.R - P.inn].forEach((r) => { const c = oval(r).map((v) => new THREE.Vector3(v.x, 0.85, -v.y));
       pg.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(c, true), 80, 0.045, 6, true), cmat('#ffffff')));
       c.forEach((v, i) => { if (i % 3 === 0) put(box(0.07, 0.85, 0.07), '#ffffff', v.x, 0.42, v.z, pg); }); });
