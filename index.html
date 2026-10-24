@@ -1700,10 +1700,10 @@ const IBA_SITE = { near: [432, 516], W: 5.4, H: 3.2 };
   IBA_SITE.pos = r.foot.clone().addScaledVector(r.front, -(ROAD_W / 2 + 0.6 + IBA_SITE.W / 2)); IBA_SITE.door = r.foot.clone().addScaledVector(r.front, -ROAD_W / 2);
   IBA_SITE.at = toMap(IBA_SITE.pos.x, IBA_SITE.pos.z); block(IBA_SITE.pos.x, IBA_SITE.pos.z, IBA_SITE.W * 0.72, IBA_SITE.W / 2 + 0.2); })();
 // カジノ（中で バカラ・ポーカーが できる。メダルで あそぶ）。となりの あそびの島の 広場の 北（アミューズメントと 観覧車の あいだ。入口は 南）
-const CASINO_SITE = { W: 6.4, H: 4.2 };
+const CASINO_SITE = { W: 12, D: 10, H: 5.2 }; // HOPE アミューズメント（スロット・ルーレット・ブラックジャック と カジノ）の 建物。外観は カジノの まま
 (() => { CASINO_SITE.yaw = 0; CASINO_SITE.front = new THREE.Vector3(0, 0, 1);
-  CASINO_SITE.pos = new THREE.Vector3(ISLE.c.x + 3, 0, ISLE.c.z - 31); CASINO_SITE.door = CASINO_SITE.pos.clone().addScaledVector(CASINO_SITE.front, CASINO_SITE.W / 2 + 0.6);
-  CASINO_SITE.at = toMap(CASINO_SITE.pos.x, CASINO_SITE.pos.z); block(CASINO_SITE.pos.x, CASINO_SITE.pos.z, CASINO_SITE.W * 0.72, CASINO_SITE.W / 2 + 0.2); })();
+  CASINO_SITE.pos = new THREE.Vector3(ISLE.c.x + 3, 0, ISLE.c.z - 31); CASINO_SITE.door = CASINO_SITE.pos.clone().addScaledVector(CASINO_SITE.front, CASINO_SITE.D / 2 + 0.6);
+  CASINO_SITE.at = toMap(CASINO_SITE.pos.x, CASINO_SITE.pos.z); })(); // 歩いて ぶつかるのは ISLE.rects（buildIsle）
 
 // 地域の名前（お店のない地域・目じるし）
 [['ビーチ', [250, 205]], ['カフェの テラス', [195, 660]], ['りんご畑', [745, 700]], ['湖（冬は スケート場）', [265, 592]], ['表：夏山登山　裏：冬スキー', [520, 392]],
@@ -2025,25 +2025,25 @@ function tree(x, z, kind) {
 
   // カジノ：紺の かべに 金の ふち。入口の 上に 光る 看板と 電球の ふち、入口に 赤い じゅうたん。外から えらぶと 中へ
   (() => {
-    const { pos: p, W, H } = CASINO_SITE; const fz = W / 2;
+    const { pos: p, W, D, H } = CASINO_SITE; const fz = D / 2;
     const g = new THREE.Group(); g.position.copy(p); g.rotation.y = CASINO_SITE.yaw; scene.add(g); CASINO_SITE.group = g;
     const put = (geo, color, x, y, z, extra) => { const o = new THREE.Mesh(geo, extra ? mat(color, extra) : cmat(color)); o.position.set(x, y, z); g.add(o); return o; };
     const bx = (w, h, d) => new THREE.BoxGeometry(w, h, d);
-    const body = put(bx(W, H, W), '#22284a', 0, H / 2, 0);
-    put(bx(W + 0.2, 0.25, W + 0.2), '#d4af37', 0, H + 0.12, 0, { metalness: 0.25, roughness: 0.4 }); // 屋根の 金の ふち
+    const body = put(bx(W, H, D), '#22284a', 0, H / 2, 0);
+    put(bx(W + 0.2, 0.25, D + 0.2), '#d4af37', 0, H + 0.12, 0, { metalness: 0.25, roughness: 0.4 }); // 屋根の 金の ふち
     [-1, 1].forEach((sd) => put(bx(0.3, H, 0.3), '#d4af37', sd * (W / 2 - 0.05), H / 2, fz - 0.05, { metalness: 0.25, roughness: 0.4 })); // 角の 金の 柱
     put(bx(1.8, 2.4, 0.06), '#5a1420', 0, 1.2, fz + 0.01); // 戸
     put(bx(2.4, 0.02, 2.2), '#a3172f', 0, 0.01, fz + 1.1); // 赤い じゅうたん
     put(bx(2.6, 0.3, 1.4), '#d4af37', 0, 2.7, fz + 0.65, { metalness: 0.25, roughness: 0.4 }); // ひさし（前に 小さい 看板）
-    [-1, 1].forEach((sd) => put(bx(0.9, 1.1, 0.04), '#ffd98a', sd * 2.0, 1.7, fz + 0.01, { emissive: '#ffb84d', emissiveIntensity: 0.5 })); // あかるい まど
-    const sign = textPlate('CASINO カジノ', 3.6, 0.7, '#14182e', '#ffd23f'); sign.position.set(0, H - 0.6, fz + 0.04); g.add(sign);
-    const sub = textPlate('バカラ・ポーカー（メダルで あそぶ）', 2.6, 0.28, '#d4af37', '#14182e'); sub.position.set(0, 2.7, fz + 1.36); g.add(sub);
+    [-1, 1].forEach((sd) => [2.0, 4.2].forEach((x) => put(bx(1.4, 1.2, 0.04), '#ffd98a', sd * x, 1.7, fz + 0.01, { emissive: '#ffb84d', emissiveIntensity: 0.5 }))); // あかるい まど
+    const sign = textPlate('HOPE アミューズメント', 5.6, 0.8, '#14182e', '#ffd23f'); sign.position.set(0, H - 0.6, fz + 0.04); g.add(sign);
+    const sub = textPlate('スロット・ルーレット・ブラックジャック・カジノ', 2.6, 0.28, '#d4af37', '#14182e'); sub.position.set(0, 2.7, fz + 1.36); g.add(sub);
     for (let k = 0; k <= 12; k++) { // 看板の まわりの 電球
-      const x = -1.9 + k * (3.8 / 12); [H - 0.2, H - 1.0].forEach((y) => put(new THREE.SphereGeometry(0.05, 8, 6), NEON[(k + (y > H - 0.5 ? 0 : 3)) % NEON.length], x, y, fz + 0.06, { emissive: NEON[k % NEON.length], emissiveIntensity: 0.9 }));
+      const x = -2.9 + k * (5.8 / 12); [H - 0.2, H - 1.0].forEach((y) => put(new THREE.SphereGeometry(0.05, 8, 6), NEON[(k + (y > H - 0.5 ? 0 : 3)) % NEON.length], x, y, fz + 0.06, { emissive: NEON[k % NEON.length], emissiveIntensity: 0.9 }));
     }
     [-1, 1].forEach((sd) => { put(new THREE.CylinderGeometry(0.05, 0.06, 2.4, 10), '#d4af37', sd * 1.5, 1.2, fz + 2.0, { metalness: 0.25, roughness: 0.4 }); put(new THREE.SphereGeometry(0.18, 12, 10), '#fff1c2', sd * 1.5, 2.5, fz + 2.0, { emissive: '#ffd98a', emissiveIntensity: 0.9 }); }); // 入口の 街灯
     [body, sign, sub].forEach((m) => { m.userData.casinoEnter = true; plazaClickables.push(m); });
-    const pin = overviewSign('カジノ', 'バカラ・ポーカー', '#22284a', 5); pin.position.set(p.x, 10, p.z); pin.lookAt(OVERVIEW.pos); scene.add(pin); overviewOnly.push(pin);
+    const pin = overviewSign('HOPE アミューズメント', 'スロット・カジノ', '#22284a', 5); pin.position.set(p.x, 10, p.z); pin.lookAt(OVERVIEW.pos); scene.add(pin); overviewOnly.push(pin);
     pin.userData.casinoEnter = true; plazaClickables.push(pin);
   })();
 
@@ -4028,9 +4028,8 @@ function walkStep(dt) {
   if (near >= 0) { Object.keys(walkKeys).forEach((k) => { walkKeys[k] = false; }); syncPad(); goBooth(near); return; }
   if (profile && Math.hypot(FURN.door.x - p.x, FURN.door.z - p.z) < 1.3) goFurniture(); // 家具屋の 入口
   if (Math.hypot(IBA_SITE.door.x - p.x, IBA_SITE.door.z - p.z) < 1.3) { Object.keys(walkKeys).forEach((k) => { walkKeys[k] = false; }); syncPad(); openIba(ibaOutside()); } // みんなの 居場所の 入口
-  if (Math.hypot(CAS_SITE.door.x - p.x, CAS_SITE.door.z - p.z) < 1.3) { Object.keys(walkKeys).forEach((k) => { walkKeys[k] = false; }); syncPad(); openCasino(casOutside()); return; } // アミューズメントの 入口
   const kb = kcW(KC_BUY.x, 0, KC_BUY.z); if (Math.hypot(kb.x - p.x, kb.z - p.z) < 1.3) { Object.keys(walkKeys).forEach((k) => { walkKeys[k] = false; }); syncPad(); openKeiba(kcOutside()); } // 競馬場の 馬券売り場の まどの 前
-  if (Math.hypot(CASINO_SITE.door.x - p.x, CASINO_SITE.door.z - p.z) < 1.3) { Object.keys(walkKeys).forEach((k) => { walkKeys[k] = false; }); syncPad(); openIba(ibaOutside('casino'), 'casino'); } // カジノの 入口
+  if (Math.hypot(CASINO_SITE.door.x - p.x, CASINO_SITE.door.z - p.z) < 1.3) { Object.keys(walkKeys).forEach((k) => { walkKeys[k] = false; }); syncPad(); openCasino(casOutside()); } // HOPE アミューズメントの 入口
 }
 function snapTurn(a) {
   camera.getWorldPosition(tmpHead); const before = tmpHead.clone();
@@ -8188,7 +8187,7 @@ function handleRay(ray) {
   if (obj.userData.ibaEnter) { openIba(); return; }
   if (obj.userData.kcEnter) { openKeiba(); return; }
   if (obj.userData.kcPad) { openKeiba(); kcPaddock(); return; }
-  if (obj.userData.casinoEnter) { if (isleNow()) openIba(null, 'casino'); else boardBoat('main'); return; } // カジノは あそびの島（ほかの 島からは 連絡船で）
+  if (obj.userData.casinoEnter) { if (isleNow()) openCasino(casOutside()); else boardBoat('main'); return; } // カジノは あそびの島（ほかの 島からは 連絡船で）
   if (obj.userData.casEnter) { openCasino(); return; }
   if (obj.userData.furnBuy) { if (state.where === 'furn') { playSfx('coin'); buyFurn(obj.userData.furnBuy); } return; }
   if (obj.userData.furnCancel) { furnShop.selected = null; paintFurnTags(); renderHud(); return; }
@@ -8289,7 +8288,7 @@ function drawMinimap() {
   if (!mmBase || mmBase.width !== Math.round((mmCanvas.clientWidth || 200) * Math.min(window.devicePixelRatio || 1, 2))) buildMinimapBase();
   const x = mmCtx; const px = mmCanvas.width / (mmCanvas.clientWidth || 200); // 画面の 1px が 何ドットか
   camera.getWorldPosition(mmHead); camera.getWorldDirection(mmDir);
-  if (casNow()) mmHead.copy(CAS_SITE.door);
+  if (casNow() || (ibaNow() && ibaNow().room === 'casino')) mmHead.copy(CASINO_SITE.door);
   if (mmHead.x < -95 && mmHead.x > -300 && state.where !== 'plaza') { // あそびの島（と 連絡船）に いる ときは 島だけの 地図
     const mp = drawIsleMap(x, mmCanvas.width, mmCanvas.height, px); const [u, v] = mp(mmHead.x, mmHead.z); mmArrow(x, u, v, Math.atan2(mmDir.z, mmDir.x), px); return;
   }
@@ -8351,7 +8350,7 @@ mmCanvas.addEventListener('click', (e) => {
   if (profile && Math.hypot(FURN.at[0] - px, FURN.at[1] - py) < Math.min(bestD, 30)) { goFurniture(); return; } // 家具屋
   if (Math.hypot(CASINO_SITE.at[0] - px, CASINO_SITE.at[1] - py) < Math.min(bestD, 30)) { // カジノ
     if (state.phase === 'work' || state.phase === 'between') { toast('体験が おわってから 移動できます'); return; }
-    openIba(null, 'casino'); return;
+    if (isleNow()) openCasino(casOutside()); else boardBoat('main'); return;
   }
   if (best < 0) return;
   if (state.phase === 'work' || state.phase === 'between') { toast('体験が おわってから 移動できます'); return; }
@@ -8414,8 +8413,8 @@ function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 
 function renderHud() {
   $('btn-home').hidden = !home.group;
-  $('place').textContent = state.where === 'plaza' ? '島ぜんたい' : state.where === 'walk' ? '島を 歩いています' : state.where === 'home' ? profile.name + 'さんの ' + homeName() + '（' + home.site.name + '）' : state.where === 'opening' ? 'フェリーで 入港中' : state.where === 'play' ? (state.play.room === 'casino' ? 'カジノ' : PLAY_NAME[state.play.kind]) : state.where === 'furn' ? '家具屋（お店の 中）' : state.booth.job.area + '　' + state.booth.job.name + '・' + state.booth.job.work;
-  $('pad').hidden = !(state.where === 'walk' || state.where === 'furn' || (state.where === 'play' && state.play && !['sun', 'cafe', 'terrace', 'plaza', 'rehab', 'iba', 'keiba', 'casino', 'boat'].includes(state.play.kind)) || (state.where === 'booth' && state.phase === 'work' && state.round && (state.round.cover || state.round.slide)));
+  $('place').textContent = state.where === 'plaza' ? '島ぜんたい' : state.where === 'walk' ? '島を 歩いています' : state.where === 'home' ? profile.name + 'さんの ' + homeName() + '（' + home.site.name + '）' : state.where === 'opening' ? 'フェリーで 入港中' : state.where === 'play' ? (state.play.room === 'casino' ? 'HOPE アミューズメント（カジノ フロア）' : PLAY_NAME[state.play.kind]) : state.where === 'furn' ? '家具屋（お店の 中）' : state.booth.job.area + '　' + state.booth.job.name + '・' + state.booth.job.work;
+  $('pad').hidden = !(state.where === 'walk' || state.where === 'furn' || (state.where === 'play' && state.play && !['sun', 'cafe', 'terrace', 'plaza', 'rehab', 'iba', 'keiba', 'casino', 'boat', 'ferris'].includes(state.play.kind)) || (state.where === 'booth' && state.phase === 'work' && state.round && (state.round.cover || state.round.slide)));
   $('btn-walk').textContent = state.where === 'walk' ? '見わたす' : '島を歩く';
   chipsEl.querySelectorAll('.chip').forEach((el, i) => el.setAttribute('aria-current', String(i === 0 ? state.where === 'plaza' : state.booth === booths[i - 1])));
   // いまの 場所の チップが 画面の外なら 見える ところまで 送る
@@ -8443,8 +8442,8 @@ function renderHud() {
     if (k === 'iba') { renderIbaHud(el); return; }
     if (k === 'keiba') { renderKeibaHud(el); return; }
     if (k === 'casino') { renderCasinoHud(el); return; }
-    const how = { boat: '連絡船の ベンチに すわって います。ドラッグで 見回せます（VR は 頭を うごかして）。むこうの 島に 着くと おります', ski: '← → で よける・▲を 押すと そのまま（Shift で 速く）。下まで すべると ゴール', climb: '▲で のぼる・▼で おりる。頂上から 島ぜんたいが 見えます', swim: '▲▼で 進む・◀▶で 向きを かえる。岸から 遠くへは 行けません', sun: 'パラソルの 下で ねころんでいます。ドラッグで 見回せます', cafe: '中の 席に すわって います。ドラッグで 見回せます', terrace: '外の テラス席に すわって います。ドラッグで 見回せます', plaza: '町の テラス席に すわって います。ドラッグで 見回せます' }[k];
-    el.innerHTML = '<span class="tag">あそぶ</span><h2>' + PLAY_NAME[k] + '</h2><div>' + how + '</div><div class="row"><button type="button" class="primary" id="h-endplay">' + (k === 'sun' ? 'おきる' : k === 'swim' ? '岸に あがる' : k === 'cafe' || k === 'terrace' ? 'お店を 出る' : k === 'plaza' ? '席を たつ' : k === 'boat' ? 'すぐ 着く' : 'おわる') + '</button></div>';
+    const how = { ferris: '観覧車の ゴンドラに すわって います。ドラッグで 見回せます（VR は 頭を うごかして）。1 周 すると 下で おります', boat: '連絡船の ベンチに すわって います。ドラッグで 見回せます（VR は 頭を うごかして）。むこうの 島に 着くと おります', ski: '← → で よける・▲を 押すと そのまま（Shift で 速く）。下まで すべると ゴール', climb: '▲で のぼる・▼で おりる。頂上から 島ぜんたいが 見えます', swim: '▲▼で 進む・◀▶で 向きを かえる。岸から 遠くへは 行けません', sun: 'パラソルの 下で ねころんでいます。ドラッグで 見回せます', cafe: '中の 席に すわって います。ドラッグで 見回せます', terrace: '外の テラス席に すわって います。ドラッグで 見回せます', plaza: '町の テラス席に すわって います。ドラッグで 見回せます' }[k];
+    el.innerHTML = '<span class="tag">あそぶ</span><h2>' + PLAY_NAME[k] + '</h2><div>' + how + '</div><div class="row"><button type="button" class="primary" id="h-endplay">' + (k === 'sun' ? 'おきる' : k === 'swim' ? '岸に あがる' : k === 'cafe' || k === 'terrace' ? 'お店を 出る' : k === 'plaza' ? '席を たつ' : k === 'boat' ? 'すぐ 着く' : k === 'ferris' ? 'おりる' : 'おわる') + '</button></div>';
     $('h-endplay').onclick = endPlay;
     return;
   }
@@ -8552,7 +8551,7 @@ const inPoly = (poly, px, py) => { let ins = false; for (let i = 0, j = poly.len
 const onIce = (x, z) => season === 'winter' && LAKE.blk && ((x - LAKE.blk.x) / LAKE.rx) ** 2 + ((z - LAKE.blk.z) / LAKE.rz) ** 2 < 1;
 const onBeach = (x, z) => inPoly(BEACH, ...toMap(x, z));
 const skateV = new THREE.Vector3();
-const PLAY_NAME = { iba: 'みんなの 居場所', keiba: 'HOPE 競馬場', casino: 'HOPE アミューズメント（カジノ）', boat: '連絡船', ski: 'スキー', climb: '山登り', swim: '海で 泳ぐ', sun: '日向ぼっこ', cafe: 'カフェで のんびり', terrace: 'カフェの テラス席', plaza: '町の テラス席', rehab: 'リハビリステーション' };
+const PLAY_NAME = { iba: 'みんなの 居場所', keiba: 'HOPE 競馬場', casino: 'HOPE アミューズメント', boat: '連絡船', ferris: '観覧車', ski: 'スキー', climb: '山登り', swim: '海で 泳ぐ', sun: '日向ぼっこ', cafe: 'カフェで のんびり', terrace: 'カフェの テラス席', plaza: '町の テラス席', rehab: 'リハビリステーション' };
 const isCafePlay = (k) => k === 'cafe' || k === 'terrace' || k === 'plaza';
 // 左スティック（VR）
 function xrMove() {
@@ -8677,6 +8676,7 @@ function endPlay() {
   if (pl.kind === 'iba') { rig.position.y = 0; leaveIba(pl); return; }
   if (pl.kind === 'keiba') { leaveKeiba(pl); return; }
   if (pl.kind === 'casino') { leaveCasino(pl); return; }
+  if (pl.kind === 'ferris') { ferrisOff(); return; }
   if (pl.kind === 'boat') { BOATS.list.forEach((x) => { if (x.trip) boatDock(x, x.trip.to); }); boatArrive(pl.boat); return; }
   if (pl.kind === 'ski') { const dir = m.runs[pl.run]; startWalk(new THREE.Vector3(m.peak.x + dir.x * (m.MR + 2.5), 0, m.peak.z + dir.z * (m.MR + 2.5)), Math.atan2(-dir.x, -dir.z)); }
   else if (pl.kind === 'climb') startWalk(seasonal.trailAt.clone().add(new THREE.Vector3(1.5, 0, 1.5)), 0);
@@ -8691,6 +8691,7 @@ function stepPlay(dt, now) {
   if (pl.kind === 'keiba') { stepKeibaPlay(pl, dt, now); return; }
   if (pl.kind === 'casino') { stepCasino(pl, dt, now); return; }
   if (pl.kind === 'boat') { boatRide(pl.boat, now); return; }
+  if (pl.kind === 'ferris') { ferrisRide(pl, now); return; }
   const m = seasonal.mount; const xr = xrMove();
   const fwd = xr ? xr.fwd : (walkKeys.fwd ? 1 : 0) - (walkKeys.back ? 1 : 0);
   const side = xr ? xr.strafe : (walkKeys.right ? 1 : 0) - (walkKeys.left ? 1 : 0);
@@ -9280,7 +9281,7 @@ const IBA_X = { shogi: -3.9, go: -1.3, mahjong: 1.3, keiba: 4.0, baccarat: -2.4,
 const IBA_Z = -1.4;
 const IBA_SEAT = { shogi: 0.8, go: 0.75, mahjong: 0.78, baccarat: 0.82, poker: 0.86 }; // 台の 中心から 席までの 長さ
 // カジノ（繁華街）：居場所と 同じ しくみの べつの 部屋。台は バカラと ポーカー。メダルは 競馬と 共通
-const CASINO = { at: new THREE.Vector3(-640, 0, 40), g: null, room: { w: 11, d: 9 }, entry: new THREE.Vector3(0, 0, 3.4), exitBtn: null };
+const CASINO = { at: new THREE.Vector3(-640, 0, 34), g: null, room: { w: 11, d: 9 }, entry: new THREE.Vector3(0, 0, 3.4), exitBtn: null };
 const IBA_ROOM = { baccarat: 'casino', poker: 'casino' }; // ない ものは 'iba'
 const ibaRoomOf = (key) => IBA_ROOM[key] || 'iba';
 const ibaRoomG = (room) => (room === 'casino' ? CASINO.g : IBA.g);
@@ -9300,7 +9301,7 @@ function ibaLog(game, result) { const d = ibaData(); d.log.push({ at: new Date()
 const ibaNow = () => (state.where === 'play' && state.play && state.play.kind === 'iba' ? state.play : null);
 const ibaShown = (o) => { for (let p = o; p; p = p.parent) if (!p.visible) return false; return true; };
 function ibaClickables() {
-  const out = IBA.signs.concat([IBA.exitBtn, CASINO.exitBtn].filter(Boolean));
+  const out = IBA.signs.concat([IBA.exitBtn, CASINO.exitBtn, CASINO.link].filter(Boolean), CAS.signs); // カジノ フロアからは 手前の フロアの 台の 札も
   Object.values(IBA.st).forEach((st) => { out.push(...st.btnMeshes); if (ibaNow() && ibaNow().at === st.key) out.push(...st.clicks); });
   return out.filter(ibaShown);
 }
@@ -9402,13 +9403,13 @@ function ibaWait(st, ms, fn) { st.wait = performance.now() + ms; st.next = fn; }
 
 // ---- 入る・席に つく・出る --------------------------------------------------
 const ibaOutside = (room) => { const S = room === 'casino' ? CASINO_SITE : IBA_SITE; return { pos: S.door.clone().addScaledVector(S.front, 1.6), yaw: S.yaw + Math.PI }; }; // 出ると 入口の 前（お店に 背中を 向ける）
-function openIba(from, room) {
+function openIba(from, room, quiet) {
   room = room || 'iba'; const pl0 = ibaNow();
   const fromInfo = pl0 ? pl0.from : from || (state.where === 'home' ? { home: true } : state.where === 'walk' ? { pos: rig.position.clone(), yaw: rig.rotation.y + look.yaw } : {});
-  leaveForPlay(); buildIba(); if (room === 'casino') buildCasino();
-  IBA.g.visible = room === 'iba'; if (CASINO.g) CASINO.g.visible = room === 'casino';
+  leaveForPlay(); buildIba(); if (room === 'casino') { buildCasino(); buildAmuse(); }
+  IBA.g.visible = room === 'iba'; if (CASINO.g) CASINO.g.visible = room === 'casino'; if (CAS.g) CAS.g.visible = room === 'casino'; // カジノ フロアは アミューズメントと ひとつづき
   state.where = 'play'; state.play = { kind: 'iba', room, at: null, from: fromInfo, t0: performance.now() };
-  ibaStand(); toast(room === 'casino' ? 'カジノへ ようこそ（メダルで あそびます）' : 'みんなの 居場所へ ようこそ');
+  ibaStand(); if (!quiet) toast(room === 'casino' ? 'HOPE アミューズメントの カジノ フロアです（メダルで あそびます）' : 'みんなの 居場所へ ようこそ');
 }
 function ibaStand() {
   const pl = ibaNow(); if (!pl) return; pl.at = null; const R = pl.room === 'casino' ? CASINO : IBA;
@@ -9416,6 +9417,7 @@ function ibaStand() {
   renderHud();
 }
 function ibaSit(key) {
+  if (!ibaNow() && casNow() && ibaRoomOf(key) === 'casino') toCasinoFloor(); // アミューズメント フロアから 奥の カジノ フロアへ
   const pl = ibaNow(); if (!pl || ibaRoomOf(key) !== pl.room) return; const st = IBA.st[key]; pl.at = key;
   const seat = new THREE.Vector3(st.x, renderer.xr.isPresenting ? 0 : -0.35, IBA_Z + IBA_SEAT[key]);
   rig.position.copy(ibaRoomG(pl.room).localToWorld(seat)); rig.position.y = seat.y; rig.rotation.y = 0; look.yaw = 0; look.pitch = { poker: 0.28, baccarat: 0.35 }[key] || 0.5;
@@ -9423,7 +9425,7 @@ function ibaSit(key) {
   renderHud();
 }
 function leaveIba(pl) {
-  IBA.g.visible = false; if (CASINO.g) CASINO.g.visible = false; Object.values(IBA.st).forEach((st) => { st.next = null; });
+  IBA.g.visible = false; if (CASINO.g) CASINO.g.visible = false; if (CAS.g) CAS.g.visible = false; Object.values(IBA.st).forEach((st) => { st.next = null; });
   if (pl.from.home && home.group) goHome(); else if (pl.from.pos) startWalk(pl.from.pos, pl.from.yaw); else goPlaza();
 }
 function stepIba(pl, dt, now) {
@@ -9435,16 +9437,17 @@ function renderIbaHud(el) {
   const games = Object.keys(IBA_GAMES).filter((k) => ibaRoomOf(k) === pl.room);
   const others = games.filter((k) => k !== pl.at).map((k) => '<button type="button" data-iba-go="' + k + '">' + IBA_GAMES[k] + '</button>').join('');
   const last = ibaData().log.filter((r) => (ibaRoomOf(r.game) === 'casino') === casino).slice(-3).reverse().map((r) => '<li>' + esc((IBA_LOG_NAME[r.game] || r.game) + '：' + r.result) + '</li>').join('');
-  el.innerHTML = '<span class="tag">' + (casino ? 'カジノ' : 'みんなの 居場所') + '</span><h2>' + (st ? IBA_GAMES[pl.at] : 'あそびを えらぶ') + '</h2>' +
+  el.innerHTML = '<span class="tag">' + (casino ? 'HOPE アミューズメント（カジノ フロア）' : 'みんなの 居場所') + '</span><h2>' + (st ? IBA_GAMES[pl.at] : 'あそびを えらぶ') + '</h2>' +
     (st ? '<div class="feedback" id="iba-msg">' + st.msg.map((m) => esc(m.text || m)).join('<br>') + '</div>' +
       '<div class="row">' + st.btnDefs.map((d, i) => '<button type="button"' + (d.on ? ' class="primary"' : '') + ' data-iba-btn="' + i + '">' + esc(d.label) + '</button>').join('') + '</div>'
-      : '<div>' + (casino ? 'バカラ・ポーカーが できます。台の 札を えらぶ（VR では ゆびさして トリガー）と 席に つきます。かけるのは あそび用の メダル（いま ' + ibaData().medals + 'まい。競馬と 共通）で、お金は つかいません。'
+      : '<div>' + (casino ? 'バカラ・ポーカーが できます。台の 札を えらぶ（VR では ゆびさして トリガー）と 席に つきます。手前の アーチから スロット・ルーレット・ブラックジャックの フロアへ もどれます。かけるのは あそび用の メダル（いま ' + ibaData().medals + 'まい。競馬と 共通）で、お金は つかいません。'
         : '将棋・囲碁・麻雀が できます。台の 札を えらぶ（VR では ゆびさして トリガー）と 席に つきます。ひとりでも あそべます（相手は コンピューター）。競馬・カジノは となりの あそびの島で（フェリー乗り場から 連絡船。右の かべの ポスターから のりばへ 行けます）。') + '</div>' +
         (last ? '<label class="field">さいきんの きろく</label><ul style="margin:0;padding-left:1.2em;color:var(--ink-soft)">' + last + '</ul>' : '')) +
-    '<div class="row">' + others + '<button type="button" id="iba-keiba">連絡船のりばへ（あそびの島）</button>' + (st ? '<button type="button" id="iba-stand">席を 立つ</button>' : '') + '<button type="button" id="iba-out">外に 出る</button></div>';
+    '<div class="row">' + others + (casino ? Object.keys(CAS_GAMES).map((k) => '<button type="button" data-cas-go="' + k + '">' + CAS_GAMES[k] + '</button>').join('') : '<button type="button" id="iba-keiba">連絡船のりばへ（あそびの島）</button>') + (st ? '<button type="button" id="iba-stand">席を 立つ</button>' : '') + '<button type="button" id="iba-out">外に 出る</button></div>';
   el.querySelectorAll('[data-iba-go]').forEach((b) => { b.onclick = () => ibaSit(b.dataset.ibaGo); });
   el.querySelectorAll('[data-iba-btn]').forEach((b) => { b.onclick = () => { const d = st.btnDefs[Number(b.dataset.ibaBtn)]; if (d) { playSfx('pop'); d.act(); } }; });
-  $('iba-keiba').onclick = goBoatPier;
+  el.querySelectorAll('[data-cas-go]').forEach((b) => { b.onclick = () => casSit(b.dataset.casGo); }); // 手前の アミューズメント フロアへ
+  if ($('iba-keiba')) $('iba-keiba').onclick = goBoatPier;
   if ($('iba-stand')) $('iba-stand').onclick = ibaStand;
   $('iba-out').onclick = endPlay;
 }
@@ -10087,7 +10090,7 @@ function kbHorse(color, coat, n) { // 馬と 騎手（実物大。頭が +z）
   const body = new THREE.Group(); g.add(body); const bput = (geo, c, x, y, z) => { const m = new THREE.Mesh(geo, cmat(c)); m.position.set(x, y, z); body.add(m); return m; };
   bput(ball(0.5, 16, 12), coat, 0, 1.38, 0).scale.set(0.56, 0.62, 1.5);
   const neck = bput(cyl(0.17, 0.26, 0.85, 10), coat, 0, 1.78, 0.78); neck.rotation.x = 0.8;
-  const mane = bput(box(0.06, 0.12, 0.8), '#2a1c14', 0, 1.9, 0.68); mane.rotation.x = 0.8;
+  const mane = bput(box(0.07, 0.78, 0.1), '#2a1c14', 0, 1.93, 0.64); mane.rotation.x = 0.8; // たてがみ（首の うしろに そって）
   const head = bput(box(0.22, 0.26, 0.62), coat, 0, 2.02, 1.16); head.rotation.x = 0.55;
   [-1, 1].forEach((sd) => { const e = bput(new THREE.ConeGeometry(0.04, 0.14, 6), coat, sd * 0.07, 2.32, 0.98); e.rotation.x = -0.2; });
   bput(ball(0.5, 16, 12), '#ffffff', 0, 1.38, -0.05).scale.set(0.585, 0.655, 0.6); // ゼッケン（体に まいた 白い 布）
@@ -10257,7 +10260,7 @@ function kcUpdate(st, msg, defs) { st.msg = msg.filter(Boolean); ibaPaint(st); i
 function openKeiba(from) {
   const pl0 = kcNow(); const ib = ibaNow();
   const fromInfo = pl0 ? pl0.from : from || (ib ? { iba: ib.from } : state.where === 'home' ? { home: true } : state.where === 'walk' ? { pos: rig.position.clone(), yaw: rig.rotation.y + look.yaw } : {});
-  if (ib) { state.play = null; IBA.g.visible = false; if (CASINO.g) CASINO.g.visible = false; rig.position.y = 0; }
+  if (ib) { state.play = null; IBA.g.visible = false; if (CASINO.g) CASINO.g.visible = false; if (CAS.g) CAS.g.visible = false; rig.position.y = 0; }
   leaveForPlay();
   state.where = 'play'; state.play = { kind: 'keiba', at: null, from: fromInfo, t0: performance.now() };
   kcWindow(); toast('HOPE 競馬場へ ようこそ');
@@ -10574,8 +10577,10 @@ function buildCasino() {
   for (let k = -2; k <= 2; k++) part(g, box(w - 0.6, 0.004, 0.05), '#b8902c', 0, 0.002, k * 1.7); // 金の すじ
   const wall = '#1c2240'; const gold = { metalness: 0.25, roughness: 0.4 };
   part(g, box(w, H, 0.12), wall, 0, H / 2, -d / 2); part(g, box(0.12, H, d), wall, -w / 2, H / 2, 0); part(g, box(0.12, H, d), wall, w / 2, H / 2, 0);
-  [-1, 1].forEach((sd) => part(g, box(w / 2 - 0.9, H, 0.12), wall, sd * (w / 4 + 0.45), H / 2, d / 2));
-  part(g, box(1.8, H - 2.4, 0.12), wall, 0, (H + 2.4) / 2, d / 2);
+  const AW = 5; const AH = 2.7; // 手前は アミューズメント フロアへの 大きな アーチ（となりの 部屋と つながる）
+  [-1, 1].forEach((sd) => part(g, box((w - AW) / 2, H, 0.12), wall, sd * (AW + (w - AW) / 2) / 2, H / 2, d / 2));
+  part(g, box(AW, H - AH, 0.12), wall, 0, (H + AH) / 2, d / 2); [-1, 1].forEach((sd) => part(g, box(0.14, AH, 0.16), '#d4af37', sd * AW / 2, AH / 2, d / 2, gold)); part(g, box(AW + 0.28, 0.14, 0.16), '#d4af37', 0, AH, d / 2, gold);
+  CASINO.link = ibaClick(makeButton('◀ スロット・ルーレット・ブラックジャック', '#8b1e2d', 2.2, 0.24), () => casStand()); CASINO.link.position.set(0, 2.98, d / 2 - 0.09); CASINO.link.rotation.y = Math.PI; g.add(CASINO.link);
   part(g, box(w, 0.08, d), '#14182e', 0, H, 0); // 天井
   [[0, -d / 2 + 0.08, w, 0.04], [0, d / 2 - 0.08, w, 0.04]].forEach(([x, z, ww, dd]) => { part(g, box(ww, 0.08, dd), '#d4af37', x, 0.1, z, gold); part(g, box(ww, 0.08, dd), '#d4af37', x, H - 0.1, z, gold); });
   [-1, 1].forEach((sd) => { part(g, box(0.04, 0.08, d), '#d4af37', sd * (w / 2 - 0.08), 0.1, 0, gold); part(g, box(0.04, 0.08, d), '#d4af37', sd * (w / 2 - 0.08), H - 0.1, 0, gold); });
@@ -10594,7 +10599,7 @@ function buildCasino() {
     part(sm, box(0.62, 0.08, 0.56), '#7a1f2b', 0, 0.62, 0.04); part(sm, ball(0.07, 10, 8), NEON[k % NEON.length], 0, 1.43, 0, { emissive: NEON[k % NEON.length], emissiveIntensity: 0.9 });
     part(sm, cyl(0.012, 0.012, 0.3, 6), '#d9dde0', 0.36, 1.0, 0, gold); part(sm, ball(0.04, 8, 6), '#c0392b', 0.36, 1.17, 0);
   }));
-  const name = textPlate('CASINO カジノ', 3.2, 0.55, '#14182e', '#ffd23f'); name.position.set(0, 2.62, -d / 2 + 0.08); g.add(name);
+  const name = textPlate('HOPE アミューズメント　カジノ フロア', 4.2, 0.55, '#14182e', '#ffd23f'); name.position.set(0, 2.62, -d / 2 + 0.08); g.add(name);
   const rule = new Board(2.6, 0.62, 300); rule.draw((ctx, W, Hh) => { ctx.fillStyle = '#fffdf8'; roundRect(ctx, 0, 0, W, Hh, 20); ctx.fill(); ctx.fillStyle = '#1f2a33'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.font = '700 ' + Math.round(Hh * 0.19) + 'px ' + FONT_BODY; ctx.fillText('メダルは あそび用です（お金は つかいません）', W / 2, Hh * 0.28);
     ctx.font = '400 ' + Math.round(Hh * 0.15) + 'px ' + FONT_BODY; ctx.fillText('台の 札を えらぶと 席に つきます', W / 2, Hh * 0.55);
@@ -10603,7 +10608,7 @@ function buildCasino() {
   // メダル交換所（たりなく なったら ここで もらえる）
   const cx = w / 2 - 0.9; part(g, box(1.3, 1.0, 0.6), '#4a2a1a', cx, 0.5, 2.9); part(g, box(1.36, 0.05, 0.66), '#d4af37', cx, 1.02, 2.9, gold);
   const ex = ibaClick(textPlate('メダル 交換所（えらぶと もらえる）', 1.4, 0.24, '#d4af37', '#14182e'), () => casinoRefill()); ex.position.set(cx, 1.5, 2.9); ex.rotation.y = -Math.PI / 2 + 0.6; g.add(ex); IBA.signs.push(ex);
-  CASINO.exitBtn = ibaClick(makeButton('外に 出る', '#3d4a54', 0.6, 0.15), () => endPlay()); CASINO.exitBtn.position.set(0, 1.55, d / 2 - 0.1); CASINO.exitBtn.rotation.y = Math.PI; g.add(CASINO.exitBtn);
+  CASINO.exitBtn = ibaClick(makeButton('外に 出る', '#3d4a54', 0.6, 0.15), () => endPlay()); CASINO.exitBtn.position.set(3.9, 1.55, d / 2 - 0.1); CASINO.exitBtn.rotation.y = Math.PI; g.add(CASINO.exitBtn);
   ['baccarat', 'poker'].forEach((key) => {
     const sg = overviewSign(IBA_GAMES[key], IBA_NOTE[key], IBA_COLOR[key], 1.5); sg.material.depthTest = true; sg.renderOrder = 0;
     sg.position.set(IBA_X[key], 2.45, IBA_Z - 1.05); g.add(sg); IBA.signs.push(ibaClick(sg, () => ibaSit(key)));
@@ -10980,10 +10985,10 @@ function seatedCrowd(parent, seats, S, seatH) {
 // あそびの島：土地・広場・桟橋・観覧車・アミューズメント（カジノ）の 建物
 // ===========================================================================
 const isW = (x, z) => new THREE.Vector3(ISLE.c.x + x, 0, ISLE.c.z + z); // 島の 中心からの ずれ（m）→ world
-const CAS_SITE = { at: isW(-14, -30), W: 18, D: 12, H: 6.2 }; // アミューズメントの 建物（入口は 南）
-CAS_SITE.door = isW(-14, -30 + CAS_SITE.D / 2 + 0.4);
-const casOutside = () => ({ pos: CAS_SITE.door.clone().add(new THREE.Vector3(0, 0, 1.6)), yaw: Math.PI }); // 出ると 入口の 前（建物に 背中を 向ける）
-const FERRIS = { at: isW(17, -35), r: 9, hub: 10.6, wheel: null };
+const casOutside = () => ibaOutside('casino'); // HOPE アミューズメントの 入口の 前（建物に 背中を 向ける）
+const FERRIS = { at: isW(17, -35), r: 9, hub: 10.6, wheel: null, ang: 0, speed: 0.09 }; // speed：1 秒に まわる 角度（1 周 約 70 秒）
+const FERRIS_PRICE = 300;
+const ferrisExit = () => ({ pos: FERRIS.at.clone().add(new THREE.Vector3(0, 0, 5.2)), yaw: 0 }); // 小屋の 前（観覧車の 方を 向く）
 const isleNow = () => insideIsle(rig.position.x, rig.position.z) || rig.position.x < -100;
 function buildIsle() {
   { // 海は こまかい 輪に して、島の 下は ぬく（島の 上から 見て 海が 地面に かぶらない ように）
@@ -11024,33 +11029,31 @@ function buildIsle() {
   [-1, 1].forEach((sd) => [-1, 1].forEach((sx) => { const leg = put(box(0.35, FERRIS.hub + 0.6, 0.35), '#e9ecef', sx * 2.6, (FERRIS.hub + 0.6) / 2, sd * 1.1, fw); leg.rotation.z = -sx * 0.24; }));
   put(box(1.6, 2.4, 2.8), '#e0662f', 0, 1.2, 2.6, fw); // 乗り場の 小屋
   const wheel = new THREE.Group(); wheel.position.y = FERRIS.hub; fw.add(wheel); FERRIS.wheel = wheel;
-  [-0.6, 0.6].forEach((z) => { const rim = new THREE.Mesh(new THREE.TorusGeometry(FERRIS.r, 0.1, 6, 48), cmat('#e9ecef')); rim.position.z = z; wheel.add(rim); });
-  put(cyl(0.45, 0.45, 1.6, 12), '#c9ced6', 0, 0, 0, wheel).rotation.x = Math.PI / 2;
+  [-0.75, 0.75].forEach((z) => { const rim = new THREE.Mesh(new THREE.TorusGeometry(FERRIS.r, 0.1, 6, 48), cmat('#e9ecef')); rim.position.z = z; wheel.add(rim); });
+  put(cyl(0.45, 0.45, 1.9, 12), '#c9ced6', 0, 0, 0, wheel).rotation.x = Math.PI / 2;
   FERRIS.cars = [];
   const GC = ['#d0392b', '#2f6fc4', '#e3b23c', '#4f9a45', '#6b4f9e', '#e07fa4'];
   for (let k = 0; k < 12; k++) {
-    const a = (k / 12) * TAU; const sp = put(box(0.08, FERRIS.r, 0.08), '#e9ecef', Math.cos(a) * FERRIS.r / 2, Math.sin(a) * FERRIS.r / 2, 0, wheel); sp.rotation.z = a - Math.PI / 2;
+    const a = (k / 12) * TAU;
+    [-0.75, 0.75].forEach((z) => { const sp = put(box(0.08, FERRIS.r, 0.08), '#e9ecef', Math.cos(a) * FERRIS.r / 2, Math.sin(a) * FERRIS.r / 2, z, wheel); sp.rotation.z = a - Math.PI / 2; }); // 骨は 2 まいの 輪の 面に（ゴンドラに かからない）
     const car = new THREE.Group(); car.position.set(Math.cos(a) * FERRIS.r, Math.sin(a) * FERRIS.r, 0); wheel.add(car);
-    put(box(1.1, 1.0, 1.0), GC[k % GC.length], 0, -0.8, 0, car); put(box(1.14, 0.4, 1.04), '#bfe3f2', 0, -0.6, 0, car); put(box(0.06, 0.4, 0.06), '#e9ecef', 0, -0.15, 0, car);
+    const c = GC[k % GC.length]; // ゴンドラ：ゆか・屋根・4 本の 柱・こしの 高さの かべ・向かいあう ベンチ（上は 窓で 外が 見える）
+    put(box(1.3, 0.06, 1.1), '#5a6470', 0, -1.6, 0, car); put(box(1.42, 0.08, 1.22), c, 0, -0.25, 0, car); put(box(0.06, 0.28, 0.06), '#c9ced6', 0, -0.1, 0, car);
+    [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([sx, sz]) => put(box(0.06, 1.35, 0.06), c, sx * 0.62, -0.92, sz * 0.52, car));
+    [-1, 1].forEach((sd) => { put(box(1.3, 0.55, 0.04), c, 0, -1.32, sd * 0.53, car); put(box(0.04, 0.55, 1.1), c, sd * 0.63, -1.32, 0, car); put(box(1.1, 0.06, 0.3), '#8a6a46', 0, -1.18, sd * 0.36, car); });
+    const glass = put(box(1.26, 0.7, 1.06), '#bfe3f2', 0, -0.68, 0, car); glass.material = mat('#bfe3f2', { transparent: true, opacity: 0.18, roughness: 0.1, depthWrite: false }); // うすい ガラス
     FERRIS.cars.push(car);
   }
+  const fb = makeButton('観覧車に のる（きっぷ ' + FERRIS_PRICE + '円）', '#e0662f', 1.5, 0.26); fb.position.set(0, 1.3, 4.03); fw.add(fb); // 乗り場の 小屋の きっぷ売り場
+  fb.userData.ibaAct = () => { if (state.where === 'walk') rideFerris(); }; plazaClickables.push(fb);
   const fs = kcPlate('観覧車', 2.2, 0.6, '#e0662f', '#ffffff'); fs.position.set(0, 3.0, 4.01); fw.add(fs);
   ISLE.rects.push([FERRIS.at.x - 3.4, FERRIS.at.x + 3.4, FERRIS.at.z - 1.6, FERRIS.at.z + 4.1]);
-  // アミューズメント（カジノ）：南に 入口。夜でも 目立つ 看板
-  const S = CAS_SITE; const cg = new THREE.Group(); cg.position.copy(S.at); scene.add(cg); S.group = cg;
-  const body = put(box(S.W, S.H, S.D), '#2b2f45', 0, S.H / 2, 0, cg); put(box(S.W + 0.4, 0.4, S.D + 0.4), '#e3b23c', 0, S.H + 0.2, 0, cg);
-  for (let k = 0; k < 9; k++) put(box(0.5, 0.5, 0.05), ['#e0662f', '#e3b23c', '#e07fa4'][k % 3], -S.W / 2 + 1.2 + k * 2.0, S.H - 0.6, S.D / 2 + 0.03, cg).material = mat(['#e0662f', '#e3b23c', '#e07fa4'][k % 3], { emissive: ['#e0662f', '#e3b23c', '#e07fa4'][k % 3], emissiveIntensity: 0.9 }); // ネオン
-  const sign = kcPlate('HOPE アミューズメント', 9, 1.1, '#8b1e2d', '#ffe08a'); sign.position.set(0, S.H - 1.8, S.D / 2 + 0.04); cg.add(sign);
-  const sub = kcPlate('スロット・ルーレット・ブラックジャック', 7, 0.5, '#1f2a33', '#ffffff'); sub.position.set(0, S.H - 2.75, S.D / 2 + 0.04); cg.add(sub);
-  put(box(2.4, 2.5, 0.06), '#e3b23c', 0, 1.25, S.D / 2 + 0.02, cg); put(box(2.1, 2.3, 0.07), '#14161f', 0, 1.15, S.D / 2 + 0.03, cg); // 入口
-  [-1, 1].forEach((sd) => put(box(2.6, 1.2, 0.05), '#bfe3f2', sd * 4.6, 1.7, S.D / 2 + 0.02, cg).material = mat('#ffd98a', { emissive: '#c9822b', emissiveIntensity: 0.5 }));
-  [body, sign, sub].forEach((m) => { m.userData.casEnter = true; plazaClickables.push(m); });
-  ISLE.rects.push([S.at.x - S.W / 2, S.at.x + S.W / 2, S.at.z - S.D / 2, S.at.z + S.D / 2]);
+  { const C = CASINO_SITE; ISLE.rects.push([C.pos.x - C.W / 2, C.pos.x + C.W / 2, C.pos.z - C.D / 2, C.pos.z + C.D / 2]); } // HOPE アミューズメント（外観は 本島の 町と いっしょに 建てる）
   // 案内板（桟橋の 前）
   const gb = new Board(3.2, 1.6, 220); gb.draw((ctx, W, H) => { ctx.fillStyle = '#fffdf8'; roundRect(ctx, 0, 0, W, H, 20); ctx.fill(); ctx.fillStyle = '#2d6fa3'; ctx.fillRect(0, 0, W, H * 0.24);
     ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = '700 ' + Math.round(H * 0.15) + 'px ' + FONT_DISPLAY; ctx.fillText('ようこそ あそびの島へ', W / 2, H * 0.12);
     ctx.fillStyle = '#1f2a33'; ctx.font = '700 ' + Math.round(H * 0.11) + 'px ' + FONT_BODY; ctx.textAlign = 'left';
-    [['← 西：アミューズメント（スロットなど）', 0.38], ['↖ 北西：カジノ（バカラ・ポーカー）', 0.53], ['↙ 南西：HOPE 競馬場', 0.68], ['↑ 北：観覧車', 0.82], ['→ 東：連絡船のりば', 0.95]].forEach(([t, y]) => ctx.fillText(t, W * 0.05, H * y)); });
+    [['↖ 北西：HOPE アミューズメント', 0.4], ['　（スロット・ルーレット・カジノ）', 0.54], ['↙ 南西：HOPE 競馬場', 0.68], ['↑ 北東：観覧車（のれます）', 0.82], ['→ 東：連絡船のりば', 0.95]].forEach(([t, y]) => ctx.fillText(t, W * 0.05, H * y)); });
   const gq = P(33, -18.2); gb.mesh.position.set(gq.x, 1.6, gq.z); gb.mesh.rotation.y = Math.PI / 2; scene.add(gb.mesh); [-1.4, 1.4].forEach((dz) => put(box(0.1, 1.6, 0.1), '#5a4a3a', gq.x, 0.8, gq.z + dz));
 }
 // のりばの 小屋と「のる」ボタン（VR でも えらべる）
@@ -11136,7 +11139,7 @@ function boatRide(b, now) { // 乗っている 人（自分）は へさきの �
   rig.position.set(seat.x, b.g.position.y + (renderer.xr.isPresenting ? 0.62 : 0.3), seat.z); rig.rotation.y = b.g.rotation.y - Math.PI / 2;
 }
 function stepBoats(now) {
-  if (FERRIS.wheel && !reduceMotion) { FERRIS.wheel.rotation.z = now / 1000 * 0.06; FERRIS.cars.forEach((c) => { c.rotation.z = -FERRIS.wheel.rotation.z; }); }
+  if (FERRIS.wheel) { const dt = Math.min(0.1, (now - (FERRIS.last || now)) / 1000); FERRIS.last = now; if (!reduceMotion || (state.play && state.play.kind === 'ferris')) FERRIS.ang += dt * FERRIS.speed; FERRIS.wheel.rotation.z = FERRIS.ang; FERRIS.cars.forEach((c) => { c.rotation.z = -FERRIS.ang; }); }
   BOATS.list.forEach((b) => {
     const T = b.trip; const bob = Math.sin(now / 900 + (b.at === 'main' ? 0 : 2)) * 0.05;
     if (!T) { b.g.position.y = -0.2 + bob; return; }
@@ -11156,6 +11159,27 @@ function stepBoats(now) {
     b.g.position.y = -0.2 + bob;
   });
 }
+// 観覧車に のる（お金モードは きっぷ 300 円。バッジモードは ごちそう）。いちばん 下の ゴンドラに のって 1 周
+function rideFerris() {
+  if (profile && profile.mode === 'money') {
+    if (profile.money < FERRIS_PRICE) { toast('お金が たりません（観覧車 ' + yen(FERRIS_PRICE) + '）'); return; }
+    profile.money -= FERRIS_PRICE; saveProfile(); renderWallet(); playSfx('coin'); toast('観覧車の きっぷを 買いました（' + yen(FERRIS_PRICE) + '）');
+  } else toast('観覧車の きっぷを うけとりました');
+  leaveForPlay();
+  const v = new THREE.Vector3(); let car = FERRIS.cars[0]; let lo = Infinity;
+  FERRIS.wheel.parent.updateMatrixWorld(true); FERRIS.cars.forEach((c) => { c.getWorldPosition(v); if (v.y < lo) { lo = v.y; car = c; } });
+  state.where = 'play'; state.play = { kind: 'ferris', car, a0: FERRIS.ang, half: false };
+  look.yaw = 0; look.pitch = 0.05; ferrisRide(state.play, performance.now()); renderHud();
+}
+const ferrisTmp = new THREE.Vector3();
+function ferrisRide(pl, now) { // ゴンドラの おくの ベンチに すわって 南（島と 競馬場の 方）を 見る
+  pl.car.updateMatrixWorld(true); pl.car.localToWorld(ferrisTmp.set(0, 0, -0.36));
+  rig.position.set(ferrisTmp.x, ferrisTmp.y - (renderer.xr.isPresenting ? 1.6 : 2.03), ferrisTmp.z); rig.rotation.y = Math.PI;
+  const turned = FERRIS.ang - pl.a0;
+  if (!pl.half && turned > Math.PI) { pl.half = true; toast('てっぺんを すぎました。島が ぜんぶ 見えます'); }
+  if (turned >= TAU) { toast('1 周 しました。おつかれさまでした'); endPlay(); }
+}
+function ferrisOff() { const o = ferrisExit(); startWalk(o.pos, o.yaw); }
 // 居場所の ポスターなどから：フェリー乗り場の 連絡船のりばへ（きっぷを 買って 乗るのは そこで）
 function goBoatPier() {
   if (ibaNow()) { state.play = null; IBA.g.visible = false; rig.position.y = 0; }
@@ -11172,9 +11196,8 @@ function boatArrive(b) {
 const ISLE_DEST = [
   ['keiba', 'HOPE 競馬場', '馬券を 買って 観客席で 見る', () => openKeiba(kcOutside())],
   ['paddock', 'パドック', '発走前の 馬を 見る', () => { openKeiba(kcOutside()); kcPaddock(); }],
-  ['amuse', 'アミューズメント', 'スロット・ルーレット・ブラックジャック', () => openCasino(casOutside())],
-  ['casino', 'カジノ', 'バカラ・ポーカー', () => openIba(ibaOutside('casino'), 'casino')],
-  ['ferris', '観覧車の 前へ', '島の めじるし（歩いて 見て まわる）', () => startWalk(FERRIS.at.clone().add(new THREE.Vector3(0, 0, 7.5)), 0)],
+  ['amuse', 'HOPE アミューズメント', 'スロット・ルーレット・ブラックジャック・バカラ・ポーカー', () => openCasino(casOutside())],
+  ['ferris', '観覧車に のる', 'きっぷ ' + FERRIS_PRICE + ' 円（バッジモードは ごちそう）。1 周 約 70 秒', () => rideFerris()],
   ['walk', '自分で 歩いて さがす', '桟橋から 島を 歩く', () => {}],
   ['back', 'Work Island へ もどる', '連絡船（往復きっぷで のれます）', () => boardBoat('isle')],
 ];
@@ -11212,9 +11235,10 @@ const CAS_SEAT = { slot: 1.0, roulette: 1.0, bj: 0.85 };
 const CAS_PANEL = { slot: [-0.68, 1.3, 0.3], roulette: [0.25, 1.42, -0.95], bj: [-0.95, 1.3, 0.3] }; // 札の 位置（席から 見て、台や 人に かからない ところ）
 const casNow = () => (state.where === 'play' && state.play && state.play.kind === 'casino' ? state.play : null);
 function casClickables() {
-  const out = CAS.signs.concat(CAS.exitBtn ? [CAS.exitBtn] : []);
+  const out = CAS.signs.concat([CAS.exitBtn, CAS.link].filter(Boolean), IBA.signs); // 奥の カジノ フロアの 台の 札も えらべる（見えて いる もの）
   const pl = casNow(); Object.values(CAS.st).forEach((st) => { out.push(...st.btnMeshes); });
   if (pl && pl.at === 'roulette') out.push(...CAS.st.roulette.clicks);
+  if (pl && pl.at === 'slot') out.push(...CAS.st.slot.clicks);
   return out.filter(ibaShown);
 }
 function casUpdate(st, msg, defs) { st.msg = msg.filter(Boolean); ibaPaint(st); ibaButtons(st, defs); if (casNow() && casNow().at === st.key) renderHud(); }
@@ -11227,11 +11251,15 @@ function buildAmuse() {
   put(box(w, 0.1, d), '#7a1f2b', 0, -0.05, 0); // じゅうたん
   for (let x = -w / 2 + 1; x < w / 2; x += 2) put(box(0.06, 0.012, d), '#a33a44', x, 0.006, 0);
   const wall = '#2b2f45';
-  put(box(w, H, 0.12), wall, 0, H / 2, -d / 2); put(box(0.12, H, d), wall, -w / 2, H / 2, 0); put(box(0.12, H, d), wall, w / 2, H / 2, 0);
-  [-1, 1].forEach((sd) => put(box(w / 2 - 0.8, H, 0.12), wall, sd * (w / 4 + 0.4), H / 2, d / 2)); put(box(1.6, H - 2.3, 0.12), wall, 0, (H + 2.3) / 2, d / 2);
+  const AW = 5; const AH = 2.7; // 奥は カジノ フロア（バカラ・ポーカー）への アーチ
+  [-1, 1].forEach((sd) => put(box((w - AW) / 2, H, 0.12), wall, sd * (AW + (w - AW) / 2) / 2, H / 2, -d / 2)); put(box(AW, H - AH, 0.12), wall, 0, (H + AH) / 2, -d / 2);
+  [-1, 1].forEach((sd) => put(box(0.14, AH, 0.16), '#e3b23c', sd * AW / 2, AH / 2, -d / 2, g, { metalness: 0.25, roughness: 0.4 })); put(box(AW + 0.28, 0.14, 0.16), '#e3b23c', 0, AH, -d / 2, g, { metalness: 0.25, roughness: 0.4 });
+  put(box(0.12, H, d), wall, -w / 2, H / 2, 0); put(box(0.12, H, d), wall, w / 2, H / 2, 0);
+  [-1, 1].forEach((sd) => put(box(w / 2 - 0.8, H, 0.12), wall, sd * (w / 4 + 0.4), H / 2, d / 2));
+  CAS.link = ibaClick(makeButton('カジノ フロア（バカラ・ポーカー） ▶', '#22284a', 2.2, 0.24), () => toCasinoFloor()); CAS.link.position.set(0, 2.98, -d / 2 + 0.09); g.add(CAS.link); put(box(1.6, H - 2.3, 0.12), wall, 0, (H + 2.3) / 2, d / 2);
   put(box(w, 0.08, d), '#1f2236', 0, H, 0); put(box(w, 0.1, 0.06), '#e3b23c', 0, H - 0.2, -d / 2 + 0.07);
   for (let k = -2; k <= 2; k++) { const c = put(cyl(0.45, 0.25, 0.3, 12), '#fff1c2', k * 3.1, H - 0.25, -0.5, g, { emissive: '#ffe08a', emissiveIntensity: 0.9 }); c.rotation.x = Math.PI; }
-  const neon = kcPlate('HOPE CASINO', 4, 0.7, '#8b1e2d', '#ffe08a'); neon.position.set(0, 2.75, -d / 2 + 0.08); g.add(neon);
+  [-1, 1].forEach((sd) => { const neon = kcPlate('HOPE アミューズメント', 3.6, 0.55, '#8b1e2d', '#ffe08a'); neon.position.set(sd * (w / 2 - 0.08), 2.75, -1.5); neon.rotation.y = -sd * Math.PI / 2; g.add(neon); }); // 左右の かべの 上
   const rule = new Board(2.6, 0.55, 300); rule.draw((ctx, W, Hh) => { ctx.fillStyle = '#fffdf8'; roundRect(ctx, 0, 0, W, Hh, 20); ctx.fill(); ctx.fillStyle = '#1f2a33'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.font = '700 ' + Math.round(Hh * 0.22) + 'px ' + FONT_BODY; ctx.fillText('すきな 台の 札を えらぶと 席に つきます', W / 2, Hh * 0.33);
     ctx.font = '400 ' + Math.round(Hh * 0.17) + 'px ' + FONT_BODY; ctx.fillText('メダルは あそび用（お金・バッジとは べつ）。なくなったら もらえます', W / 2, Hh * 0.7); });
@@ -11253,19 +11281,24 @@ function buildAmuse() {
   buildSlot(CAS.st.slot); buildRoulette(CAS.st.roulette); buildBj(CAS.st.bj);
   slShow(CAS.st.slot); rlShow(CAS.st.roulette); bjShow(CAS.st.bj);
 }
-function openCasino(from) {
+function openCasino(from, quiet) {
   const pl0 = casNow();
   const fromInfo = pl0 ? pl0.from : from || (state.where === 'walk' ? { pos: rig.position.clone(), yaw: rig.rotation.y + look.yaw } : {});
-  leaveForPlay(); buildAmuse(); CAS.g.visible = true;
+  leaveForPlay(); buildAmuse(); buildIba(); buildCasino(); CAS.g.visible = true; CASINO.g.visible = true; IBA.g.visible = false; // 奥の カジノ フロアも 見える
   state.where = 'play'; state.play = { kind: 'casino', at: null, from: fromInfo, t0: performance.now() };
-  casStand(); toast('HOPE アミューズメントへ ようこそ');
+  casStand(); if (!quiet) toast('HOPE アミューズメントへ ようこそ');
 }
+// 同じ 建物の 中で フロアを うつる（出る ところ＝入口の 前は そのまま）
+function toCasinoFloor() { const pl = casNow(); if (pl) openIba(pl.from, 'casino', true); }
+function toAmuseFloor() { const pl = ibaNow(); if (pl && pl.room === 'casino') openCasino(pl.from, true); }
 function casStand() {
+  if (!casNow()) { toAmuseFloor(); return; }
   const pl = casNow(); if (!pl) return; pl.at = null;
   rig.position.copy(CAS.g.localToWorld(CAS.entry.clone())); rig.rotation.y = 0; look.yaw = 0; look.pitch = 0.1;
   renderHud();
 }
 function casSit(key) {
+  if (!casNow()) toAmuseFloor();
   const pl = casNow(); if (!pl) return; const st = CAS.st[key]; pl.at = key;
   const seat = new THREE.Vector3(st.x, renderer.xr.isPresenting ? 0 : -0.35 + (key === 'slot' ? 0.12 : 0), st.z + CAS_SEAT[key]);
   rig.position.copy(CAS.g.localToWorld(seat)); rig.position.y = seat.y; rig.rotation.y = 0; look.yaw = 0; look.pitch = key === 'roulette' ? 0.3 : 0.22;
@@ -11273,19 +11306,20 @@ function casSit(key) {
   renderHud();
 }
 function leaveCasino(pl) {
-  CAS.g.visible = false; rig.position.y = 0;
+  CAS.g.visible = false; if (CASINO.g) CASINO.g.visible = false; rig.position.y = 0;
   const o = casOutside(); if (pl.from.pos) startWalk(pl.from.pos, pl.from.yaw); else startWalk(o.pos, o.yaw);
 }
 function stepCasino(pl, dt, now) { stepSlot(CAS.st.slot, now); stepRoulette(CAS.st.roulette, now); stepBj(CAS.st.bj, now); }
 function renderCasinoHud(el) {
   const pl = state.play; const st = pl.at && CAS.st[pl.at];
-  const others = Object.keys(CAS_GAMES).filter((k) => k !== pl.at).map((k) => '<button type="button" data-cas-go="' + k + '">' + CAS_GAMES[k] + '</button>').join('');
-  el.innerHTML = '<span class="tag">HOPE アミューズメント（カジノ）</span><h2>' + (st ? CAS_GAMES[pl.at] : 'あそびを えらぶ') + '</h2>' +
+  const others = Object.keys(CAS_GAMES).filter((k) => k !== pl.at).map((k) => '<button type="button" data-cas-go="' + k + '">' + CAS_GAMES[k] + '</button>').join('') + ['baccarat', 'poker'].map((k) => '<button type="button" data-iba-go="' + k + '">' + IBA_GAMES[k] + '（奥）</button>').join('');
+  el.innerHTML = '<span class="tag">HOPE アミューズメント</span><h2>' + (st ? CAS_GAMES[pl.at] : 'あそびを えらぶ') + '</h2>' +
     (st ? '<div class="feedback">' + st.msg.map((m) => esc(m.text || m)).join('<br>') + '</div>' +
       '<div class="row">' + st.btnDefs.map((d, i) => '<button type="button"' + (d.on ? ' class="primary"' : '') + ' data-cas-btn="' + i + '">' + esc(d.label) + '</button>').join('') + '</div>'
-      : '<div>スロット・ルーレット・ブラックジャックが できます。台の 札を えらぶ（VR では ゆびさして トリガー）と 席に つきます。メダルは あそび用です（いま ' + ibaData().medals + 'まい）。</div>') +
+      : '<div>スロット・ルーレット・ブラックジャックが できます。奥の アーチの むこうは カジノ フロア（バカラ・ポーカー）です。台の 札を えらぶ（VR では ゆびさして トリガー）と 席に つきます。メダルは あそび用です（いま ' + ibaData().medals + 'まい）。</div>') +
     '<div class="row">' + others + (st ? '<button type="button" id="cas-stand">席を 立つ</button>' : '') + '<button type="button" id="cas-out">外に 出る</button></div>';
   el.querySelectorAll('[data-cas-go]').forEach((b) => { b.onclick = () => casSit(b.dataset.casGo); });
+  el.querySelectorAll('[data-iba-go]').forEach((b) => { b.onclick = () => ibaSit(b.dataset.ibaGo); });
   el.querySelectorAll('[data-cas-btn]').forEach((b) => { b.onclick = () => { const d = st.btnDefs[Number(b.dataset.casBtn)]; if (d) { playSfx('pop'); d.act(); } }; });
   if ($('cas-stand')) $('cas-stand').onclick = casStand;
   $('cas-out').onclick = endPlay;
@@ -11299,7 +11333,7 @@ function slotCabinet(parent, x, color) {
   const c = new THREE.Group(); c.position.set(x, 0, 0); parent.add(c);
   const put = (geo, col, px, py, pz, ex) => { const m = new THREE.Mesh(geo, ex ? mat(col, ex) : cmat(col)); m.position.set(px, py, pz); c.add(m); return m; };
   put(box(0.7, 1.7, 0.55), color, 0, 0.85, 0); put(box(0.72, 0.3, 0.58), '#e3b23c', 0, 1.82, 0, { emissive: '#c9822b', emissiveIntensity: 0.6 });
-  put(box(0.6, 0.06, 0.3), '#1f2a33', 0, 0.86, 0.38); // 手もとの 台
+  put(box(0.86, 0.06, 0.3), '#1f2a33', 0, 0.86, 0.38); // 手もとの 台（ボタンを ならべる）
   put(cyl(0.025, 0.025, 0.35, 8), '#c9ced6', 0.4, 1.2, 0.05); put(ball(0.05, 10, 8), '#d0392b', 0.4, 1.4, 0.05); // レバー
   return c;
 }
@@ -11308,7 +11342,7 @@ function buildSlot(st) {
   [0, 1.0, 2.0, 3.0].forEach((x, k) => {
     const c = slotCabinet(st.g, x, cols[k]);
     const reels = new Board(0.5, 0.24, 600); reels.mesh.position.set(0, 1.2, 0.28); c.add(reels.mesh);
-    if (x === 0) st.reels = reels; else { slDrawReels(reels, [k * 3, k * 5 + 1, k * 7 + 2]); seatedPerson(st.g, ['#e3b23c', '#2f6fc4', '#e07fa4', '#4f9a45'][k], '#3d4a54', x, CAS_SEAT.slot + 0.12, Math.PI, { stool: true, chair: '#8b1e2d', h: 0.6 }); }
+    if (x === 0) { st.reels = reels; st.cab = c; slControls(st, c); } else { slDrawReels(reels, [k * 3, k * 5 + 1, k * 7 + 2]); seatedPerson(st.g, ['#e3b23c', '#2f6fc4', '#e07fa4', '#4f9a45'][k], '#3d4a54', x, CAS_SEAT.slot + 0.12, Math.PI, { stool: true, chair: '#8b1e2d', h: 0.6 }); }
   });
   st.S = { bet: 1, pos: [0, 4, 8], spin: null, last: '' }; slDrawReels(st.reels, st.S.pos);
 }
@@ -11322,28 +11356,60 @@ function slDrawReels(b, pos) {
       for (let k = -1; k <= 1; k++) { const sym = SL_SYM[SL_STRIP[(((base + k) % 12) + 12) % 12]]; const y = H / 2 + (k - f) * H * 0.62 * -1; ctx.fillStyle = sym[1]; ctx.font = '700 ' + Math.round(H * (sym[0].length > 2 ? 0.22 : 0.34)) + 'px ' + FONT_BODY; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(sym[0], x0 + w / 2, y); }
       ctx.restore();
     }
-    ctx.fillStyle = 'rgba(208,57,43,0.8)'; ctx.fillRect(0, H / 2 - 2, W, 4);
   });
 }
+// 自分の 台の レバー・スピンボタン・ストップボタン（押すと しずむ。VR でも ゆびさして 押せる）
+const SL_REEL_X = [-0.1625, 0, 0.1625]; // リールの まん中（台の 中の x）
+function slControls(st, c) {
+  const mk = (r, h, color) => { const g = new THREE.Group(); c.add(g); const cap = new THREE.Mesh(cyl(r, r, h, 20), mat(color, { emissive: color, emissiveIntensity: 0.25 })); cap.position.y = h / 2; g.add(cap); const ring = new THREE.Mesh(cyl(r + 0.012, r + 0.012, 0.012, 20), cmat('#c9ced6')); ring.position.y = 0.006; g.add(ring); g.userData.cap = cap; return g; };
+  const plate = (t, x, z, w) => { const p = textPlate(t, w || 0.09, 0.03, '#1f2a33', '#ffffff'); p.rotation.x = -Math.PI / 2; p.position.set(x, 0.892, z); c.add(p); };
+  st.stopBtns = SL_REEL_X.map((x, r) => { const b = mk(0.034, 0.03, '#d0392b'); b.position.set(x, 0.89, 0.4); plate('STOP', x, 0.47); b.traverse((m) => { if (m.isMesh) st.clicks.push(ibaClick(m, () => slStop(st, r))); }); return b; });
+  const sb = mk(0.045, 0.034, '#2f9e5a'); sb.position.set(0.335, 0.89, 0.4); plate('SPIN', 0.335, 0.47, 0.1); st.spinBtn = sb;
+  sb.traverse((m) => { if (m.isMesh) st.clicks.push(ibaClick(m, () => slSpin(st))); });
+  const lv = new THREE.Group(); lv.position.set(0.42, 1.05, 0.05); c.add(lv); st.lever = lv; // レバー（手前に たおすと スピン）
+  const arm = new THREE.Mesh(cyl(0.022, 0.022, 0.4, 8), cmat('#c9ced6')); arm.position.y = 0.2; lv.add(arm);
+  const knob = new THREE.Mesh(ball(0.055, 12, 10), mat('#d0392b', { emissive: '#d0392b', emissiveIntensity: 0.2 })); knob.position.y = 0.42; lv.add(knob);
+  const hit = new THREE.Mesh(box(0.16, 0.5, 0.16), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false })); hit.position.y = 0.25; lv.add(hit);
+  [arm, knob, hit].forEach((m) => st.clicks.push(ibaClick(m, () => slSpin(st))));
+}
+function slPress(st, btn) { if (btn) btn.userData.pressT = performance.now(); playSfx('plastic'); }
 function slShow(st) {
-  const S = st.S; const md = ibaData().medals;
-  const msg = [S.spin ? 'まわって います…' : S.last || 'BET を えらんで スピン', 'メダル ' + md + 'まい　｜　BET ' + S.bet + 'まい', '7=' + SL_PAY[0] + '倍・BAR=' + SL_PAY[1] + '・ベル=' + SL_PAY[2] + '・スイカ=' + SL_PAY[3] + '・チェリー=' + SL_PAY[4] + '（左から 2 つ=2倍・1 つ=1倍）'];
-  const defs = S.spin ? [] : [{ label: 'BET 1', act: () => { S.bet = 1; slShow(st); }, on: S.bet === 1, w: 0.26 }, { label: 'BET 3', act: () => { S.bet = 3; slShow(st); }, on: S.bet === 3, w: 0.26 },
-    md < 1 ? casMedalBtn(st, slShow, 0) : { label: 'スピン', act: () => slSpin(st), w: 0.3, color: '#c0392b' }];
+  const S = st.S; const md = ibaData().medals; const P = S.spin;
+  const msg = [P ? 'STOP ボタンを 押して リールを 止めよう' : S.last || 'BET を えらんで、レバーか SPIN ボタンで スタート', 'メダル ' + md + 'まい　｜　BET ' + S.bet + 'まい', '7=' + SL_PAY[0] + '倍・BAR=' + SL_PAY[1] + '・ベル=' + SL_PAY[2] + '・スイカ=' + SL_PAY[3] + '・チェリー=' + SL_PAY[4] + '（左から 2 つ=2倍・1 つ=1倍）'];
+  const defs = P ? [0, 1, 2].filter((r) => P.tgt[r] === null).map((r) => ({ label: 'STOP ' + (r + 1), act: () => slStop(st, r), w: 0.24, color: '#c0392b' }))
+    : [{ label: 'BET 1', act: () => { S.bet = 1; slShow(st); }, on: S.bet === 1, w: 0.26 }, { label: 'BET 3', act: () => { S.bet = 3; slShow(st); }, on: S.bet === 3, w: 0.26 },
+      md < 1 ? casMedalBtn(st, slShow, 0) : { label: 'スピン', act: () => slSpin(st), w: 0.3, color: '#2f9e5a' }];
   casUpdate(st, msg, defs);
 }
 function slSpin(st) {
   const S = st.S; const d = ibaData(); if (S.spin) return;
   if (d.medals < S.bet) { toast('メダルが たりません'); return; }
   d.medals -= S.bet; if (profile) saveProfile();
-  S.spin = { t0: performance.now(), stops: [0, 1, 2].map(() => Math.floor(Math.random() * 12)), from: S.pos.slice(), done: [false, false, false] }; playSfx('beep'); slShow(st);
+  const now = performance.now(); slPress(st, st.spinBtn); if (st.lever) st.lever.userData.pullT = now;
+  S.spin = { t0: now + 250, from: S.pos.slice(), tgt: [null, null, null], at: [0, 0, 0], p0: [0, 0, 0], done: [false, false, false] }; playSfx('beep'); slShow(st);
 }
+// 押した ときに 見えて いる つぎの こまで 止まる（止まる まで すこし すべる）
+function slStop(st, r) {
+  const S = st.S; const P = S.spin; if (!P || P.tgt[r] !== null) return;
+  const now = performance.now(); if (now - P.t0 < 400) return; // まわりはじめは まだ 押せない
+  slPress(st, st.stopBtns && st.stopBtns[r]);
+  P.p0[r] = S.pos[r]; P.tgt[r] = Math.ceil(S.pos[r] + 0.25); P.at[r] = now; slShow(st);
+}
+const SL_AUTO = 8; // 押さない ときは 8 秒で じゅんに 止まる（VR で ボタンが 見えない とき など）
 function stepSlot(st, now) {
-  const S = st && st.S; if (!S || !S.spin) return; const P = S.spin; const t = (now - P.t0) / 1000;
-  for (let r = 0; r < 3; r++) { const stopT = 1.0 + r * 0.45; if (t < stopT) S.pos[r] = P.from[r] + t * 14; else if (!P.done[r]) { P.done[r] = true; S.pos[r] = P.stops[r]; playSfx('wood'); } }
-  if (now - (S.drawAt || 0) > 33 || P.done[2]) { S.drawAt = now; slDrawReels(st.reels, S.pos); }
-  if (P.done[2]) {
-    S.spin = null; const sy = P.stops.map((i) => SL_STRIP[i]); let k = 0;
+  const S = st && st.S; if (!S) return;
+  [st.spinBtn].concat(st.stopBtns || []).forEach((b) => { if (!b) return; const u = b.userData.pressT ? (now - b.userData.pressT) / 220 : 1; b.userData.cap.position.y = b.userData.cap.geometry.parameters.height / 2 - (u < 1 ? Math.sin(Math.PI * u) * 0.018 : 0); });
+  if (st.lever) { const u = st.lever.userData.pullT ? (now - st.lever.userData.pullT) / 600 : 1; st.lever.rotation.x = u < 1 ? Math.sin(Math.PI * Math.min(1, u * 1.4)) * 1.0 : 0; } // 手前に たおして もどる
+  const P = S.spin; if (!P) return;
+  P.done.forEach((dn, r) => { if (st.stopBtns) st.stopBtns[r].userData.cap.material.emissiveIntensity = P.tgt[r] === null && now > P.t0 + 400 ? 0.55 + Math.sin(now / 120) * 0.3 : 0.25; });
+  const t = Math.max(0, (now - P.t0) / 1000);
+  for (let r = 0; r < 3; r++) {
+    if (P.tgt[r] === null) { if (t > SL_AUTO + r * 0.5) { slStop(st, r); continue; } S.pos[r] = P.from[r] + (t < 0.3 ? t * t / 0.6 : t - 0.15) * 14; }
+    else if (!P.done[r]) { const u = Math.min(1, (now - P.at[r]) / 180); S.pos[r] = P.p0[r] + (P.tgt[r] - P.p0[r]) * (1 - (1 - u) * (1 - u)); if (u >= 1) { P.done[r] = true; S.pos[r] = ((P.tgt[r] % 12) + 12) % 12; playSfx('wood'); } }
+  }
+  if (now - (S.drawAt || 0) > 33 || P.done.every(Boolean)) { S.drawAt = now; slDrawReels(st.reels, S.pos); }
+  if (P.done.every(Boolean)) {
+    S.spin = null; const sy = S.pos.map((i) => SL_STRIP[i]); let k = 0;
     if (sy[0] === sy[1] && sy[1] === sy[2]) k = SL_PAY[sy[0]]; else if (sy[0] === 4 && sy[1] === 4) k = 2; else if (sy[0] === 4) k = 1;
     const pay = k * S.bet; ibaData().medals += pay; if (profile) saveProfile();
     S.last = pay ? (k >= 4 ? 'そろった！ ' : '') + SL_SYM[sy[0]][0] + ' → メダル ' + pay + 'まい' : 'はずれ（' + sy.map((i) => SL_SYM[i][0]).join('・') + '）';
@@ -11502,9 +11568,8 @@ function drawIsleMap(x, W, H, px) {
   path(oval(KC.R + KC.half)); x.fillStyle = '#5f9e46'; x.fill(); path(oval(KC.R - KC.half)); x.fillStyle = '#8fc56c'; x.fill();
   path([kc(-11, 11.8), kc(11, 11.8), kc(11, KC.standBack + 2.3), kc(-11, KC.standBack + 2.3)]); x.fillStyle = '#9a8f80'; x.fill();
   ISLE.rects.concat(ISLE.piers).forEach(([x0, x1, z0, z1], i) => { const [a, b] = mp(x0, z0); const [c, d] = mp(x1, z1); x.fillStyle = i === 1 ? '#2b2f45' : i === 0 ? '#e0662f' : '#a0784a'; x.fillRect(a, b, c - a, d - b); });
-  { const h = CASINO_SITE.W / 2; const [a, b] = mp(CASINO_SITE.pos.x - h, CASINO_SITE.pos.z - h); const [c, d] = mp(CASINO_SITE.pos.x + h, CASINO_SITE.pos.z + h); x.fillStyle = '#22284a'; x.fillRect(a, b, c - a, d - b); } // カジノ（バカラ・ポーカー）
   x.font = '700 ' + Math.round(11 * px) + 'px ' + FONT_BODY; x.textAlign = 'center'; x.textBaseline = 'middle'; x.lineWidth = 3 * px; x.lineJoin = 'round';
-  [['アミューズメント', CAS_SITE.at.x, CAS_SITE.at.z], ['カジノ', CASINO_SITE.pos.x, CASINO_SITE.pos.z], ['観覧車', FERRIS.at.x, FERRIS.at.z - 3], ['競馬場', KC.c.x, KC.c.z], ['連絡船', BOATS.board.isle.x, BOATS.board.isle.z - 4]].forEach(([t, wx, wz]) => { const [u, v] = mp(wx, wz); x.strokeStyle = 'rgba(255,255,255,0.9)'; x.strokeText(t, u, v); x.fillStyle = '#1f2a33'; x.fillText(t, u, v); });
+  [['HOPE アミューズメント', CASINO_SITE.pos.x - 2, CASINO_SITE.pos.z + 2], ['観覧車', FERRIS.at.x + 3, FERRIS.at.z - 6], ['競馬場', KC.c.x, KC.c.z], ['連絡船', BOATS.board.isle.x, BOATS.board.isle.z - 4]].forEach(([t, wx, wz]) => { const [u, v] = mp(wx, wz); x.strokeStyle = 'rgba(255,255,255,0.9)'; x.strokeText(t, u, v); x.fillStyle = '#1f2a33'; x.fillText(t, u, v); });
   x.textAlign = 'right'; x.fillStyle = '#ffffff'; x.fillText('Work Island ▶', W - 4 * px, H * 0.5);
   return mp;
 }
@@ -11524,16 +11589,16 @@ function nearbyActions() {
   if (profile && Math.hypot(FURN.door.x - p.x, FURN.door.z - p.z) < 6) out.push(['furn', '家具屋に 入る']);
   if (Math.hypot(IBA_SITE.door.x - p.x, IBA_SITE.door.z - p.z) < 6) out.push(['iba', 'みんなの 居場所に 入る']);
   if (kcOutside().pos.distanceTo(new THREE.Vector3(p.x, 0, p.z)) < 6) out.push(['keiba', '競馬場の 馬券売り場へ']);
-  if (Math.hypot(CASINO_SITE.door.x - p.x, CASINO_SITE.door.z - p.z) < 6) out.push(['casino', 'カジノに 入る']);
-  if (Math.hypot(CAS_SITE.door.x - p.x, CAS_SITE.door.z - p.z) < 6) out.push(['amuse', 'アミューズメント（スロット・ルーレット・ブラックジャック）に 入る']);
+  if (Math.hypot(CASINO_SITE.door.x - p.x, CASINO_SITE.door.z - p.z) < 6) out.push(['casino', 'HOPE アミューズメントに 入る']);
   if (Math.hypot(BOATS.board.main.x - p.x, BOATS.board.main.z - p.z) < 5) out.push(['boatMain', 'あそびの島へ 連絡船' + (profile && profile.mode === 'money' ? '（往復 ' + yen(BOAT_PRICE) + '）' : '')]);
   if (Math.hypot(BOATS.board.isle.x - p.x, BOATS.board.isle.z - p.z) < 6) out.push(['boatIsle', '連絡船で Work Island へ もどる']);
+  if (ferrisExit().pos.distanceTo(new THREE.Vector3(p.x, 0, p.z)) < 5) out.push(['ferris', '観覧車に のる' + (profile && profile.mode === 'money' ? '（' + yen(FERRIS_PRICE) + '）' : '')]);
   if (isleNow()) out.push(['isleMenu', 'あそびの島の 行き先']);
   const cf = booths.find((b) => b.job.id === 'cafe'); if (profile && cf && Math.hypot(cf.door.x - p.x, cf.door.z - p.z) < 6) { out.push(['cafe', 'カフェで のんびり']); out.push(['terrace', 'テラス席で のんびり']); }
   if (profile && PLAZA.c && Math.hypot(PLAZA.c.x - p.x, PLAZA.c.z - p.z) < 7) out.push(['plaza', 'テラスで のんびり']);
   return out;
 }
-const PLAY_ACTS = { iba: () => openIba(ibaOutside()), keiba: () => openKeiba(kcOutside()), casino: () => openIba(ibaOutside('casino'), 'casino'), amuse: () => openCasino(casOutside()), boatMain: () => boardBoat('main'), boatIsle: () => boardBoat('isle'), isleMenu: () => isleMenu(false), rehab: () => openRehab(), ski: startSki, climb: startClimb, swim: startSwim, sun: startSun, buy: () => openYataiShop(), furn: () => goFurniture(), cafe: () => openCafeOrder('in'), terrace: () => openCafeOrder('out'), plaza: () => openCafeOrder('plaza') };
+const PLAY_ACTS = { iba: () => openIba(ibaOutside()), keiba: () => openKeiba(kcOutside()), casino: () => openCasino(casOutside()), amuse: () => openCasino(casOutside()), boatMain: () => boardBoat('main'), boatIsle: () => boardBoat('isle'), isleMenu: () => isleMenu(false), ferris: () => rideFerris(), rehab: () => openRehab(), ski: startSki, climb: startClimb, swim: startSwim, sun: startSun, buy: () => openYataiShop(), furn: () => goFurniture(), cafe: () => openCafeOrder('in'), terrace: () => openCafeOrder('out'), plaza: () => openCafeOrder('plaza') };
 let lastNearby = '';
 function checkNearby() { const k = nearbyActions().map((a) => a[0]).join(',') + (state.skating ? '|s' : ''); if (k !== lastNearby) { lastNearby = k; renderHud(); } }
 // 屋台で 買う（お客さんとして）
@@ -11934,7 +11999,7 @@ $('btn-home').addEventListener('click', () => goHome());
 $('btn-settings').addEventListener('click', openSettings);
 window.hopeTown = { scene, camera,
   CASINO, CASINO_SITE, casinoRefill, casinoCount, CASINO_REST_EVERY, bacPlay, bacPayout, bacTotal, bacDeal, pkEval, pkHandName, pkEquity, pkNew, pkAct,
-  IBA, IBA_SITE, openIba, ibaSit, ibaStand, ibaClickables, ibaData, sgLegal, sgPlay, sgThink, igoThink, igoScore, mjShanten, mjComplete, mjYaku, mjCounts, ISLE, BOATS, boardBoat, boatTrip, openCasino, casSit, casStand, CAS, slSpin, rlSpin, bjDeal, bjHit, bjStand, CAS_SITE, goBoatPier, KC, openKeiba, kcWindow, kcSeat, kcPaddock, keibaBuy, keibaStart, keibaNew, kcClickables, walkable, kcOutside, shogiTap, igoTap, mjTap, mjRon,
+  IBA, IBA_SITE, openIba, ibaSit, ibaStand, ibaClickables, ibaData, sgLegal, sgPlay, sgThink, igoThink, igoScore, mjShanten, mjComplete, mjYaku, mjCounts, ISLE, BOATS, boardBoat, boatTrip, openCasino, casSit, casStand, CAS, slSpin, slStop, rlSpin, bjDeal, bjHit, bjStand, rideFerris, FERRIS, goBoatPier, KC, openKeiba, kcWindow, kcSeat, kcPaddock, keibaBuy, keibaStart, keibaNew, kcClickables, walkable, kcOutside, shogiTap, igoTap, mjTap, mjRon,
   state, goBooth, pickVariant, startSession, openRehab, startRehab, rehabPress, rehabSwipeThrow, rehabVolleyPress, REHAB, get rehabOpt() { return rehabOpt; }, set rehabOpt(v) { rehabOpt = v; }, select: onSelectItem, playSfx, sfxKind, SFX, nextTargetKey, setSeason, startWalk, exitToWalk, walkKeys, rig, look, walkable, booths, goHome, exitHome, goPlaza,
   get profile() { return profile; }, quitWork, openJobList, openCafeOrder, sitCafe, endPlay, CAFE_ORDER, doLeisure, LEISURE, home, HOME_LEVELS, upgradeHome, askUpgrade, homeLv, FURN, goFurniture, furnShop, pickFurn, exitFurniture, cheatCover() { const r = state.round; if (r && r.cover) { r.cover.surf.clearAll(); coverProgress(r, 1, performance.now()); } }, seasonal, LAKE, toWorld, nearbyActions, openShop, openBadgeBook, openSettings, openAreaPicker, openLookMaker, lookOf,
   // テスト用：オープニングを とばして 家を 用意する
