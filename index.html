@@ -2423,10 +2423,10 @@ const ITEM_MODELS = {
 //   正面は +z。hair は 'bob'（肩までの ボブ）か 'short'（みじかい 髪）。書かなければ 服の 色で きめる（町の 人が ばらけるように）。
 const PERSON_SKIN = '#f3dbc8';
 const PERSON_INK = '#3a2c27';
-// セーターの 形（すそ広がりで 肩は なだらか）。[はんけい, 高さ]。前後は PERSON_DEPTH で 少し うすく
-const PERSON_PROFILE = [[0, 0.09], [0.066, 0.09], [0.064, 0.15], [0.058, 0.19], [0.046, 0.212], [0.028, 0.222], [0.017, 0.226], [0, 0.226]];
+// セーターの 形（まるい たまご形。すそと 肩は 角を 丸める）。[はんけい, 高さ]。前後は PERSON_DEPTH で 少し うすく
+const PERSON_PROFILE = [[0, 0.088], [0.05, 0.088], [0.06, 0.091], [0.065, 0.098], [0.0665, 0.11], [0.065, 0.15], [0.06, 0.18], [0.053, 0.199], [0.043, 0.212], [0.03, 0.221], [0.017, 0.226], [0, 0.228]];
 const PERSON_DEPTH = 0.86;
-const PERSON_BODY = new THREE.LatheGeometry(PERSON_PROFILE.map(([x, y]) => new THREE.Vector2(x, y)), 24);
+const PERSON_BODY = new THREE.LatheGeometry(PERSON_PROFILE.map(([x, y]) => new THREE.Vector2(x, y)), 36);
 // 高さ y の ところの 体の はんけい
 function personRadius(y) {
   for (let i = 1; i < PERSON_PROFILE.length; i++) {
@@ -2454,7 +2454,8 @@ function chestPatch(pts, off) {
 }
 // えりもと：首の つけねから はだの V、その 両がわに 白い えり（先は V の 先より 下で あわさる）。y は 正面から 見た 高さ
 const NECK_Y = 0.222; // 首の つけね
-const PERSON_HEAD_Y = 0.304; // 頭の 中心（首が 少し 見える 高さ）
+const PERSON_HEAD_Y = 0.287; // 頭の 中心（あごが えりもとに のる 高さ。首は ほとんど 見せない）
+const PERSON_HEAD_R = 0.066;
 const PERSON_NECK_V = chestPatch([[-0.016, NECK_Y], [0.016, NECK_Y], [0, NECK_Y - 0.036]], 0.0015);
 const PERSON_COLLAR = [-1, 1].map((sd) => chestPatch([[sd * 0.016, NECK_Y], [sd * 0.026, NECK_Y], [sd * 0.041, NECK_Y - 0.014], [sd * 0.009, NECK_Y - 0.044], [sd * 0.002, NECK_Y - 0.032]], 0.003));
 function person(bodyColor, legColor, nameTag, hair) {
@@ -2463,20 +2464,23 @@ function person(bodyColor, legColor, nameTag, hair) {
   if (!hair) hair = [...bodyColor].reduce((a, c) => a + c.charCodeAt(0), 0) % 2 ? 'bob' : 'short';
   // 足と くつ
   [-1, 1].forEach((sd) => {
-    part(g, cyl(0.021, 0.019, 0.085, 12), legColor, sd * 0.024, 0.05, 0);
-    part(g, ball(0.022, 12, 8), PERSON_INK, sd * 0.024, 0.008, 0.008).scale.set(1, 0.5, 1.35);
+    part(g, cyl(0.02, 0.02, 0.075, 16), legColor, sd * 0.024, 0.055, 0);
+    part(g, ball(0.02, 16, 10), legColor, sd * 0.024, 0.093, 0); // ももの つけね（すそから 角が 見えない ように）
+    part(g, ball(0.023, 16, 12), PERSON_INK, sd * 0.024, 0.011, 0.007).scale.set(1, 0.55, 1.3);
   });
   part(g, PERSON_BODY, bodyColor, 0, 0, 0).scale.z = PERSON_DEPTH;
-  // うで：肩の 丸みから そのまま 下へ（つけねは 体に うめる）
-  const ARM = 0.11; const TILT = 0.16;
+  // うで：肩の 丸みの 内がわから 下へ。上と 下を 丸めた カプセル形（肩が こぶに ならない ように つけねは 体に うめる）
+  const ARM = 0.09; const TILT = 0.2; const AR = 0.0165;
   [-1, 1].forEach((sd) => {
-    const top = [sd * 0.05, 0.204];
-    part(g, ball(0.02, 12, 10), bodyColor, top[0], top[1], 0);
-    const arm = part(g, cyl(0.018, 0.02, ARM, 12), bodyColor, top[0] + sd * Math.sin(TILT) * ARM / 2, top[1] - Math.cos(TILT) * ARM / 2, 0); arm.rotation.z = sd * TILT;
-    part(g, ball(0.017, 10, 8), PERSON_SKIN, top[0] + sd * Math.sin(TILT) * ARM, top[1] - Math.cos(TILT) * ARM - 0.006, 0.002);
+    const top = [sd * 0.041, 0.197];
+    const end = [top[0] + sd * Math.sin(TILT) * ARM, top[1] - Math.cos(TILT) * ARM];
+    part(g, ball(AR, 16, 12), bodyColor, top[0], top[1], 0);
+    const arm = part(g, cyl(AR, AR, ARM, 16), bodyColor, (top[0] + end[0]) / 2, (top[1] + end[1]) / 2, 0); arm.rotation.z = sd * TILT;
+    part(g, ball(AR, 16, 12), bodyColor, end[0], end[1], 0);
+    part(g, ball(0.0175, 16, 12), PERSON_SKIN, end[0] + sd * 0.002, end[1] - 0.012, 0.002);
   });
-  // 首と えりもと
-  part(g, cyl(0.015, 0.017, 0.058, 12), PERSON_SKIN, 0, 0.247, 0);
+  // 首（みじかく。あごの 下に かくれる）と えりもと
+  part(g, cyl(0.016, 0.018, 0.03, 16), PERSON_SKIN, 0, 0.234, 0);
   part(g, PERSON_NECK_V, '#e3b89c', 0, 0, 0, { side: THREE.DoubleSide }); // あごの かげに なる ので 少し こく
   // 首の つけねの 前（上から 見ても V と えりが 首まで つづく）
   [[-0.62, 1.24, '#e3b89c'], [0.62, 0.48, '#ffffff'], [-1.1, 0.48, '#ffffff']].forEach(([a0, len, c]) => {
@@ -2485,25 +2489,28 @@ function person(bodyColor, legColor, nameTag, hair) {
   PERSON_COLLAR.forEach((geo) => part(g, geo, '#ffffff', 0, 0, 0, { side: THREE.DoubleSide }));
   if (nameTag) part(g, box(0.05, 0.026, 0.004), '#ffffff', 0, 0.162, 0.058);
   // 頭（体より 大きめ）
-  const H = PERSON_HEAD_Y; const R = 0.064;
-  part(g, ball(R, 24, 18), PERSON_SKIN, 0, H, 0);
-  [-1, 1].forEach((sd) => part(g, ball(0.012, 10, 8), PERSON_SKIN, sd * 0.062, H - 0.006, -0.004).scale.set(0.6, 1, 0.9));
-  // 目（黒目と 白い ひかり）・ほっぺ・口
+  const H = PERSON_HEAD_Y; const R = PERSON_HEAD_R;
+  part(g, ball(R, 36, 28), PERSON_SKIN, 0, H, 0);
+  [-1, 1].forEach((sd) => part(g, ball(0.012, 12, 10), PERSON_SKIN, sd * 0.064, H - 0.01, -0.004).scale.set(0.6, 1, 0.9));
+  // 目（顔の まん中より 少し 下・大きめ。黒目に 白い ひかり 2 つ）・ほっぺ・小さな 口
+  const onFace = (x, y, off) => Math.sqrt(Math.max(0, R * R - x * x - y * y)) + off; // 顔の 表面の z
   [-1, 1].forEach((sd) => {
-    part(g, ball(0.0078, 12, 10), '#2e2420', sd * 0.022, H - 0.002, 0.059).scale.set(1, 1.3, 0.6);
-    part(g, ball(0.0032, 8, 6), '#ffffff', sd * 0.022 + 0.003, H + 0.0045, 0.0635);
-    part(g, ball(0.012, 12, 8), '#eaa3b5', sd * 0.039, H - 0.016, 0.0485).scale.set(1.35, 0.8, 0.35);
+    const ex = sd * 0.023; const ey = -0.011;
+    part(g, ball(0.0095, 16, 12), '#2e2420', ex, H + ey, onFace(ex, ey, -0.002)).scale.set(1, 1.25, 0.55);
+    part(g, ball(0.0034, 10, 8), '#ffffff', ex + 0.0032, H + ey + 0.0048, onFace(ex + 0.0032, ey + 0.0048, 0.0022));
+    part(g, ball(0.0016, 8, 6), '#ffffff', ex - 0.003, H + ey - 0.0045, onFace(ex - 0.003, ey - 0.0045, 0.0022));
+    part(g, ball(0.0125, 16, 10), '#f2a7b8', sd * 0.041, H - 0.025, onFace(sd * 0.041, -0.025, -0.004)).scale.set(1.3, 0.75, 0.35);
   });
-  const mouth = part(g, new THREE.TorusGeometry(0.015, 0.0024, 6, 16, Math.PI), PERSON_INK, 0, H - 0.017, 0.0605); mouth.rotation.set(-0.3, 0, Math.PI); mouth.scale.y = 0.55;
+  const mouth = part(g, new THREE.TorusGeometry(0.0095, 0.0022, 8, 16, Math.PI), PERSON_INK, 0, H - 0.028, onFace(0, -0.028, 0.0005)); mouth.rotation.set(-0.45, 0, Math.PI); mouth.scale.y = 0.6;
   // 髪：上の かぶり（前は ひたいの 上、うしろは えりあし まで）＋ ななめの 前髪
-  const top = part(g, new THREE.SphereGeometry(R + 0.006, 24, 12, 0, TAU, 0, Math.PI / 2), hairColor, 0, H, -0.002, { side: THREE.DoubleSide });
+  const top = part(g, new THREE.SphereGeometry(R + 0.006, 36, 16, 0, TAU, 0, Math.PI / 2), hairColor, 0, H, -0.002, { side: THREE.DoubleSide });
   top.rotation.x = -0.42;
-  const bang = part(g, new THREE.SphereGeometry(R + 0.004, 24, 10, 0, TAU, 0, Math.PI * 0.36), hairColor, 0, H, 0, { side: THREE.DoubleSide });
+  const bang = part(g, new THREE.SphereGeometry(R + 0.004, 36, 12, 0, TAU, 0, Math.PI * 0.36), hairColor, 0, H, 0, { side: THREE.DoubleSide });
   bang.rotation.set(0.32, 0, 0.3);
   if (hair === 'bob') {
-    // 肩の 上まで とどく ボブ（顔の 前は あける）
-    const side = part(g, new THREE.CylinderGeometry(R + 0.007, R + 0.017, 0.085, 28, 1, true, Math.PI * 0.3, Math.PI * 1.4), hairColor, 0, H - 0.028, -0.003, { side: THREE.DoubleSide });
-    side.scale.z = 0.95;
+    // あごの 下まで とどく 丸い ボブ（すそは 内まき。顔の 前は あける）
+    const side = part(g, new THREE.SphereGeometry(R + 0.009, 36, 16, Math.PI * 0.82, Math.PI * 1.36, Math.PI * 0.22, Math.PI * 0.56), hairColor, 0, H - 0.004, -0.002, { side: THREE.DoubleSide });
+    side.scale.set(1.04, 1.12, 1);
   }
   return g;
 }
@@ -3393,9 +3400,10 @@ function avatar(gender) {
   if (gender === 'n') {
     // ぼうし：頭に かぶせる（髪と 同じ だけ うしろに かたむけ、つばは ひたいの 上）
     const cap = new THREE.Group(); cap.position.set(0, PERSON_HEAD_Y, 0); cap.rotation.x = -0.3; g.add(cap);
-    part(cap, new THREE.SphereGeometry(0.0735, 24, 12, 0, TAU, 0, Math.PI * 0.42), '#e3b23c', 0, 0, 0, { side: THREE.DoubleSide });
-    part(cap, cyl(0.0735 * Math.sin(Math.PI * 0.42), 0.0735 * Math.sin(Math.PI * 0.42), 0.008, 24), '#d29f2c', 0, 0.0735 * Math.cos(Math.PI * 0.42), 0);
-    const brim = part(cap, new THREE.CylinderGeometry(0.06, 0.06, 0.005, 24, 1, false, -Math.PI * 0.32, Math.PI * 0.64), '#d29f2c', 0, 0.0735 * Math.cos(Math.PI * 0.42) - 0.002, 0.03);
+    const CR = PERSON_HEAD_R + 0.0095;
+    part(cap, new THREE.SphereGeometry(CR, 36, 14, 0, TAU, 0, Math.PI * 0.42), '#e3b23c', 0, 0, 0, { side: THREE.DoubleSide });
+    part(cap, new THREE.TorusGeometry(CR * Math.sin(Math.PI * 0.42), 0.004, 8, 36), '#d29f2c', 0, CR * Math.cos(Math.PI * 0.42), 0).rotation.x = Math.PI / 2;
+    const brim = part(cap, new THREE.CylinderGeometry(0.062, 0.062, 0.005, 36, 1, false, -Math.PI * 0.32, Math.PI * 0.64), '#d29f2c', 0, CR * Math.cos(Math.PI * 0.42) - 0.002, 0.03);
     brim.rotation.x = 0.12;
   }
   return g;
