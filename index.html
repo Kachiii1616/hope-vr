@@ -1342,20 +1342,20 @@ const RIVERS = [
 const BEACH = [[110, 320], [130, 270], [200, 210], [300, 150], [380, 115], [430, 110], [432, 150], [380, 162], [300, 196], [230, 250], [170, 300], [150, 350]];
 // 湖（冬は スケート場）。楕円の 半径は m
 const LAKE = { at: [265, 592], rx: 40 * MAP_SCALE, rz: 36 * MAP_SCALE, blk: null };
-// 競馬場：南の 海を 埋め立てた 土地（IT街の 通りの 先）。島の 多角形とは べつに 持つ（町の 家や 木の 散らし方は かえない）
-//   KC はコース。c が コースの 中心。ローカルは +z が 北（スタンド がわ）で、world = c + (-lx, y, -lz)。L は 直線の 長さ、R は まん中の 半径、half は 芝の はば（半分）
-const RACE_LAND = [[400, 712], [480, 722], [560, 762], [604, 770], [632, 835], [634, 925], [606, 1008], [400, 1012], [362, 960], [360, 822], [378, 742]];
-const KC = { c: toWorld(495, 905), L: 16, R: 8, half: 2.6, lane: 0.72, standBack: 19.5, annex: 2.0 }; // annex は スタンドの うしろの 馬券売り場の 奥ゆき
-function insideRace(px, py) {
-  let inside = false;
-  for (let i = 0, j = RACE_LAND.length - 1; i < RACE_LAND.length; j = i++) {
-    const [xi, yi] = RACE_LAND[i]; const [xj, yj] = RACE_LAND[j];
+// あそびの島：フェリー乗り場の 西の 海に うかぶ となりの 島（競馬場・アミューズメント（カジノ）・観覧車）。連絡船で 行く
+//   c が 島の 中心（m）。poly は c からの ずれ（m。x は 東、z は 南）。rects は 歩いて 通れない 建物（world の [x0, x1, z0, z1]）
+const ISLE = { c: new THREE.Vector3(-165, 0, 12), poly: [[-30, -44], [10, -48], [36, -40], [42, -26], [41, -8], [31, 6], [30, 24], [19, 36], [-19, 36], [-30, 23], [-32, 0], [-39, -18]], rects: [], piers: [] }; // piers は 歩ける 桟橋（world の [x0, x1, z0, z1]）
+function insideIsle(x, z) {
+  const P = ISLE.poly; const px = x - ISLE.c.x; const py = z - ISLE.c.z; let inside = false;
+  for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
+    const [xi, yi] = P[i]; const [xj, yj] = P[j];
     if ((yi > py) !== (yj > py) && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi) inside = !inside;
   }
   return inside;
 }
+// 競馬場（あそびの島の 南がわ）。KC は コース。c が コースの 中心。ローカルは +z が 北（スタンド がわ）で、world = c + (-lx, y, -lz)。L は 直線の 長さ、R は まん中の 半径、half は 芝の はば（半分）
+const KC = { c: new THREE.Vector3(ISLE.c.x, 0, ISLE.c.z + 14), L: 16, R: 8, half: 2.6, lane: 0.72, standBack: 19.5, annex: 2.0 }; // annex は スタンドの うしろの 馬券売り場の 奥ゆき
 const kcLocal = (x, z) => [KC.c.x - x, KC.c.z - z];
-function inRaceArea(x, z) { const [lx, lz] = kcLocal(x, z); return Math.abs(lx) < 21 && lz > -15 && lz < 28; } // コース・スタンド・入口の 広場（木を 立てない）
 // 島の上の場所が空いているか（建物・木を散らすときに使う）
 const blocked = []; // { x, z, r }（m）
 const FIELDS = {}; // 外で する 農作業の 場所（paddy＝田んぼ、orchard＝りんご畑、tomato＝トマトの ハウス）
@@ -1399,9 +1399,11 @@ function block(x, z, r, w) { blocked.push({ x, z, r, w: w === undefined ? r : w 
 const WALKER_R = 0.3;
 function walkable(x, z) {
   const m = WALKER_R / MAP_SCALE; const [px, py] = toMap(x, z);
-  if (![[0, 0], [m, 0], [-m, 0], [0, m], [0, -m]].every(([ox, oy]) => insideIsland(px + ox, py + oy) || insideRace(px + ox, py + oy))) return false;
+  const R = WALKER_R; // あそびの島は 島の 多角形（m）で 見る
+  if (![[0, 0], [m, 0], [-m, 0], [0, m], [0, -m]].every(([ox, oy]) => insideIsland(px + ox, py + oy)) && ![[0, 0], [R, 0], [-R, 0], [0, R], [0, -R]].every(([ox, oz]) => insideIsle(x + ox, z + oz) || ISLE.piers.some(([x0, x1, z0, z1]) => x + ox > x0 && x + ox < x1 && z + oz > z0 && z + oz < z1))) return false;
   const [lx, lz] = kcLocal(x, z); // 競馬場は スタンドの うしろの 広場だけ 歩ける（中は 馬券売り場・観客席から 見る）
-  if (lz < KC.standBack + 0.3 + KC.annex + 0.4 && lz > -16 && (Math.abs(lx) < 11.8 || !insideIsland(px, py))) return false;
+  if (lz < KC.standBack + 0.3 + KC.annex + 0.4 && lz > -16 && Math.abs(lx) < 24) return false;
+  if (ISLE.rects.some(([x0, x1, z0, z1]) => x > x0 - R && x < x1 + R && z > z0 - R && z < z1 + R)) return false;
   if (blocked.some((b) => b.w > 0 && Math.hypot(b.x - x, b.z - z) < b.w + WALKER_R)) return false;
   const onRoad = roadSegs.some(([a, b]) => segDist(x, z, a, b) < ROAD_W / 2);
   return onRoad || !riverSegs.some(([a, b, w]) => segDist(x, z, a, b) < w / 2 + 0.1);
@@ -1532,7 +1534,7 @@ function addCyl(x, y, z, rt, rb, h, color, seg) {
 const booths = [];
 const plazaClickables = [];
 const overviewOnly = []; // 島ぜんたいを見ているときだけ出す（目印の旗・地域の名前）
-const OVERVIEW = { pos: new THREE.Vector3(0, 60, 106), yaw: 0, pitch: 0.62 }; // 島ぜんたいが 入る 高さ（島の 大きさに あわせる）
+const OVERVIEW = { pos: new THREE.Vector3(0, 53, 80), yaw: 0, pitch: 0.62 }; // 島ぜんたいが 入る 高さ（島の 大きさに あわせる）
 
 function overviewSign(text, sub, color, w) {
   const b = new Board(w || 6, (w || 6) / 3, 120);
@@ -1697,10 +1699,10 @@ const IBA_SITE = { near: [432, 516], W: 5.4, H: 3.2 };
 (() => { const r = roadside(IBA_SITE.near); IBA_SITE.yaw = r.yaw; IBA_SITE.front = r.front;
   IBA_SITE.pos = r.foot.clone().addScaledVector(r.front, -(ROAD_W / 2 + 0.6 + IBA_SITE.W / 2)); IBA_SITE.door = r.foot.clone().addScaledVector(r.front, -ROAD_W / 2);
   IBA_SITE.at = toMap(IBA_SITE.pos.x, IBA_SITE.pos.z); block(IBA_SITE.pos.x, IBA_SITE.pos.z, IBA_SITE.W * 0.72, IBA_SITE.W / 2 + 0.2); })();
-// カジノ（中で バカラ・ポーカーが できる。メダルで あそぶ）。繁華街の 目抜き通りの 南がわ
-const CASINO_SITE = { near: [160, 634], W: 6.4, H: 4.2 }; // コンビニの 入口と 4 m はなす（道の まん中で すいこまれない）
-(() => { const r = roadside(CASINO_SITE.near); CASINO_SITE.yaw = r.yaw; CASINO_SITE.front = r.front;
-  CASINO_SITE.pos = r.foot.clone().addScaledVector(r.front, -(ROAD_W / 2 + 0.6 + CASINO_SITE.W / 2)); CASINO_SITE.door = r.foot.clone().addScaledVector(r.front, -ROAD_W / 2);
+// カジノ（中で バカラ・ポーカーが できる。メダルで あそぶ）。となりの あそびの島の 広場の 北（アミューズメントと 観覧車の あいだ。入口は 南）
+const CASINO_SITE = { W: 6.4, H: 4.2 };
+(() => { CASINO_SITE.yaw = 0; CASINO_SITE.front = new THREE.Vector3(0, 0, 1);
+  CASINO_SITE.pos = new THREE.Vector3(ISLE.c.x + 3, 0, ISLE.c.z - 31); CASINO_SITE.door = CASINO_SITE.pos.clone().addScaledVector(CASINO_SITE.front, CASINO_SITE.W / 2 + 0.6);
   CASINO_SITE.at = toMap(CASINO_SITE.pos.x, CASINO_SITE.pos.z); block(CASINO_SITE.pos.x, CASINO_SITE.pos.z, CASINO_SITE.W * 0.72, CASINO_SITE.W / 2 + 0.2); })();
 
 // 地域の名前（お店のない地域・目じるし）
@@ -1772,9 +1774,10 @@ function treeSnow(parent, geo, x, y, z, sx, sy) {
   const m = new THREE.Mesh(geo, snowMat); m.position.set(x, y, z); m.scale.set(sx, sy === undefined ? sx : sy, sx); m.visible = false;
   parent.add(m); seasonal.treeSnow.push(m); return m;
 }
+const PIER_CLEAR = { at: toWorld(118, 500), r: 4 }; // 連絡船のりば（フェリー乗り場の 南）には 木を 立てない
 function tree(x, z, kind) {
   const s = 0.8 + rand() * 0.5;
-  if (inRaceArea(x, z)) { rand(); return; } // 競馬場の 上には 立てない（乱数の 順は そのまま）
+  if (Math.hypot(x - PIER_CLEAR.at.x, z - PIER_CLEAR.at.z) < PIER_CLEAR.r) { rand(); return; } // 乱数の 順と ちらし方は そのまま（立てない だけ）
   const trunk = new THREE.Mesh(treeTrunk, cmat('#7a5a3a')); trunk.position.set(x, 0.6 * s, z); trunk.scale.setScalar(s); scene.add(trunk);
   if (kind === 'conifer') {
     const c = new THREE.Mesh(conifer, cmat(rand() < 0.5 ? '#3f7a3a' : '#4d8a45')); c.position.set(x, 2.2 * s, z); c.scale.setScalar(s); scene.add(c);
@@ -3695,8 +3698,7 @@ const LEISURE = [
   { id: 'sun', name: 'ビーチで 日向ぼっこ', cost: 0, ok: () => season === 'summer', go: () => { goBeach(); startSun(); } },
   { id: 'rehab', name: 'リハビリステーション', cost: 0, ok: () => true, go: () => openRehab() },
   { id: 'iba', name: 'みんなの 居場所（将棋・囲碁・麻雀）', cost: 0, ok: () => true, go: () => openIba() },
-  { id: 'keiba', name: '競馬場（馬券を 買って 観戦）', cost: 0, ok: () => true, go: () => openKeiba() },
-  { id: 'casino', name: 'カジノ（バカラ・ポーカー）', cost: 0, ok: () => true, go: () => openIba(null, 'casino') },
+  { id: 'isle', name: 'あそびの島（競馬場・カジノ）', price: 500, label: '連絡船 往復 500円', ok: () => true, go: () => boatTrip('main') },
   { id: 'skate', name: '湖で スケート', price: 400, label: 'スケートぐつ 400円', ok: () => season === 'winter', go: () => { const c = LAKE.blk; startWalk(new THREE.Vector3(c.x, 0, c.z), 0); } },
   { id: 'ski', name: 'スキー', price: 500, label: 'リフト券 500円', ok: () => season === 'winter', go: () => startSki() },
   { id: 'cafe', name: 'カフェで のんびり', label: '300円〜', ok: () => true, go: () => openCafeOrder('in') },
@@ -4026,6 +4028,7 @@ function walkStep(dt) {
   if (near >= 0) { Object.keys(walkKeys).forEach((k) => { walkKeys[k] = false; }); syncPad(); goBooth(near); return; }
   if (profile && Math.hypot(FURN.door.x - p.x, FURN.door.z - p.z) < 1.3) goFurniture(); // 家具屋の 入口
   if (Math.hypot(IBA_SITE.door.x - p.x, IBA_SITE.door.z - p.z) < 1.3) { Object.keys(walkKeys).forEach((k) => { walkKeys[k] = false; }); syncPad(); openIba(ibaOutside()); } // みんなの 居場所の 入口
+  if (Math.hypot(CAS_SITE.door.x - p.x, CAS_SITE.door.z - p.z) < 1.3) { Object.keys(walkKeys).forEach((k) => { walkKeys[k] = false; }); syncPad(); openCasino(casOutside()); return; } // アミューズメントの 入口
   const kb = kcW(KC_BUY.x, 0, KC_BUY.z); if (Math.hypot(kb.x - p.x, kb.z - p.z) < 1.3) { Object.keys(walkKeys).forEach((k) => { walkKeys[k] = false; }); syncPad(); openKeiba(kcOutside()); } // 競馬場の 馬券売り場の まどの 前
   if (Math.hypot(CASINO_SITE.door.x - p.x, CASINO_SITE.door.z - p.z) < 1.3) { Object.keys(walkKeys).forEach((k) => { walkKeys[k] = false; }); syncPad(); openIba(ibaOutside('casino'), 'casino'); } // カジノの 入口
 }
@@ -8169,6 +8172,7 @@ function currentClickables() {
   if (state.where === 'home') return home.btns ? Object.values(home.btns).concat(home.leisureBtns || []) : [];
   if (state.where === 'play' && state.play && state.play.kind === 'iba') return ibaClickables();
   if (state.where === 'play' && state.play && state.play.kind === 'keiba') return kcClickables();
+  if (state.where === 'play' && state.play && state.play.kind === 'casino') return casClickables();
   if (state.where === 'opening' || state.where === 'play') return [];
   if (state.where === 'furn') return (furnShop.btns || []).concat(furnShop.clickables); // 札の 下の ボタンも えらべる
   const b = state.booth; const list = Object.values(b.btns).filter((m) => m.visible);
@@ -8184,7 +8188,8 @@ function handleRay(ray) {
   if (obj.userData.ibaEnter) { openIba(); return; }
   if (obj.userData.kcEnter) { openKeiba(); return; }
   if (obj.userData.kcPad) { openKeiba(); kcPaddock(); return; }
-  if (obj.userData.casinoEnter) { openIba(null, 'casino'); return; }
+  if (obj.userData.casinoEnter) { if (isleNow()) openIba(null, 'casino'); else boardBoat('main'); return; } // カジノは あそびの島（ほかの 島からは 連絡船で）
+  if (obj.userData.casEnter) { openCasino(); return; }
   if (obj.userData.furnBuy) { if (state.where === 'furn') { playSfx('coin'); buyFurn(obj.userData.furnBuy); } return; }
   if (obj.userData.furnCancel) { furnShop.selected = null; paintFurnTags(); renderHud(); return; }
   if (obj.userData.furnId) { if (state.where === 'furn') { playSfx(SFX_FURN[obj.userData.furnId] || 'pop'); pickFurn(obj.userData.furnId); } return; }
@@ -8246,9 +8251,9 @@ const $ = (id) => document.getElementById(id);
 const chipsEl = $('chips');
 
 // ---- 右上の 島の 地図 --------------------------------------------------------
-//   地図 px（x 90〜940・y 110〜1015。南の 海の 競馬場まで）を そのまま 縮めて 描く。島・道・川は 1 回だけ 描いて おき、
+//   地図 px（x 90〜940・y 110〜790）を そのまま 縮めて 描く。島・道・川は 1 回だけ 描いて おき、
 //   いまの 場所と 向き・いる お店は 毎回 上に 重ねる。
-const MM = { x0: 90, y0: 110, w: 850, h: 905 };
+const MM = { x0: 90, y0: 110, w: 850, h: 680 };
 const mmWrap = $('minimap'); const mmCanvas = $('minimap-canvas'); const mmCtx = mmCanvas.getContext('2d');
 let mmBase = null; let mmScale = 1;
 function mmPos(px, py) { return [(px - MM.x0) * mmScale, (py - MM.y0) * mmScale]; }
@@ -8267,11 +8272,8 @@ function paintIsland(x, sc) {
   x.fillStyle = '#4f9fc4'; x.fillRect(0, 0, MM.w * sc, MM.h * sc);
   const path = (pts) => { x.beginPath(); pts.forEach(([px, py], i) => { const [u, v] = mmPos(px, py); if (i) x.lineTo(u, v); else x.moveTo(u, v); }); };
   path(ISLAND); x.closePath(); x.fillStyle = season === 'winter' ? SNOW_TINT['#9cc47f'] : '#9cc47f'; x.fill();
-  path(RACE_LAND); x.closePath(); x.fill();
-  // 競馬場（茶色の スタンドと 緑の コース）
-  const kc = (lx, lz) => toMap(KC.c.x - lx, KC.c.z - lz); const oval = (r) => { const pts = []; for (let k = 0; k <= 40; k++) { const a = (k / 40) * TAU; const sx = Math.cos(a) >= 0 ? KC.L / 2 : -KC.L / 2; pts.push(kc(sx + r * Math.cos(a), r * Math.sin(a))); } return pts; };
-  path(oval(KC.R + KC.half)); x.closePath(); x.fillStyle = '#5f9e46'; x.fill(); path(oval(KC.R - KC.half)); x.closePath(); x.fillStyle = '#8fc56c'; x.fill();
-  path([kc(-11, 11.8), kc(11, 11.8), kc(11, KC.standBack), kc(-11, KC.standBack)]); x.closePath(); x.fillStyle = '#9a8f80'; x.fill();
+  // 西の 海の あそびの島（地図の 外）の 方角
+  { const [u, v] = mmPos(96, 520); x.fillStyle = '#ffffff'; x.font = '700 ' + Math.round(26 * sc) + 'px ' + FONT_BODY; x.textAlign = 'left'; x.textBaseline = 'middle'; x.fillText('◀ あそびの島（船）', u, v); }
   // 山
   const [mx, my] = mmPos(520, 392); x.beginPath(); x.arc(mx, my, (12.5 / MAP_SCALE) * mmScale, 0, Math.PI * 2); x.fillStyle = '#7f9161'; x.fill();
   x.beginPath(); x.arc(mx, my, (12.5 * 0.3 / MAP_SCALE) * mmScale, 0, Math.PI * 2); x.fillStyle = '#f7fbff'; x.fill();
@@ -8285,8 +8287,13 @@ const mmHead = new THREE.Vector3(); const mmDir = new THREE.Vector3();
 function drawMinimap() {
   if (mmWrap.classList.contains('closed')) return;
   if (!mmBase || mmBase.width !== Math.round((mmCanvas.clientWidth || 200) * Math.min(window.devicePixelRatio || 1, 2))) buildMinimapBase();
-  const x = mmCtx; x.drawImage(mmBase, 0, 0);
-  const px = mmCanvas.width / (mmCanvas.clientWidth || 200); // 画面の 1px が 何ドットか
+  const x = mmCtx; const px = mmCanvas.width / (mmCanvas.clientWidth || 200); // 画面の 1px が 何ドットか
+  camera.getWorldPosition(mmHead); camera.getWorldDirection(mmDir);
+  if (casNow()) mmHead.copy(CAS_SITE.door);
+  if (mmHead.x < -95 && mmHead.x > -300 && state.where !== 'plaza') { // あそびの島（と 連絡船）に いる ときは 島だけの 地図
+    const mp = drawIsleMap(x, mmCanvas.width, mmCanvas.height, px); const [u, v] = mp(mmHead.x, mmHead.z); mmArrow(x, u, v, Math.atan2(mmDir.z, mmDir.x), px); return;
+  }
+  x.drawImage(mmBase, 0, 0);
   const dot = 3.6 * px;
   booths.forEach((b) => {
     const [u, v] = mmPos(...SITES[b.job.id].at);
@@ -8323,9 +8330,11 @@ function drawMinimap() {
     x.fillStyle = '#c8463d'; x.fill(); x.lineWidth = Math.max(1.5, px * 1.5); x.strokeStyle = '#ffffff'; x.stroke();
   }
   if (state.where === 'plaza' || state.where === 'opening') return; // 見わたし中は 場所の 矢印を 出さない
-  camera.getWorldPosition(mmHead); camera.getWorldDirection(mmDir);
   const [u, v] = mmPos(...toMap(mmHead.x, mmHead.z));
-  const a = Math.atan2(mmDir.z, mmDir.x); const R = 9 * px;
+  mmArrow(x, u, v, Math.atan2(mmDir.z, mmDir.x), px);
+}
+function mmArrow(x, u, v, a, px) {
+  const R = 9 * px; const dot = 3.6 * px;
   x.beginPath(); x.arc(u, v, R * 1.5, 0, Math.PI * 2); x.fillStyle = 'rgba(255, 210, 63, 0.45)'; x.fill(); // まわりを うすく 光らせて 目立たせる
   x.save(); x.translate(u, v); x.rotate(a);
   x.beginPath(); x.moveTo(R, 0); x.lineTo(-R * 0.7, R * 0.7); x.lineTo(-R * 0.35, 0); x.lineTo(-R * 0.7, -R * 0.7); x.closePath();
@@ -8406,7 +8415,7 @@ function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 function renderHud() {
   $('btn-home').hidden = !home.group;
   $('place').textContent = state.where === 'plaza' ? '島ぜんたい' : state.where === 'walk' ? '島を 歩いています' : state.where === 'home' ? profile.name + 'さんの ' + homeName() + '（' + home.site.name + '）' : state.where === 'opening' ? 'フェリーで 入港中' : state.where === 'play' ? (state.play.room === 'casino' ? 'カジノ' : PLAY_NAME[state.play.kind]) : state.where === 'furn' ? '家具屋（お店の 中）' : state.booth.job.area + '　' + state.booth.job.name + '・' + state.booth.job.work;
-  $('pad').hidden = !(state.where === 'walk' || state.where === 'furn' || (state.where === 'play' && state.play && !['sun', 'cafe', 'terrace', 'plaza', 'rehab', 'iba', 'keiba'].includes(state.play.kind)) || (state.where === 'booth' && state.phase === 'work' && state.round && (state.round.cover || state.round.slide)));
+  $('pad').hidden = !(state.where === 'walk' || state.where === 'furn' || (state.where === 'play' && state.play && !['sun', 'cafe', 'terrace', 'plaza', 'rehab', 'iba', 'keiba', 'casino', 'boat'].includes(state.play.kind)) || (state.where === 'booth' && state.phase === 'work' && state.round && (state.round.cover || state.round.slide)));
   $('btn-walk').textContent = state.where === 'walk' ? '見わたす' : '島を歩く';
   chipsEl.querySelectorAll('.chip').forEach((el, i) => el.setAttribute('aria-current', String(i === 0 ? state.where === 'plaza' : state.booth === booths[i - 1])));
   // いまの 場所の チップが 画面の外なら 見える ところまで 送る
@@ -8424,8 +8433,8 @@ function renderHud() {
   if (state.where === 'plaza') {
     el.innerHTML = '<span class="tag">Work Island</span><h2>やってみたい しごとを えらぶ</h2>' +
       '<div>島の 地域ごとに、その土地の しごとが あります。旗や お店を タップ（VR では ゆびさして トリガー）すると、その お店の前に 移動します。ドラッグで 見回せます。</div>' +
-      '<div class="row"><button type="button" class="primary" id="h-walk">島を 歩いてみる</button><button type="button" id="h-rehab">リハビリステーション</button><button type="button" id="h-iba">みんなの 居場所</button><button type="button" id="h-keiba">競馬場</button><button type="button" id="h-casino">カジノ</button></div>';
-    $('h-walk').onclick = () => startWalk(); $('h-rehab').onclick = openRehab; $('h-iba').onclick = () => openIba(); $('h-keiba').onclick = () => openKeiba(); $('h-casino').onclick = () => openIba(null, 'casino');
+      '<div class="row"><button type="button" class="primary" id="h-walk">島を 歩いてみる</button><button type="button" id="h-rehab">リハビリステーション</button><button type="button" id="h-iba">みんなの 居場所</button><button type="button" id="h-keiba">あそびの島（連絡船）</button></div>';
+    $('h-walk').onclick = () => startWalk(); $('h-rehab').onclick = openRehab; $('h-iba').onclick = () => openIba(); $('h-keiba').onclick = () => boardBoat('main');
     return;
   }
   if (state.where === 'play') {
@@ -8433,8 +8442,9 @@ function renderHud() {
     if (k === 'rehab') { renderRehabHud(el); return; }
     if (k === 'iba') { renderIbaHud(el); return; }
     if (k === 'keiba') { renderKeibaHud(el); return; }
-    const how = { ski: '← → で よける・▲を 押すと そのまま（Shift で 速く）。下まで すべると ゴール', climb: '▲で のぼる・▼で おりる。頂上から 島ぜんたいが 見えます', swim: '▲▼で 進む・◀▶で 向きを かえる。岸から 遠くへは 行けません', sun: 'パラソルの 下で ねころんでいます。ドラッグで 見回せます', cafe: '中の 席に すわって います。ドラッグで 見回せます', terrace: '外の テラス席に すわって います。ドラッグで 見回せます', plaza: '町の テラス席に すわって います。ドラッグで 見回せます' }[k];
-    el.innerHTML = '<span class="tag">あそぶ</span><h2>' + PLAY_NAME[k] + '</h2><div>' + how + '</div><div class="row"><button type="button" class="primary" id="h-endplay">' + (k === 'sun' ? 'おきる' : k === 'swim' ? '岸に あがる' : k === 'cafe' || k === 'terrace' ? 'お店を 出る' : k === 'plaza' ? '席を たつ' : 'おわる') + '</button></div>';
+    if (k === 'casino') { renderCasinoHud(el); return; }
+    const how = { boat: '連絡船の ベンチに すわって います。ドラッグで 見回せます（VR は 頭を うごかして）。むこうの 島に 着くと おります', ski: '← → で よける・▲を 押すと そのまま（Shift で 速く）。下まで すべると ゴール', climb: '▲で のぼる・▼で おりる。頂上から 島ぜんたいが 見えます', swim: '▲▼で 進む・◀▶で 向きを かえる。岸から 遠くへは 行けません', sun: 'パラソルの 下で ねころんでいます。ドラッグで 見回せます', cafe: '中の 席に すわって います。ドラッグで 見回せます', terrace: '外の テラス席に すわって います。ドラッグで 見回せます', plaza: '町の テラス席に すわって います。ドラッグで 見回せます' }[k];
+    el.innerHTML = '<span class="tag">あそぶ</span><h2>' + PLAY_NAME[k] + '</h2><div>' + how + '</div><div class="row"><button type="button" class="primary" id="h-endplay">' + (k === 'sun' ? 'おきる' : k === 'swim' ? '岸に あがる' : k === 'cafe' || k === 'terrace' ? 'お店を 出る' : k === 'plaza' ? '席を たつ' : k === 'boat' ? 'すぐ 着く' : 'おわる') + '</button></div>';
     $('h-endplay').onclick = endPlay;
     return;
   }
@@ -8542,7 +8552,7 @@ const inPoly = (poly, px, py) => { let ins = false; for (let i = 0, j = poly.len
 const onIce = (x, z) => season === 'winter' && LAKE.blk && ((x - LAKE.blk.x) / LAKE.rx) ** 2 + ((z - LAKE.blk.z) / LAKE.rz) ** 2 < 1;
 const onBeach = (x, z) => inPoly(BEACH, ...toMap(x, z));
 const skateV = new THREE.Vector3();
-const PLAY_NAME = { iba: 'みんなの 居場所', keiba: 'HOPE 島 競馬場', ski: 'スキー', climb: '山登り', swim: '海で 泳ぐ', sun: '日向ぼっこ', cafe: 'カフェで のんびり', terrace: 'カフェの テラス席', plaza: '町の テラス席', rehab: 'リハビリステーション' };
+const PLAY_NAME = { iba: 'みんなの 居場所', keiba: 'HOPE 競馬場', casino: 'HOPE アミューズメント（カジノ）', boat: '連絡船', ski: 'スキー', climb: '山登り', swim: '海で 泳ぐ', sun: '日向ぼっこ', cafe: 'カフェで のんびり', terrace: 'カフェの テラス席', plaza: '町の テラス席', rehab: 'リハビリステーション' };
 const isCafePlay = (k) => k === 'cafe' || k === 'terrace' || k === 'plaza';
 // 左スティック（VR）
 function xrMove() {
@@ -8666,6 +8676,8 @@ function endPlay() {
   if (pl.kind === 'rehab') { leaveRehab(pl); return; }
   if (pl.kind === 'iba') { rig.position.y = 0; leaveIba(pl); return; }
   if (pl.kind === 'keiba') { leaveKeiba(pl); return; }
+  if (pl.kind === 'casino') { leaveCasino(pl); return; }
+  if (pl.kind === 'boat') { const b = pl.boat; b.g.position.copy(b.to); b.trip = { from: b.home.clone(), ctrl: b.ctrl, to: b.to, t0: performance.now() + 4000, rider: false, yaw0: b.g.rotation.y }; boatArrive(b); return; }
   if (pl.kind === 'ski') { const dir = m.runs[pl.run]; startWalk(new THREE.Vector3(m.peak.x + dir.x * (m.MR + 2.5), 0, m.peak.z + dir.z * (m.MR + 2.5)), Math.atan2(-dir.x, -dir.z)); }
   else if (pl.kind === 'climb') startWalk(seasonal.trailAt.clone().add(new THREE.Vector3(1.5, 0, 1.5)), 0);
   else if (pl.kind === 'swim') startWalk(pl.land, rig.rotation.y + Math.PI);
@@ -8677,6 +8689,8 @@ function stepPlay(dt, now) {
   if (pl.kind === 'rehab') { stepRehab(pl, dt, now); return; }
   if (pl.kind === 'iba') { stepIba(pl, dt, now); return; }
   if (pl.kind === 'keiba') { stepKeibaPlay(pl, dt, now); return; }
+  if (pl.kind === 'casino') { stepCasino(pl, dt, now); return; }
+  if (pl.kind === 'boat') { boatRide(pl.boat, now); return; }
   const m = seasonal.mount; const xr = xrMove();
   const fwd = xr ? xr.fwd : (walkKeys.fwd ? 1 : 0) - (walkKeys.back ? 1 : 0);
   const side = xr ? xr.strafe : (walkKeys.right ? 1 : 0) - (walkKeys.left ? 1 : 0);
@@ -9259,7 +9273,7 @@ window.addEventListener('keydown', (e) => {
 // ===========================================================================
 const IBA = { at: new THREE.Vector3(-640, 0, 0), g: null, room: { w: 13, d: 9 }, entry: new THREE.Vector3(0, 0, 3.4), signs: [], exitBtn: null, st: {} };
 const IBA_GAMES = { shogi: '将棋', go: '囲碁', mahjong: '麻雀', baccarat: 'バカラ', poker: 'ポーカー' }; // バカラ・ポーカーは カジノの 部屋（IBA_ROOM）
-const IBA_LOG_NAME = Object.assign({ keiba: '競馬' }, IBA_GAMES);
+const IBA_LOG_NAME = Object.assign({ keiba: '競馬', slot: 'スロット', roulette: 'ルーレット', bj: 'ブラックジャック' }, IBA_GAMES);
 const IBA_NOTE = { shogi: 'コンピューターと 1 局。待ったも できます', go: '9 路盤で 1 局。強さ・置き石を えらべる', mahjong: '3 人と 東風戦。強さは 3 だんかい', baccarat: 'プレイヤーか バンカーに かける', poker: 'テキサス ホールデム（3 人）' };
 const IBA_COLOR = { shogi: '#8a5a2b', go: '#3d4a54', mahjong: '#2f7d4f', keiba: '#c0533a', baccarat: '#7a1f2b', poker: '#1f5a3a' };
 const IBA_X = { shogi: -3.9, go: -1.3, mahjong: 1.3, keiba: 4.0, baccarat: -2.4, poker: 2.4 }; // 台の 位置（どれも 奥の かべ がわ。席は 台の 手前で 奥を 向く）。keiba は 競馬場への 札
@@ -9339,9 +9353,9 @@ function buildIba() {
   });
   buildShogi(IBA.st.shogi); buildIgo(IBA.st.go); buildMahjong(IBA.st.mahjong);
   // 競馬は 島の 南の 競馬場で（かべの ポスター。えらぶと 競馬場の 馬券売り場へ）
-  const kp = overviewSign('競馬は 競馬場で', '南の 海の HOPE 島 競馬場へ 行く', IBA_COLOR.keiba, 2.4); kp.material.depthTest = true; kp.renderOrder = 0;
-  kp.position.set(IBA_X.keiba, 1.75, -d / 2 + 0.08); g.add(kp); IBA.signs.push(ibaClick(kp, () => openKeiba()));
-  const kb = ibaClick(makeButton('競馬場へ 行く ▶', IBA_COLOR.keiba, 1.0, 0.2), () => openKeiba()); kb.position.set(IBA_X.keiba, 1.1, -d / 2 + 0.08); g.add(kb); IBA.signs.push(kb);
+  const kp = overviewSign('競馬・カジノは あそびの島で', 'フェリー乗り場から 連絡船', IBA_COLOR.keiba, 2.4); kp.material.depthTest = true; kp.renderOrder = 0;
+  kp.position.set(IBA_X.keiba, 1.75, -d / 2 + 0.08); g.add(kp); IBA.signs.push(ibaClick(kp, () => goBoatPier()));
+  const kb = ibaClick(makeButton('連絡船のりばへ ▶', IBA_COLOR.keiba, 1.0, 0.2), () => goBoatPier()); kb.position.set(IBA_X.keiba, 1.1, -d / 2 + 0.08); g.add(kb); IBA.signs.push(kb);
 }
 function ibaChair(st, color) { // 自分の いす
   const chair = new THREE.Group(); chair.position.set(0, 0, IBA_SEAT[st.key] + 0.1); st.g.add(chair);
@@ -9353,8 +9367,8 @@ function ibaTable(st, w, dd, color) { // 台（脚つき）
   [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([sx, sz]) => part(st.g, box(0.05, IBA_TOP - 0.04, 0.05), '#5a4a3a', sx * (w / 2 - 0.06), (IBA_TOP - 0.04) / 2, sz * (dd / 2 - 0.06)));
 }
 function ibaOpponent(st, color, name, at, yaw, sc) { // コンピューターの 相手（台の 向こうに すわる 高さ）
-  const p = person(color, '#3d4a54'); p.scale.setScalar(sc || 3.2); p.position.copy(at); p.rotation.y = yaw; st.g.add(p);
-  const t = labelSprite(name, { h: 0.07 }); t.position.set(at.x, 1.3, at.z); st.g.add(t); return p;
+  const { p } = seatedPerson(st.g, color, '#3d4a54', at.x, at.z, yaw, { S: sc || 3.2, h: 0.46 }); // いすに すわる
+  const t = labelSprite(name, { h: 0.07 }); t.position.set(at.x, 1.42, at.z); st.g.add(t); return p;
 }
 
 // ---- パネルと ボタン（VR でも 見える 台の 札） -------------------------------
@@ -9425,12 +9439,12 @@ function renderIbaHud(el) {
     (st ? '<div class="feedback" id="iba-msg">' + st.msg.map((m) => esc(m.text || m)).join('<br>') + '</div>' +
       '<div class="row">' + st.btnDefs.map((d, i) => '<button type="button"' + (d.on ? ' class="primary"' : '') + ' data-iba-btn="' + i + '">' + esc(d.label) + '</button>').join('') + '</div>'
       : '<div>' + (casino ? 'バカラ・ポーカーが できます。台の 札を えらぶ（VR では ゆびさして トリガー）と 席に つきます。かけるのは あそび用の メダル（いま ' + ibaData().medals + 'まい。競馬と 共通）で、お金は つかいません。'
-        : '将棋・囲碁・麻雀が できます。台の 札を えらぶ（VR では ゆびさして トリガー）と 席に つきます。ひとりでも あそべます（相手は コンピューター）。競馬は 島の 南の 競馬場で（右の かべの ポスターから 行けます）。') + '</div>' +
+        : '将棋・囲碁・麻雀が できます。台の 札を えらぶ（VR では ゆびさして トリガー）と 席に つきます。ひとりでも あそべます（相手は コンピューター）。競馬・カジノは となりの あそびの島で（フェリー乗り場から 連絡船。右の かべの ポスターから のりばへ 行けます）。') + '</div>' +
         (last ? '<label class="field">さいきんの きろく</label><ul style="margin:0;padding-left:1.2em;color:var(--ink-soft)">' + last + '</ul>' : '')) +
-    '<div class="row">' + others + '<button type="button" id="iba-keiba">競馬場へ</button>' + (st ? '<button type="button" id="iba-stand">席を 立つ</button>' : '') + '<button type="button" id="iba-out">外に 出る</button></div>';
+    '<div class="row">' + others + '<button type="button" id="iba-keiba">連絡船のりばへ（あそびの島）</button>' + (st ? '<button type="button" id="iba-stand">席を 立つ</button>' : '') + '<button type="button" id="iba-out">外に 出る</button></div>';
   el.querySelectorAll('[data-iba-go]').forEach((b) => { b.onclick = () => ibaSit(b.dataset.ibaGo); });
   el.querySelectorAll('[data-iba-btn]').forEach((b) => { b.onclick = () => { const d = st.btnDefs[Number(b.dataset.ibaBtn)]; if (d) { playSfx('pop'); d.act(); } }; });
-  $('iba-keiba').onclick = () => openKeiba();
+  $('iba-keiba').onclick = goBoatPier;
   if ($('iba-stand')) $('iba-stand').onclick = ibaStand;
   $('iba-out').onclick = endPlay;
 }
@@ -10027,9 +10041,9 @@ function mjShow(st) {
 //   メダルは あそび用（お金・バッジとは べつ）。なくなったら 受付で 50 まい もらえる
 // ===========================================================================
 // ===========================================================================
-// HOPE 島 競馬場（南の 海の 埋め立て地）：馬券売り場で 馬券を 買って、スタンドの 観客席から レースを 見る
+// HOPE 競馬場（あそびの島の 南がわ）：馬券売り場で 馬券を 買って、スタンドの 観客席から レースを 見る
 //   メダル競馬（みんなの 居場所と 同じ あそび用の メダル。お金・バッジとは べつ）。1 レースに 馬券は 5 まいまで
-//   コースは 1 周 82 m の 楕円（左回り）。スタートは むこう正面の ゲート、1 周 半 まわって スタンド前の ゴールへ
+//   連絡船で 行く（フェリー乗り場から 往復 500 円）。コースは 1 周 82 m の 楕円（左回り）。スタートは むこう正面の ゲート、1 周 半 まわって スタンド前の ゴールへ
 //   VR では 画面の カードが 見えないので、売り場と 席の 札と ボタンで ぜんぶ できる（画面の カードにも 同じ ボタン）。
 //   大型ビジョンには 先頭の 馬を 追う カメラの 映像を うつす
 //   パドック（スタンドの 西の 小さな 周回路）：発走前に 馬が 引き馬で 歩く。気配・馬体重を 見て 馬券を えらべる。
@@ -10095,9 +10109,6 @@ function kbHorse(color, coat, n) { // 馬と 騎手（実物大。頭が +z）
 
 // ---- 埋め立て地・コース・スタンド・馬券売り場・大型ビジョン ---------------------
 function buildRaceCourse() {
-  const land = new THREE.Mesh(new THREE.ExtrudeGeometry(pxShape(RACE_LAND), { depth: 1.2, bevelEnabled: false, curveSegments: 1 }), [cmat('#9cc47f'), cmat('#dcc893')]);
-  land.rotation.x = -Math.PI / 2; land.position.y = -1.2; scene.add(land);
-  for (let i = blocked.length - 1; i >= 0; i--) if (blocked[i].r === 0.9 && inRaceArea(blocked[i].x, blocked[i].z)) blocked.splice(i, 1); // 立てなかった 木の ぶん
   const g = new THREE.Group(); g.position.copy(KC.c); g.rotation.y = Math.PI; scene.add(g); KC.g = g;
   const put = (geo, color, x, y, z, parent) => { const m = new THREE.Mesh(geo, cmat(color)); m.position.set(x, y, z); (parent || g).add(m); return m; };
   const { L, R, half } = KC;
@@ -10153,8 +10164,8 @@ function buildRaceCourse() {
   [-1, 1].forEach((sd) => put(box(0.3, 6.2, SB - kcRowZ(0) + 0.3), '#e6e2da', sd * (SW / 2 + 0.05), 3.1, (kcRowZ(0) + SB) / 2)); // 横の かべ
   const roof = put(box(SW + 1.2, 0.22, SB - kcRowZ(0) + 2.2), '#3d6f9e', 0, 6.25, (kcRowZ(0) + SB) / 2 - 0.4); roof.rotation.x = -0.06;
   [-8, -2.7, 2.7, 8].forEach((x) => put(box(0.22, 6.2, 0.22), '#d9dde0', x, 3.1, SB - 0.2));
-  const nm = kcPlate('HOPE 島 競馬場', 8, 1.0, '#3d6f9e', '#ffffff'); nm.position.set(0, 5.4, SB + 0.32); g.add(nm); // 島の 方から 見える 名前
-  const nm2 = kcPlate('HOPE 島 競馬場', 6, 0.75, '#3d6f9e', '#ffffff'); nm2.position.set(0, 5.75, kcRowZ(0) - 0.8); nm2.rotation.y = Math.PI; g.add(nm2);
+  const nm = kcPlate('HOPE 競馬場', 8, 1.0, '#3d6f9e', '#ffffff'); nm.position.set(0, 5.4, SB + 0.32); g.add(nm); // 島の 方から 見える 名前
+  const nm2 = kcPlate('HOPE 競馬場', 6, 0.75, '#3d6f9e', '#ffffff'); nm2.position.set(0, 5.75, kcRowZ(0) - 0.8); nm2.rotation.y = Math.PI; g.add(nm2);
   // 馬券売り場（スタンドの うしろに つけた 平屋。北の まどの 中に 係の 人）
   const AZ = SB + 0.3 + KC.annex; const AX0 = -5.9; const AX1 = 3.3; const AH = 3.0; const ac = '#e6e2da';
   put(box(AX1 - AX0, 0.16, KC.annex + 0.3), '#c0533a', (AX0 + AX1) / 2, AH, SB + 0.3 + KC.annex / 2 + 0.15); // 屋根
@@ -10181,12 +10192,9 @@ function buildRaceCourse() {
   KC.screen = new THREE.Mesh(new THREE.PlaneGeometry(10.8, 5.94), new THREE.MeshBasicMaterial({ map: KC.rt.texture })); KC.screen.position.set(0, 7.2, -0.04); scr.add(KC.screen);
   KC.board = new Board(4.4, 5.94, 140); KC.board.mesh.position.set(-8.2, 7.2, -0.04); scr.add(KC.board.mesh); // 着順・オッズ（ビジョンの 左）
   KC.cam = new THREE.PerspectiveCamera(38, 640 / 352, 0.3, 260);
-  // 観客（かんたんな 形を まとめて 描く。ゴール前は とびあがる）
-  const seats = []; for (let k = 0; k < 6; k++) for (let x = -10.4; x <= 10.4; x += 0.62) { if (Math.abs(x - KC_SEAT.x) < 1.6 && Math.abs(k - KC_SEAT.row) < 2) continue; if (Math.abs(Math.abs(x) - 4) < 0.4) continue; if (Math.random() < 0.42) seats.push([x + (Math.random() - 0.5) * 0.1, kcRowY(k) + 0.42, kcRowZ(k) + 0.45]); }
-  const n = seats.length; const bodyM = new THREE.InstancedMesh(cyl(0.2, 0.24, 0.62, 8), mat('#ffffff'), n); const headM = new THREE.InstancedMesh(ball(0.13, 10, 8), mat('#ffffff'), n);
-  const col = new THREE.Color(); const shirt = ['#d0392b', '#2f6fc4', '#e3b23c', '#4f9a45', '#f6f1e6', '#6b4f9e', '#3d4a54', '#e0662f']; const skin = ['#f1c9a8', '#e3b28e', '#d9a07a'];
-  seats.forEach((p, i) => { bodyM.setColorAt(i, col.set(shirt[i % shirt.length])); headM.setColorAt(i, col.set(skin[i % 3])); });
-  bodyM.frustumCulled = false; headM.frustumCulled = false; g.add(bodyM); g.add(headM); KC.crowd = { seats, bodyM, headM, jump: seats.map(() => Math.random() * TAU) }; kcCrowd(0);
+  // 観客（いすに すわった 人を まとめて 描く。ゴール前は 立ちあがって 歓声）。いすの 座面は だんの ゆかから 0.47 m
+  const seats = []; for (let k = 0; k < 6; k++) for (let x = -10.4; x <= 10.4; x += 0.62) { if (Math.abs(x - KC_SEAT.x) < 1.6 && Math.abs(k - KC_SEAT.row) < 2) continue; if (Math.abs(Math.abs(x) - 4) < 0.4) continue; if (Math.random() < 0.45) seats.push({ x: x + (Math.random() - 0.5) * 0.08, y: kcRowY(k) + 0.47, z: kcRowZ(k) + 0.5, yaw: Math.PI }); }
+  KC.crowd = seatedCrowd(g, seats, 3.6, 0.47); KC.crowdJump = seats.map(() => Math.random() * TAU);
   // パドック（スタンドの 西。土の 周回路・白い さく・まん中の 芝生・北に 見る 台）
   { const P = KC_PAD; const pg = new THREE.Group(); g.add(pg);
     const oval = (r) => { const s = []; for (let k = 0; k <= 20; k++) { const a = (k / 20) * Math.PI; s.push(new THREE.Vector2(P.x + r * Math.cos(a), -(P.z + P.L / 2 + r * Math.sin(a)))); } for (let k = 0; k <= 20; k++) { const a = Math.PI + (k / 20) * Math.PI; s.push(new THREE.Vector2(P.x + r * Math.cos(a), -(P.z - P.L / 2 + r * Math.sin(a)))); } return s; }; // y は -z（ゆかを 上向きに ねかせる ため）
@@ -10207,9 +10215,7 @@ function buildRaceCourse() {
     pn.userData.kcPad = true; plazaClickables.push(pn); }
   // 馬（ゲートに ならべて おく）
   KC.horses = KB_HORSES.map(([, c], k) => { const h = kbHorse(c, KB_COATS[k], k + 1); g.add(h); return h; });
-  // 島から 見える 看板・えらぶと 中へ
-  const pin = overviewSign('HOPE 島 競馬場', '馬券を 買って 観客席で 見る', '#c0533a', 7); pin.position.copy(kcW(0, 13, 10)); pin.lookAt(OVERVIEW.pos); scene.add(pin); overviewOnly.push(pin);
-  pin.userData.kcEnter = true; plazaClickables.push(pin);
+  // スタンドの 名前・売り場の 看板を えらぶと 中へ（歩いて いる とき）
   [nm, ticket].forEach((m) => { m.userData.kcEnter = true; plazaClickables.push(m); });
   KC.win = kcPanel('馬券売り場', 1.3, 0.78); KC.win.pg.position.set(KC_BUY.x, 1.62, AZ + 0.55); g.add(KC.win.pg); // まどの 前（買う 人の 方を 向く）
   KC.seatSt = kcPanel('観客席', 1.0, 0.6); const sy = kcRowY(KC_SEAT.row); KC.seatSt.pg.position.set(KC_SEAT.x - 0.6, sy + 0.8, kcRowZ(KC_SEAT.row) - 0.45); KC.seatSt.pg.rotation.set(-0.4, Math.atan2(0.6, 1.0), 0, 'YXZ'); g.add(KC.seatSt.pg); // 席の 左前の 下（コースに かからない）。VR の ときだけ 出す（画面では カードに 同じ ボタン）
@@ -10226,9 +10232,8 @@ function kcPlate(text, w, h, bg, fg) { // 字の 札（大きい 札は 解像�
 }
 function kcPanel(title, w, h) { const st = { key: 'keiba', pg: new THREE.Group(), panel: new Board(w, h, 900), ph: h, btnDefs: [], btnMeshes: [], clicks: [], msg: [], title }; st.pg.add(st.panel.mesh); return st; }
 function kcCrowd(now, cheer) {
-  const C = KC.crowd; if (!C) return; const m = new THREE.Matrix4();
-  C.seats.forEach(([x, y, z], i) => { const up = cheer ? Math.max(0, Math.sin(now / 140 + C.jump[i])) * 0.25 : 0; m.makeTranslation(x, y + 0.31 + up, z); C.bodyM.setMatrixAt(i, m); m.makeTranslation(x, y + 0.75 + up, z); C.headM.setMatrixAt(i, m); });
-  C.bodyM.instanceMatrix.needsUpdate = true; C.headM.instanceMatrix.needsUpdate = true;
+  const C = KC.crowd; if (!C) return; if (!cheer && !C.up) return;
+  C.up = cheer; C.update((i) => (cheer ? Math.max(0, Math.sin(now / 140 + KC.crowdJump[i])) * 0.25 : 0));
 }
 function kcClickables() {
   const out = []; [KC.win, KC.seatSt, KC.pad].forEach((st) => { if (st.pg.visible) out.push(...st.btnMeshes); });
@@ -10243,7 +10248,7 @@ function openKeiba(from) {
   if (ib) { state.play = null; IBA.g.visible = false; if (CASINO.g) CASINO.g.visible = false; rig.position.y = 0; }
   leaveForPlay();
   state.where = 'play'; state.play = { kind: 'keiba', at: null, from: fromInfo, t0: performance.now() };
-  kcWindow(); toast('HOPE 島 競馬場へ ようこそ');
+  kcWindow(); toast('HOPE 競馬場へ ようこそ');
 }
 function kcWindow() {
   const pl = kcNow(); if (!pl) return; pl.at = 'window'; rig.position.y = 0;
@@ -10270,7 +10275,7 @@ function leaveKeiba(pl) {
   KC.win.pg.visible = true; KC.seatSt.pg.visible = false; KC.pad.pg.visible = false; rig.position.y = 0;
   const K = KC.K; if (K.phase === 'run') { for (let n = 0; n < 4000 && K.phase === 'run'; n++) stepKeiba(0.05, performance.now() + n * 50, true); } // とちゅうで 出ても レースは 最後まで（はらいもどしも）
   else if (K.phase === 'post') K.phase = 'bet';
-  if (pl.from.iba) openIba(pl.from.iba); else if (pl.from.home && home.group) goHome(); else if (pl.from.pos) startWalk(pl.from.pos, pl.from.yaw); else goPlaza();
+  const o = kcOutside(); if (pl.from.pos) startWalk(pl.from.pos, pl.from.yaw); else startWalk(o.pos, o.yaw);
 }
 
 // ---- レース ----------------------------------------------------------------
@@ -10475,7 +10480,7 @@ function stepKeibaPlay(pl, dt, now) { KC.seatSt.pg.visible = pl.at === 'seat' &&
 function renderKeibaHud(el) {
   const pl = state.play; const st = pl.at === 'seat' ? KC.seatSt : pl.at === 'paddock' ? KC.pad : KC.win; const K = KC.K;
   const last = ibaData().log.filter((r) => r.game === 'keiba').slice(-3).reverse().map((r) => '<li>' + esc(r.result) + '</li>').join('');
-  el.innerHTML = '<span class="tag">HOPE 島 競馬場</span><h2>' + (pl.at === 'seat' ? '観客席' : pl.at === 'paddock' ? 'パドック' : '馬券売り場') + '</h2>' +
+  el.innerHTML = '<span class="tag">HOPE 競馬場</span><h2>' + (pl.at === 'seat' ? '観客席' : pl.at === 'paddock' ? 'パドック' : '馬券売り場') + '</h2>' +
     '<div class="feedback" id="kc-msg">' + st.msg.map((m) => esc(m.text || m)).join('<br>') + '</div>' +
     '<div class="row">' + st.btnDefs.map((d, i) => '<button type="button"' + (d.on ? ' class="primary"' : '') + ' data-kc-btn="' + i + '">' + esc(d.label) + '</button>').join('') + '</div>' +
     (pl.at === 'paddock' && K.phase === 'bet' ? '<ul id="kc-pad" style="margin:0;padding-left:1.2em">' + KB_HORSES.map((_, k) => '<li' + (K.pick === k ? ' style="font-weight:700"' : '') + '>' + esc(kbPadText(K, k)) + '</li>').join('') + '</ul>' : '') +
@@ -10483,7 +10488,6 @@ function renderKeibaHud(el) {
     '<div>' + (pl.at === 'paddock' ? '馬は 引き手と パドックを 歩いています。気配は 見立てなので はずれる ことも あります。オッズに 入って いない 調子が わかる かも' : pl.at === 'seat' ? 'ドラッグで 見回せます。むこうの 大型ビジョンに 先頭の 馬が うつります' : 'まどの 前の 札でも 買えます（VR では ゆびさして トリガー）') + '</div>';
   el.querySelectorAll('[data-kc-btn]').forEach((b) => { b.onclick = () => { const d = st.btnDefs[Number(b.dataset.kcBtn)]; if (d) { playSfx('pop'); d.act(); } }; });
 }
-buildRaceCourse();
 // ===========================================================================
 // カジノ（繁華街）：バカラと ポーカーを メダルで あそぶ 部屋。しくみは みんなの 居場所と 同じ（台の 札・パネル・ボタン）
 //   メダルは あそび用（競馬と 共通。お金・バッジとは べつ）。たりなく なったら 交換所か 台の ボタンで もらえる。
@@ -10887,6 +10891,562 @@ function pkShow(st) {
   }
   ibaUpdate(st, msg, defs);
 }
+// ===========================================================================
+// すわった 人：person を いすに すわらせる（足を 前に まげる）。h は 座面の 高さ（m）、S は 大きさ
+//   seatedCrowd は 大ぜいの すわった 人を まとめて 描く（スタンドの 観客。部品ごとに 1 回で 描く）
+// ===========================================================================
+const SEAT_HIP = 0.073; // person の 原点から おしりの 下までの 高さ
+function sitPose(p, h, S) {
+  const near = (v, t) => Math.abs(v - t) < 1e-4;
+  const hip = p.children.find((m) => m.isMesh && near(Math.abs(m.position.x), 0.024) && near(m.position.y, 0.093));
+  const lc = hip ? hip.material.color.clone() : new THREE.Color('#3d4a54');
+  p.children.forEach((m) => { if (m.isMesh && near(Math.abs(m.position.x), 0.024) && (near(m.position.y, 0.055) || near(m.position.y, 0.011))) m.visible = false; }); // 立った 足と くつ
+  const yf = SEAT_HIP - h / S; const shin = 0.093 - yf - 0.012;
+  [-1, 1].forEach((sd) => {
+    const x = sd * 0.024;
+    part(p, cyl(0.02, 0.02, 0.062, 12), lc, x, 0.093, 0.031).rotation.x = Math.PI / 2; // もも
+    part(p, ball(0.02, 12, 8), lc, x, 0.093, 0.062); // ひざ
+    part(p, cyl(0.019, 0.019, shin, 12), lc, x, 0.093 - shin / 2, 0.062); // すね
+    part(p, ball(0.023, 12, 10), PERSON_INK, x, yf + 0.011, 0.07).scale.set(1, 0.55, 1.3); // くつ
+  });
+  p.scale.setScalar(S); p.position.y = h - SEAT_HIP * S; p.userData.sitY = p.position.y;
+  return p;
+}
+// 人（すわった 形）を いすと いっしょに 置く。いすは 人の うしろ（向きは yaw）
+function seatChair(parent, x, z, yaw, opts) { // いす（yaw の 向きに すわる。せもたれは うしろ）。stool は まるい いす
+  const o = Object.assign({ h: 0.46, chair: '#8a6a46', stool: false }, opts || {});
+  const c = new THREE.Group(); c.position.set(x, 0, z); c.rotation.y = yaw; parent.add(c);
+  if (o.stool) { part(c, cyl(0.2, 0.2, 0.06, 16), o.chair, 0, o.h - 0.03, 0); part(c, cyl(0.03, 0.03, o.h - 0.06, 8), '#c9ced6', 0, (o.h - 0.06) / 2, 0); part(c, cyl(0.18, 0.2, 0.03, 16), '#c9ced6', 0, 0.015, 0); }
+  else if (o.chair) {
+    part(c, box(0.44, 0.05, 0.42), o.chair, 0, o.h - 0.025, 0); part(c, box(0.44, 0.45, 0.05), o.chair, 0, o.h + 0.22, -0.2);
+    [[-0.19, -0.18], [0.19, -0.18], [-0.19, 0.18], [0.19, 0.18]].forEach(([dx, dz]) => part(c, box(0.04, o.h - 0.05, 0.04), '#5a4a3a', dx, (o.h - 0.05) / 2, dz));
+  }
+  return c;
+}
+function seatedPerson(parent, color, leg, x, z, yaw, opts) {
+  const o = Object.assign({ h: 0.46, S: 3.2, chair: '#8a6a46', stool: false }, opts || {});
+  const c = seatChair(parent, x, z, yaw, o);
+  const p = sitPose(person(color, leg, false, o.hair, o.look), o.h, o.S); p.position.z = -0.02; c.add(p);
+  return { c, p };
+}
+function seatedCrowd(parent, seats, S, seatH) {
+  const R = PERSON_HEAD_R; const H = PERSON_HEAD_Y; const yf = SEAT_HIP - seatH / S; const shin = 0.093 - yf - 0.012;
+  const o = new THREE.Object3D(); const lm = (x, y, z, rx, rz, sx, sy, sz) => { o.position.set(x, y, z); o.rotation.set(rx || 0, 0, rz || 0); o.scale.set(sx || 1, sy || 1, sz || 1); o.updateMatrix(); return o.matrix.clone(); };
+  const ez = Math.sqrt(R * R - 0.023 * 0.023 - 0.011 * 0.011) - 0.002; const AE = [0.041 + Math.sin(0.2) * 0.045, 0.197 - Math.cos(0.2) * 0.045];
+  const defs = [
+    [PERSON_BODY, lm(0, 0, 0, 0, 0, 1, 1, PERSON_DEPTH), 'body'],
+    [ball(R, 16, 12), lm(0, H, 0), 'skin'],
+    [new THREE.SphereGeometry(R + 0.006, 16, 8, 0, TAU, 0, Math.PI / 2), lm(0, H, -0.002, -0.42), 'hair', { side: THREE.DoubleSide }],
+    [ball(0.0095, 8, 6), lm(-0.023, H - 0.011, ez, 0, 0, 1, 1.25, 0.55), '#2e2420'], [ball(0.0095, 8, 6), lm(0.023, H - 0.011, ez, 0, 0, 1, 1.25, 0.55), '#2e2420'],
+    [cyl(0.0165, 0.0165, 0.09, 8), lm(-AE[0], AE[1], 0, 0, -0.2), 'body'], [cyl(0.0165, 0.0165, 0.09, 8), lm(AE[0], AE[1], 0, 0, 0.2), 'body'],
+    [cyl(0.02, 0.02, 0.07, 8), lm(-0.024, 0.093, 0.035, Math.PI / 2), 'leg'], [cyl(0.02, 0.02, 0.07, 8), lm(0.024, 0.093, 0.035, Math.PI / 2), 'leg'],
+    [cyl(0.019, 0.019, shin, 8), lm(-0.024, 0.093 - shin / 2, 0.066), 'leg'], [cyl(0.019, 0.019, shin, 8), lm(0.024, 0.093 - shin / 2, 0.066), 'leg'],
+    [ball(0.023, 8, 6), lm(-0.024, yf + 0.011, 0.074, 0, 0, 1, 0.55, 1.3), PERSON_INK], [ball(0.023, 8, 6), lm(0.024, yf + 0.011, 0.074, 0, 0, 1, 0.55, 1.3), PERSON_INK],
+  ];
+  const SHIRT = ['#d0392b', '#2f6fc4', '#e3b23c', '#4f9a45', '#f6f1e6', '#6b4f9e', '#3d4a54', '#e0662f', '#e07fa4', '#2d9f8a'];
+  const LEG = ['#3d4a54', '#2b3a55', '#5a4a3a', '#6b6f75']; const SKIN = ['#f3dbc8', '#ecc9ae', '#dcae8e', '#c98f6c']; const HAIR = ['#3d2c26', '#1f1a18', '#6b4a32', '#a77b4f', '#d8d8d8'];
+  seats.forEach((st, i) => { st.body = st.body || SHIRT[(i * 7) % SHIRT.length]; st.leg = st.leg || LEG[(i * 3) % LEG.length]; st.skin = st.skin || SKIN[(i * 5) % SKIN.length]; st.hair = st.hair || HAIR[(i * 11) % HAIR.length]; });
+  const col = new THREE.Color();
+  const meshes = defs.map(([geo, m, key, ex]) => {
+    const im = new THREE.InstancedMesh(geo, mat(key[0] === '#' ? key : '#ffffff', ex), seats.length); im.frustumCulled = false;
+    if (key[0] !== '#') seats.forEach((st, i) => im.setColorAt(i, col.set(st[key])));
+    parent.add(im); return { im, m };
+  });
+  const seatM = new THREE.Matrix4(); const tmp = new THREE.Matrix4();
+  const update = (upOf) => {
+    seats.forEach((st, i) => {
+      o.position.set(st.x, st.y - SEAT_HIP * S + (upOf ? upOf(i) : 0), st.z); o.rotation.set(0, st.yaw || 0, 0); o.scale.setScalar(S); o.updateMatrix(); seatM.copy(o.matrix);
+      meshes.forEach(({ im, m }) => { tmp.multiplyMatrices(seatM, m); im.setMatrixAt(i, tmp); });
+    });
+    meshes.forEach(({ im }) => { im.instanceMatrix.needsUpdate = true; });
+  };
+  update();
+  return { seats, update };
+}
+
+// ===========================================================================
+// あそびの島：土地・広場・桟橋・観覧車・アミューズメント（カジノ）の 建物
+// ===========================================================================
+const isW = (x, z) => new THREE.Vector3(ISLE.c.x + x, 0, ISLE.c.z + z); // 島の 中心からの ずれ（m）→ world
+const CAS_SITE = { at: isW(-14, -30), W: 18, D: 12, H: 6.2 }; // アミューズメントの 建物（入口は 南）
+CAS_SITE.door = isW(-14, -30 + CAS_SITE.D / 2 + 0.4);
+const casOutside = () => ({ pos: CAS_SITE.door.clone().add(new THREE.Vector3(0, 0, 1.6)), yaw: Math.PI }); // 出ると 入口の 前（建物に 背中を 向ける）
+const FERRIS = { at: isW(17, -35), r: 9, hub: 10.6, wheel: null };
+const isleNow = () => insideIsle(rig.position.x, rig.position.z) || rig.position.x < -100;
+function buildIsle() {
+  { // 海は こまかい 輪に して、島の 下は ぬく（島の 上から 見て 海が 地面に かぶらない ように）
+    const ring = new THREE.RingGeometry(0, 420, 128, 60).toNonIndexed(); const P0 = ring.attributes.position.array; const keep = [];
+    for (let i = 0; i < P0.length; i += 9) { const cx = (P0[i] + P0[i + 3] + P0[i + 6]) / 3; const cy = (P0[i + 1] + P0[i + 4] + P0[i + 7]) / 3; if (!insideIsle(cx, -cy)) for (let k = 0; k < 9; k++) keep.push(P0[i + k]); } // 輪は xy（回すと y → -z）
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(keep, 3)); g.computeVertexNormals(); sea.geometry.dispose(); sea.geometry = g;
+  }
+  const C = ISLE.c; const sh = (k) => { const s = new THREE.Shape(); ISLE.poly.forEach(([x, z], i) => { const X = C.x + x * k; const Y = -(C.z + z * k); if (i) s.lineTo(X, Y); else s.moveTo(X, Y); }); return s; };
+  // 横の 砂の かべだけ 押し出しで（上の 面は 大きな 三角に なるので、こまかい ます目で べつに 張る）
+  const land = new THREE.Mesh(new THREE.ExtrudeGeometry(sh(1), { depth: 1.2, bevelEnabled: false, curveSegments: 1 }), [new THREE.MeshBasicMaterial({ visible: false }), cmat('#dcc893')]); land.rotation.x = -Math.PI / 2; land.position.y = -1.2; scene.add(land);
+  const tile = (k, y, color) => { // 島の 形（中心から k 倍）の 中の ます目（2 m）
+    const S = 2; const xs = ISLE.poly.map(([x]) => x * k); const zs = ISLE.poly.map(([, z]) => z * k); const x0 = Math.min(...xs); const z0 = Math.min(...zs);
+    const nx = Math.ceil((Math.max(...xs) - x0) / S); const nz = Math.ceil((Math.max(...zs) - z0) / S); const pos = []; const inside = (x, z) => insideIsle(C.x + x / k, C.z + z / k);
+    for (let i = 0; i < nx; i++) for (let j = 0; j < nz; j++) {
+      const ax = x0 + i * S; const az = z0 + j * S; if (!inside(ax + S / 2, az + S / 2)) continue;
+      pos.push(ax, 0, az, ax, 0, az + S, ax + S, 0, az, ax + S, 0, az, ax, 0, az + S, ax + S, 0, az + S);
+    }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.computeVertexNormals();
+    const m = new THREE.Mesh(g, cmat(color)); m.position.set(C.x, y, C.z); scene.add(m); return m;
+  };
+  tile(1, 0, '#ecdcae'); tile(0.9, 0.03, '#9cc47f'); // 砂浜と 芝生
+  const put = (geo, color, x, y, z, parent) => { const m = new THREE.Mesh(geo, cmat(color)); m.position.set(x, y, z); (parent || scene).add(m); return m; };
+  const P = (x, z) => isW(x, z);
+  // 広場（桟橋 → 競馬場の 入口 → アミューズメント・観覧車）
+  const pv = P(7, -16); const pav = put(new THREE.PlaneGeometry(66, 20, 33, 10), '#d9d4c7', pv.x, 0.05, pv.z); pav.rotation.x = -Math.PI / 2; // こまかく わけた 板（大きな 三角に しない）
+  [-8, 4, 16, 28].forEach((x) => { const q = P(x, -17); put(cyl(0.05, 0.05, 3.2, 8), '#3d4a54', q.x, 1.6, q.z); put(ball(0.2, 10, 8), '#fff1c2', q.x, 3.3, q.z).material = mat('#fff1c2', { emissive: '#ffe08a', emissiveIntensity: 0.8 }); }); // 街灯
+  // ヤシの 木（島の ふち）
+  [[-33, -14], [-27, 12], [25, 18], [33, -4], [-24, -40], [30, -38], [5, -44], [-12, 31], [12, 31]].forEach(([x, z]) => {
+    const q = P(x, z); const t = put(cyl(0.14, 0.2, 4.2, 8), '#8a6a46', q.x, 2.1, q.z); t.rotation.z = 0.08;
+    for (let k = 0; k < 6; k++) { const l = put(box(0.35, 0.06, 2.0), '#3f8a3a', q.x, 4.2, q.z); l.rotation.set(0.45, (k / 6) * TAU, 0, 'YXZ'); l.position.add(new THREE.Vector3(Math.sin((k / 6) * TAU) * 0.8, 0, Math.cos((k / 6) * TAU) * 0.8)); }
+  });
+  // 桟橋（東の はし。連絡船が とまる）と のりば
+  const pier = P(45.5, -21.75); put(box(9, 0.16, 2.6), '#a0784a', pier.x, 0.08, pier.z); ISLE.piers.push([pier.x - 4.5, pier.x + 4.5, pier.z - 1.3, pier.z + 1.3]);
+  for (let x = 41.5; x <= 49.6; x += 2) [-1.2, 1.2].forEach((dz) => { const q = P(x, -21.75 + dz); put(cyl(0.1, 0.1, 1.6, 8), '#6b4a32', q.x, -0.6, q.z); });
+  boatKiosk(P(39.2, -24.6), 0, 'isle');
+  // 観覧車（島の 北東。ゆっくり まわる。乗れないが 島の めじるし）
+  const fw = new THREE.Group(); fw.position.copy(FERRIS.at); scene.add(fw);
+  [-1, 1].forEach((sd) => [-1, 1].forEach((sx) => { const leg = put(box(0.35, FERRIS.hub + 0.6, 0.35), '#e9ecef', sx * 2.6, (FERRIS.hub + 0.6) / 2, sd * 1.1, fw); leg.rotation.z = -sx * 0.24; }));
+  put(box(1.6, 2.4, 2.8), '#e0662f', 0, 1.2, 2.6, fw); // 乗り場の 小屋
+  const wheel = new THREE.Group(); wheel.position.y = FERRIS.hub; fw.add(wheel); FERRIS.wheel = wheel;
+  [-0.6, 0.6].forEach((z) => { const rim = new THREE.Mesh(new THREE.TorusGeometry(FERRIS.r, 0.1, 6, 48), cmat('#e9ecef')); rim.position.z = z; wheel.add(rim); });
+  put(cyl(0.45, 0.45, 1.6, 12), '#c9ced6', 0, 0, 0, wheel).rotation.x = Math.PI / 2;
+  FERRIS.cars = [];
+  const GC = ['#d0392b', '#2f6fc4', '#e3b23c', '#4f9a45', '#6b4f9e', '#e07fa4'];
+  for (let k = 0; k < 12; k++) {
+    const a = (k / 12) * TAU; const sp = put(box(0.08, FERRIS.r, 0.08), '#e9ecef', Math.cos(a) * FERRIS.r / 2, Math.sin(a) * FERRIS.r / 2, 0, wheel); sp.rotation.z = a - Math.PI / 2;
+    const car = new THREE.Group(); car.position.set(Math.cos(a) * FERRIS.r, Math.sin(a) * FERRIS.r, 0); wheel.add(car);
+    put(box(1.1, 1.0, 1.0), GC[k % GC.length], 0, -0.8, 0, car); put(box(1.14, 0.4, 1.04), '#bfe3f2', 0, -0.6, 0, car); put(box(0.06, 0.4, 0.06), '#e9ecef', 0, -0.15, 0, car);
+    FERRIS.cars.push(car);
+  }
+  const fs = kcPlate('観覧車', 2.2, 0.6, '#e0662f', '#ffffff'); fs.position.set(0, 3.0, 4.01); fw.add(fs);
+  ISLE.rects.push([FERRIS.at.x - 3.4, FERRIS.at.x + 3.4, FERRIS.at.z - 1.6, FERRIS.at.z + 4.1]);
+  // アミューズメント（カジノ）：南に 入口。夜でも 目立つ 看板
+  const S = CAS_SITE; const cg = new THREE.Group(); cg.position.copy(S.at); scene.add(cg); S.group = cg;
+  const body = put(box(S.W, S.H, S.D), '#2b2f45', 0, S.H / 2, 0, cg); put(box(S.W + 0.4, 0.4, S.D + 0.4), '#e3b23c', 0, S.H + 0.2, 0, cg);
+  for (let k = 0; k < 9; k++) put(box(0.5, 0.5, 0.05), ['#e0662f', '#e3b23c', '#e07fa4'][k % 3], -S.W / 2 + 1.2 + k * 2.0, S.H - 0.6, S.D / 2 + 0.03, cg).material = mat(['#e0662f', '#e3b23c', '#e07fa4'][k % 3], { emissive: ['#e0662f', '#e3b23c', '#e07fa4'][k % 3], emissiveIntensity: 0.9 }); // ネオン
+  const sign = kcPlate('HOPE アミューズメント', 9, 1.1, '#8b1e2d', '#ffe08a'); sign.position.set(0, S.H - 1.8, S.D / 2 + 0.04); cg.add(sign);
+  const sub = kcPlate('スロット・ルーレット・ブラックジャック', 7, 0.5, '#1f2a33', '#ffffff'); sub.position.set(0, S.H - 2.75, S.D / 2 + 0.04); cg.add(sub);
+  put(box(2.4, 2.5, 0.06), '#e3b23c', 0, 1.25, S.D / 2 + 0.02, cg); put(box(2.1, 2.3, 0.07), '#14161f', 0, 1.15, S.D / 2 + 0.03, cg); // 入口
+  [-1, 1].forEach((sd) => put(box(2.6, 1.2, 0.05), '#bfe3f2', sd * 4.6, 1.7, S.D / 2 + 0.02, cg).material = mat('#ffd98a', { emissive: '#c9822b', emissiveIntensity: 0.5 }));
+  [body, sign, sub].forEach((m) => { m.userData.casEnter = true; plazaClickables.push(m); });
+  ISLE.rects.push([S.at.x - S.W / 2, S.at.x + S.W / 2, S.at.z - S.D / 2, S.at.z + S.D / 2]);
+  // 案内板（桟橋の 前）
+  const gb = new Board(3.2, 1.6, 220); gb.draw((ctx, W, H) => { ctx.fillStyle = '#fffdf8'; roundRect(ctx, 0, 0, W, H, 20); ctx.fill(); ctx.fillStyle = '#2d6fa3'; ctx.fillRect(0, 0, W, H * 0.24);
+    ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = '700 ' + Math.round(H * 0.15) + 'px ' + FONT_DISPLAY; ctx.fillText('ようこそ あそびの島へ', W / 2, H * 0.12);
+    ctx.fillStyle = '#1f2a33'; ctx.font = '700 ' + Math.round(H * 0.11) + 'px ' + FONT_BODY; ctx.textAlign = 'left';
+    [['← 西：アミューズメント（スロットなど）', 0.38], ['↖ 北西：カジノ（バカラ・ポーカー）', 0.53], ['↙ 南西：HOPE 競馬場', 0.68], ['↑ 北：観覧車', 0.82], ['→ 東：連絡船のりば', 0.95]].forEach(([t, y]) => ctx.fillText(t, W * 0.05, H * y)); });
+  const gq = P(33, -18.2); gb.mesh.position.set(gq.x, 1.6, gq.z); gb.mesh.rotation.y = Math.PI / 2; scene.add(gb.mesh); [-1.4, 1.4].forEach((dz) => put(box(0.1, 1.6, 0.1), '#5a4a3a', gq.x, 0.8, gq.z + dz));
+}
+// のりばの 小屋と「のる」ボタン（VR でも えらべる）
+function boatKiosk(at, yaw, side) {
+  const g = new THREE.Group(); g.position.copy(at); g.rotation.y = yaw; scene.add(g);
+  const put = (geo, color, x, y, z) => { const m = new THREE.Mesh(geo, cmat(color)); m.position.set(x, y, z); g.add(m); return m; };
+  put(box(2.2, 2.4, 1.2), '#f4f4f0', 0, 1.2, 0); put(box(2.5, 0.14, 1.5), '#2d6fa3', 0, 2.47, 0);
+  put(box(1.4, 0.7, 0.04), '#bfe3f2', 0, 1.45, 0.61);
+  const t = kcPlate(side === 'main' ? '連絡船のりば　あそびの島 行き' : '連絡船のりば　Work Island 行き', 2.6, 0.36, '#2d6fa3', '#ffffff'); t.position.set(0, 2.15, 0.62); g.add(t);
+  const btn = makeButton(side === 'main' ? 'きっぷを 買って のる' : '連絡船に のる（かえり）', '#e0662f', 1.4, 0.24); btn.position.set(0, 1.0, 0.64); g.add(btn);
+  btn.userData.ibaAct = () => { if (state.where === 'walk') boardBoat(side); }; plazaClickables.push(btn); BOATS.btns[side] = btn;
+  return g;
+}
+
+// ===========================================================================
+// 連絡船：フェリー乗り場（Work Island）⇄ あそびの島の 桟橋。きっぷは 往復 500 円（お金モード。かえりは その きっぷで のる）
+//   船は 2 そう。それぞれ じぶんの のりばで まち、乗せて 向こうへ 行ったら からで もどる
+// ===========================================================================
+const BOAT_PRICE = 500;
+const BOAT_TIME = 14000;
+const BOATS = { list: [], btns: {},
+  board: { main: toWorld(125, 499), isle: isW(48.6, -21.75) }, // 乗る ところ（岸）
+};
+function buildBoat(name) {
+  const g = new THREE.Group(); scene.add(g); const put = (geo, color, x, y, z) => { const m = new THREE.Mesh(geo, cmat(color)); m.position.set(x, y, z); g.add(m); return m; };
+  put(box(6.4, 0.9, 2.4), '#f4f4f0', -0.3, 0.15, 0); const bow = put(new THREE.CylinderGeometry(1.39, 1.39, 0.9, 3), '#f4f4f0', 3.3, 0.15, 0); bow.rotation.y = Math.PI / 2; bow.scale.set(1, 1, 0.5);
+  put(box(6.42, 0.14, 2.42), '#e0662f', -0.3, 0.45, 0); put(box(6.3, 0.04, 2.26), '#c9a676', -0.3, 0.62, 0); // 甲板
+  put(box(2.4, 1.3, 2.0), '#2d6fa3', 0.9, 1.29, 0); put(box(2.42, 0.5, 2.02), '#bfe3f2', 0.9, 1.45, 0); put(box(2.7, 0.1, 2.3), '#f4f4f0', 0.9, 2.0, 0); // 船室
+  [-1, 1].forEach((sd) => { for (let x = -3.4; x <= 3.0; x += 0.8) put(box(0.04, 0.6, 0.04), '#e9ecef', x, 0.92, sd * 1.14); put(box(6.6, 0.05, 0.05), '#e9ecef', -0.2, 1.22, sd * 1.14); });
+  put(box(1.6, 0.08, 0.4), '#8a6a46', -2.2, 1.06, -0.75); put(box(0.4, 0.08, 1.5), '#8a6a46', 2.45, 1.06, 0); // ベンチ（うしろの 甲板と へさき）
+  [-2.9, -1.5].forEach((x) => put(box(0.06, 0.42, 0.3), '#5a4a3a', x, 0.83, -0.75)); [-0.6, 0.6].forEach((z) => put(box(0.3, 0.42, 0.06), '#5a4a3a', 2.45, 0.83, z));
+  const nb = kcPlate(name, 2.2, 0.32, '#ffffff', '#2d6fa3'); nb.position.set(-0.3, 0.2, 1.21); g.add(nb); const nb2 = nb.clone(); nb2.rotation.y = Math.PI; nb2.position.z = -1.21; g.add(nb2);
+  put(cyl(0.03, 0.03, 1.4, 6), '#e9ecef', -3.2, 1.3, 0); put(box(0.02, 0.3, 0.5), '#e3b23c', -3.2, 1.85, 0.26); // 旗
+  // 乗っている 人（ベンチに すわる）
+  seatedPerson(g, '#c4577a', '#3d4a54', -2.6, -0.75, 0, { chair: null, h: 0.48, S: 3.3 }).c.position.y = 0.62; // ベンチの 座面は 甲板から 0.48 m
+  return g;
+}
+const boatYaw = (d) => Math.atan2(-d.z, d.x); // 船の 前（+x）を d に 向ける
+function initBoats() {
+  const mk = (name, home, homeYaw, side) => { const g = buildBoat(name); g.position.copy(home); g.rotation.y = homeYaw; return { g, side, home: home.clone(), homeYaw, trip: null }; };
+  const A = mk('連絡船 うみかぜ', new THREE.Vector3(-62.8, -0.2, 10.4), Math.PI, 'main'); // フェリー乗り場の 南（西を 向く）
+  const B = mk('連絡船 しおさい', isW(53.4, -21.75).setY(-0.2), 0, 'isle'); // 桟橋の 先（東を 向く）
+  BOATS.list = [A, B];
+  // 着く ところ（向こうの のりばの 横）と とちゅうの 目じるし
+  A.to = isW(46, -25.0).setY(-0.2); A.ctrl = new THREE.Vector3(-96, -0.2, 9);
+  B.to = new THREE.Vector3(-54.6, -0.2, 11.4); B.ctrl = new THREE.Vector3(-86, -0.2, 3);
+  A.land = { pos: isW(45.0, -22.4), yaw: Math.PI / 2 }; B.land = { pos: toWorld(128, 500), yaw: -Math.PI / 2 }; // おりて 島の 方を 向く
+  boatKiosk(toWorld(110.5, 495), Math.PI / 2, 'main'); // 岸壁の 西の はし（東を 向く）
+}
+function bez(a, c, b, t, out) { const u = 1 - t; return out.set(u * u * a.x + 2 * u * t * c.x + t * t * b.x, a.y, u * u * a.z + 2 * u * t * c.z + t * t * b.z); }
+const boatTmp = new THREE.Vector3(); const boatTmp2 = new THREE.Vector3();
+// きっぷを 買って 乗る（Work Island の のりばだけ お金が かかる。かえりは その きっぷ）
+function boardBoat(side, paid) {
+  if (!paid && side === 'main' && profile && profile.mode === 'money') {
+    if (profile.money < BOAT_PRICE) { toast('お金が たりません（連絡船 往復 ' + yen(BOAT_PRICE) + '）'); return; }
+    profile.money -= BOAT_PRICE; saveProfile(); renderWallet(); playSfx('coin'); toast('連絡船の 往復きっぷを 買いました（' + yen(BOAT_PRICE) + '）');
+  } else if (side === 'main' && !paid) toast('連絡船の きっぷを うけとりました');
+  boatTrip(side);
+}
+function boatTrip(side) {
+  const b = BOATS.list.find((x) => x.side === side); if (!b) return;
+  if (b.trip) { b.g.position.copy(b.home); b.g.rotation.y = b.homeYaw; b.trip = null; } // からで もどる とちゅう なら すぐ のりばへ
+  leaveForPlay();
+  state.where = 'play'; state.play = { kind: 'boat', side, boat: b, t0: performance.now() + 1200, yaw0: b.g.rotation.y };
+  b.trip = { from: b.home.clone(), ctrl: b.ctrl, to: b.to, t0: state.play.t0, rider: true, yaw0: b.g.rotation.y };
+  playSfx('horn'); toast(side === 'main' ? 'あそびの島へ 出発します' : 'Work Island へ もどります');
+  boatRide(b, performance.now()); renderHud();
+}
+function boatRide(b, now) { // 乗っている 人（自分）は へさきの ベンチに すわって 前を 見る
+  b.g.updateMatrixWorld(true); const seat = b.g.localToWorld(boatTmp.set(2.45, 0, 0));
+  rig.position.set(seat.x, b.g.position.y + (renderer.xr.isPresenting ? 0.62 : 0.3), seat.z); rig.rotation.y = b.g.rotation.y - Math.PI / 2;
+}
+function stepBoats(now) {
+  if (FERRIS.wheel && !reduceMotion) { FERRIS.wheel.rotation.z = now / 1000 * 0.06; FERRIS.cars.forEach((c) => { c.rotation.z = -FERRIS.wheel.rotation.z; }); }
+  BOATS.list.forEach((b) => {
+    const T = b.trip; const bob = Math.sin(now / 900 + (b.side === 'main' ? 0 : 2)) * 0.05;
+    if (!T) { b.g.position.y = -0.2 + bob; return; }
+    const t = Math.max(0, Math.min(1, (now - T.t0) / BOAT_TIME)); const e = t * t * (3 - 2 * t);
+    const back = !T.rider; const a = back ? T.to : T.from; const z = back ? T.from : T.to;
+    bez(a, T.ctrl, z, e, b.g.position); bez(a, T.ctrl, z, Math.min(1, e + 0.01), boatTmp2); b.g.position.y = -0.2 + bob;
+    const dir = boatTmp2.sub(b.g.position); if (t < 1 && dir.lengthSq() > 1e-8) { const k = Math.min(1, Math.max(0, (now - T.t0) / 2500)); b.g.rotation.y = T.yaw0 + angDiff(boatYaw(dir), T.yaw0) * k; } // 出る ときは ゆっくり 向きを かえる
+    if (t >= 1) {
+      if (T.rider) { b.trip = { from: T.from, ctrl: T.ctrl, to: T.to, t0: now + 4000, rider: false, yaw0: b.g.rotation.y }; if (state.play && state.play.kind === 'boat' && state.play.boat === b) boatArrive(b); }
+      else { b.trip = null; b.g.position.copy(b.home); b.g.rotation.y = b.homeYaw; }
+    }
+  });
+}
+// 居場所の ポスターなどから：フェリー乗り場の 連絡船のりばへ（きっぷを 買って 乗るのは そこで）
+function goBoatPier() {
+  if (ibaNow()) { state.play = null; IBA.g.visible = false; rig.position.y = 0; }
+  startWalk(BOATS.board.main.clone(), Math.PI / 2); toast('連絡船のりばです。きっぷを 買って のってください');
+}
+const angDiff = (a, b) => { let d = a - b; while (d > Math.PI) d -= TAU; while (d < -Math.PI) d += TAU; return d; };
+function boatArrive(b) {
+  state.play = null; const L = b.land;
+  playSfx('horn'); toast(b.side === 'main' ? 'あそびの島に 着きました' : 'Work Island に もどりました');
+  startWalk(L.pos, L.yaw);
+}
+
+// ===========================================================================
+// アミューズメント（カジノ）の 中：スロット・ルーレット・ブラックジャック（メダル。お金・バッジとは べつ）
+//   居場所と 同じ しくみ（島の 外に 建てた 部屋）。台の 札を えらぶと 席に つく。まわりの 席にも お客さんが すわって いる
+// ===========================================================================
+const CAS = { at: new THREE.Vector3(-640, 0, 44), g: null, room: { w: 16, d: 11 }, entry: new THREE.Vector3(0, 0, 4.2), signs: [], exitBtn: null, st: {} };
+const CAS_GAMES = { slot: 'スロット', roulette: 'ルーレット', bj: 'ブラックジャック' };
+const CAS_NOTE = { slot: '3 つ そろえば メダル', roulette: '赤・黒・数字に かける', bj: '21 に 近い ほうが 勝ち' };
+Object.assign(IBA_COLOR, { slot: '#b8860b', roulette: '#8b1e2d', bj: '#1f5f3a' });
+const CAS_AT = { slot: [-5.2, -2.6], roulette: [0.4, -2.3], bj: [5.4, -2.2] }; // 台の 位置（席は 台の 手前 +z で 奥を 向く）
+const CAS_SEAT = { slot: 1.0, roulette: 1.0, bj: 0.85 };
+const CAS_PANEL = { slot: [-0.68, 1.3, 0.3], roulette: [0.25, 1.42, -0.95], bj: [-0.95, 1.3, 0.3] }; // 札の 位置（席から 見て、台や 人に かからない ところ）
+const casNow = () => (state.where === 'play' && state.play && state.play.kind === 'casino' ? state.play : null);
+function casClickables() {
+  const out = CAS.signs.concat(CAS.exitBtn ? [CAS.exitBtn] : []);
+  const pl = casNow(); Object.values(CAS.st).forEach((st) => { out.push(...st.btnMeshes); });
+  if (pl && pl.at === 'roulette') out.push(...CAS.st.roulette.clicks);
+  return out.filter(ibaShown);
+}
+function casUpdate(st, msg, defs) { st.msg = msg.filter(Boolean); ibaPaint(st); ibaButtons(st, defs); if (casNow() && casNow().at === st.key) renderHud(); }
+const casMedalBtn = (st, show, row) => ({ label: 'メダルを もらう（50）', act: () => { ibaData().medals += 50; if (profile) saveProfile(); toast('メダルを 50 まい もらいました'); show(st); }, row, w: 0.5 });
+function buildAmuse() {
+  if (CAS.g) return;
+  const g = new THREE.Group(); g.position.copy(CAS.at); scene.add(g); CAS.g = g; const { w, d } = CAS.room; const H = 3.4;
+  g.updateMatrixWorld(true);
+  const put = (geo, color, x, y, z, parent, ex) => { const m = new THREE.Mesh(geo, ex ? mat(color, ex) : cmat(color)); m.position.set(x, y, z); (parent || g).add(m); return m; };
+  put(box(w, 0.1, d), '#7a1f2b', 0, -0.05, 0); // じゅうたん
+  for (let x = -w / 2 + 1; x < w / 2; x += 2) put(box(0.06, 0.012, d), '#a33a44', x, 0.006, 0);
+  const wall = '#2b2f45';
+  put(box(w, H, 0.12), wall, 0, H / 2, -d / 2); put(box(0.12, H, d), wall, -w / 2, H / 2, 0); put(box(0.12, H, d), wall, w / 2, H / 2, 0);
+  [-1, 1].forEach((sd) => put(box(w / 2 - 0.8, H, 0.12), wall, sd * (w / 4 + 0.4), H / 2, d / 2)); put(box(1.6, H - 2.3, 0.12), wall, 0, (H + 2.3) / 2, d / 2);
+  put(box(w, 0.08, d), '#1f2236', 0, H, 0); put(box(w, 0.1, 0.06), '#e3b23c', 0, H - 0.2, -d / 2 + 0.07);
+  for (let k = -2; k <= 2; k++) { const c = put(cyl(0.45, 0.25, 0.3, 12), '#fff1c2', k * 3.1, H - 0.25, -0.5, g, { emissive: '#ffe08a', emissiveIntensity: 0.9 }); c.rotation.x = Math.PI; }
+  const neon = kcPlate('HOPE CASINO', 4, 0.7, '#8b1e2d', '#ffe08a'); neon.position.set(0, 2.75, -d / 2 + 0.08); g.add(neon);
+  const rule = new Board(2.6, 0.55, 300); rule.draw((ctx, W, Hh) => { ctx.fillStyle = '#fffdf8'; roundRect(ctx, 0, 0, W, Hh, 20); ctx.fill(); ctx.fillStyle = '#1f2a33'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = '700 ' + Math.round(Hh * 0.22) + 'px ' + FONT_BODY; ctx.fillText('すきな 台の 札を えらぶと 席に つきます', W / 2, Hh * 0.33);
+    ctx.font = '400 ' + Math.round(Hh * 0.17) + 'px ' + FONT_BODY; ctx.fillText('メダルは あそび用（お金・バッジとは べつ）。なくなったら もらえます', W / 2, Hh * 0.7); });
+  rule.mesh.position.set(-w / 2 + 0.07, 1.7, 2.6); rule.mesh.rotation.y = Math.PI / 2; g.add(rule.mesh);
+  // バーカウンター（右の おく）と バーテンダー
+  put(box(0.7, 1.05, 3.2), '#5a3a22', w / 2 - 0.8, 0.525, 2.4); put(box(0.8, 0.06, 3.3), '#e3b23c', w / 2 - 0.8, 1.08, 2.4);
+  const bt = person('#f6f1e6', '#1f2a33', true); bt.scale.setScalar(4.4); bt.position.set(w / 2 - 0.35, 0, 2.4); bt.rotation.y = -Math.PI / 2; g.add(bt);
+  [1.5, 2.4, 3.3].forEach((z, i) => { if (i === 1) seatedPerson(g, '#6b4f9e', '#3d4a54', w / 2 - 1.55, z, Math.PI / 2, { stool: true, chair: '#8b1e2d', h: 0.72 }); else { const sc = new THREE.Group(); sc.position.set(w / 2 - 1.55, 0, z); g.add(sc); put(cyl(0.2, 0.2, 0.06, 16), '#8b1e2d', 0, 0.69, 0, sc); put(cyl(0.03, 0.03, 0.66, 8), '#c9ced6', 0, 0.33, 0, sc); } });
+  CAS.exitBtn = ibaClick(makeButton('外に 出る', '#3d4a54', 0.6, 0.15), () => endPlay()); CAS.exitBtn.position.set(0, 1.55, d / 2 - 0.1); CAS.exitBtn.rotation.y = Math.PI; g.add(CAS.exitBtn);
+  Object.keys(CAS_GAMES).forEach((key) => {
+    const [x, z] = CAS_AT[key];
+    const sg = overviewSign(CAS_GAMES[key], CAS_NOTE[key], IBA_COLOR[key], 1.5); sg.material.depthTest = true; sg.renderOrder = 0;
+    sg.position.set(x, 2.7, z - 1.1); g.add(sg); CAS.signs.push(ibaClick(sg, () => casSit(key)));
+    const st = { key, x, z, g: new THREE.Group(), pg: new THREE.Group(), panel: new Board(0.9, 0.5, 900), ph: 0.5, btnDefs: [], btnMeshes: [], clicks: [], msg: [], title: CAS_GAMES[key] };
+    st.g.position.set(x, 0, z); g.add(st.g); CAS.st[key] = st;
+    const [px, py, pz] = CAS_PANEL[key]; st.pg.position.set(px, py, pz); st.pg.rotation.y = Math.atan2(-px, CAS_SEAT[key] - pz); st.g.add(st.pg); st.pg.add(st.panel.mesh);
+    seatChair(st.g, 0, CAS_SEAT[key] + 0.12, Math.PI, { chair: '#8b1e2d', stool: key === 'slot', h: key === 'slot' ? 0.6 : 0.46 }); // 自分の いす
+  });
+  buildSlot(CAS.st.slot); buildRoulette(CAS.st.roulette); buildBj(CAS.st.bj);
+  slShow(CAS.st.slot); rlShow(CAS.st.roulette); bjShow(CAS.st.bj);
+}
+function openCasino(from) {
+  const pl0 = casNow();
+  const fromInfo = pl0 ? pl0.from : from || (state.where === 'walk' ? { pos: rig.position.clone(), yaw: rig.rotation.y + look.yaw } : {});
+  leaveForPlay(); buildAmuse(); CAS.g.visible = true;
+  state.where = 'play'; state.play = { kind: 'casino', at: null, from: fromInfo, t0: performance.now() };
+  casStand(); toast('HOPE アミューズメントへ ようこそ');
+}
+function casStand() {
+  const pl = casNow(); if (!pl) return; pl.at = null;
+  rig.position.copy(CAS.g.localToWorld(CAS.entry.clone())); rig.rotation.y = 0; look.yaw = 0; look.pitch = 0.1;
+  renderHud();
+}
+function casSit(key) {
+  const pl = casNow(); if (!pl) return; const st = CAS.st[key]; pl.at = key;
+  const seat = new THREE.Vector3(st.x, renderer.xr.isPresenting ? 0 : -0.35 + (key === 'slot' ? 0.12 : 0), st.z + CAS_SEAT[key]);
+  rig.position.copy(CAS.g.localToWorld(seat)); rig.position.y = seat.y; rig.rotation.y = 0; look.yaw = 0; look.pitch = key === 'roulette' ? 0.3 : 0.22;
+  ({ slot: slShow, roulette: rlShow, bj: bjShow })[key](st);
+  renderHud();
+}
+function leaveCasino(pl) {
+  CAS.g.visible = false; rig.position.y = 0;
+  const o = casOutside(); if (pl.from.pos) startWalk(pl.from.pos, pl.from.yaw); else startWalk(o.pos, o.yaw);
+}
+function stepCasino(pl, dt, now) { stepSlot(CAS.st.slot, now); stepRoulette(CAS.st.roulette, now); stepBj(CAS.st.bj, now); }
+function renderCasinoHud(el) {
+  const pl = state.play; const st = pl.at && CAS.st[pl.at];
+  const others = Object.keys(CAS_GAMES).filter((k) => k !== pl.at).map((k) => '<button type="button" data-cas-go="' + k + '">' + CAS_GAMES[k] + '</button>').join('');
+  el.innerHTML = '<span class="tag">HOPE アミューズメント（カジノ）</span><h2>' + (st ? CAS_GAMES[pl.at] : 'あそびを えらぶ') + '</h2>' +
+    (st ? '<div class="feedback">' + st.msg.map((m) => esc(m.text || m)).join('<br>') + '</div>' +
+      '<div class="row">' + st.btnDefs.map((d, i) => '<button type="button"' + (d.on ? ' class="primary"' : '') + ' data-cas-btn="' + i + '">' + esc(d.label) + '</button>').join('') + '</div>'
+      : '<div>スロット・ルーレット・ブラックジャックが できます。台の 札を えらぶ（VR では ゆびさして トリガー）と 席に つきます。メダルは あそび用です（いま ' + ibaData().medals + 'まい）。</div>') +
+    '<div class="row">' + others + (st ? '<button type="button" id="cas-stand">席を 立つ</button>' : '') + '<button type="button" id="cas-out">外に 出る</button></div>';
+  el.querySelectorAll('[data-cas-go]').forEach((b) => { b.onclick = () => casSit(b.dataset.casGo); });
+  el.querySelectorAll('[data-cas-btn]').forEach((b) => { b.onclick = () => { const d = st.btnDefs[Number(b.dataset.casBtn)]; if (d) { playSfx('pop'); d.act(); } }; });
+  if ($('cas-stand')) $('cas-stand').onclick = casStand;
+  $('cas-out').onclick = endPlay;
+}
+
+// ---- スロット ---------------------------------------------------------------
+const SL_SYM = [['7', '#d0392b'], ['BAR', '#1f2a33'], ['ベル', '#c99a12'], ['スイカ', '#2f8a3a'], ['チェリー', '#c0392b']];
+const SL_STRIP = [4, 2, 0, 4, 3, 1, 4, 2, 3, 4, 1, 2]; // 12 こまの リール（数字は SL_SYM）
+const SL_PAY = [30, 15, 10, 6, 4]; // 3 つ そろった とき（かけた まい数の 何倍）
+function slotCabinet(parent, x, color) {
+  const c = new THREE.Group(); c.position.set(x, 0, 0); parent.add(c);
+  const put = (geo, col, px, py, pz, ex) => { const m = new THREE.Mesh(geo, ex ? mat(col, ex) : cmat(col)); m.position.set(px, py, pz); c.add(m); return m; };
+  put(box(0.7, 1.7, 0.55), color, 0, 0.85, 0); put(box(0.72, 0.3, 0.58), '#e3b23c', 0, 1.82, 0, { emissive: '#c9822b', emissiveIntensity: 0.6 });
+  put(box(0.6, 0.06, 0.3), '#1f2a33', 0, 0.86, 0.38); // 手もとの 台
+  put(cyl(0.025, 0.025, 0.35, 8), '#c9ced6', 0.4, 1.2, 0.05); put(ball(0.05, 10, 8), '#d0392b', 0.4, 1.4, 0.05); // レバー
+  return c;
+}
+function buildSlot(st) {
+  const cols = ['#5a2a7a', '#2a4a7a', '#7a2a3a', '#2a6a4a'];
+  [0, 1.0, 2.0, 3.0].forEach((x, k) => {
+    const c = slotCabinet(st.g, x, cols[k]);
+    const reels = new Board(0.5, 0.24, 600); reels.mesh.position.set(0, 1.2, 0.28); c.add(reels.mesh);
+    if (x === 0) st.reels = reels; else { slDrawReels(reels, [k * 3, k * 5 + 1, k * 7 + 2]); seatedPerson(st.g, ['#e3b23c', '#2f6fc4', '#e07fa4', '#4f9a45'][k], '#3d4a54', x, CAS_SEAT.slot + 0.12, Math.PI, { stool: true, chair: '#8b1e2d', h: 0.6 }); }
+  });
+  st.S = { bet: 1, pos: [0, 4, 8], spin: null, last: '' }; slDrawReels(st.reels, st.S.pos);
+}
+function slDrawReels(b, pos) {
+  b.draw((ctx, W, H) => {
+    ctx.fillStyle = '#1f2a33'; ctx.fillRect(0, 0, W, H);
+    for (let r = 0; r < 3; r++) {
+      const x0 = W * (0.03 + r * 0.325); const w = W * 0.29; ctx.save(); ctx.beginPath(); ctx.rect(x0, H * 0.06, w, H * 0.88); ctx.clip();
+      ctx.fillStyle = '#fffdf8'; ctx.fillRect(x0, 0, w, H);
+      const p = pos[r]; const base = Math.floor(p); const f = p - base;
+      for (let k = -1; k <= 1; k++) { const sym = SL_SYM[SL_STRIP[(((base + k) % 12) + 12) % 12]]; const y = H / 2 + (k - f) * H * 0.62 * -1; ctx.fillStyle = sym[1]; ctx.font = '700 ' + Math.round(H * (sym[0].length > 2 ? 0.22 : 0.34)) + 'px ' + FONT_BODY; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(sym[0], x0 + w / 2, y); }
+      ctx.restore();
+    }
+    ctx.fillStyle = 'rgba(208,57,43,0.8)'; ctx.fillRect(0, H / 2 - 2, W, 4);
+  });
+}
+function slShow(st) {
+  const S = st.S; const md = ibaData().medals;
+  const msg = [S.spin ? 'まわって います…' : S.last || 'BET を えらんで スピン', 'メダル ' + md + 'まい　｜　BET ' + S.bet + 'まい', '7=' + SL_PAY[0] + '倍・BAR=' + SL_PAY[1] + '・ベル=' + SL_PAY[2] + '・スイカ=' + SL_PAY[3] + '・チェリー=' + SL_PAY[4] + '（左から 2 つ=2倍・1 つ=1倍）'];
+  const defs = S.spin ? [] : [{ label: 'BET 1', act: () => { S.bet = 1; slShow(st); }, on: S.bet === 1, w: 0.26 }, { label: 'BET 3', act: () => { S.bet = 3; slShow(st); }, on: S.bet === 3, w: 0.26 },
+    md < 1 ? casMedalBtn(st, slShow, 0) : { label: 'スピン', act: () => slSpin(st), w: 0.3, color: '#c0392b' }];
+  casUpdate(st, msg, defs);
+}
+function slSpin(st) {
+  const S = st.S; const d = ibaData(); if (S.spin) return;
+  if (d.medals < S.bet) { toast('メダルが たりません'); return; }
+  d.medals -= S.bet; if (profile) saveProfile();
+  S.spin = { t0: performance.now(), stops: [0, 1, 2].map(() => Math.floor(Math.random() * 12)), from: S.pos.slice(), done: [false, false, false] }; playSfx('beep'); slShow(st);
+}
+function stepSlot(st, now) {
+  const S = st && st.S; if (!S || !S.spin) return; const P = S.spin; const t = (now - P.t0) / 1000;
+  for (let r = 0; r < 3; r++) { const stopT = 1.0 + r * 0.45; if (t < stopT) S.pos[r] = P.from[r] + t * 14; else if (!P.done[r]) { P.done[r] = true; S.pos[r] = P.stops[r]; playSfx('wood'); } }
+  if (now - (S.drawAt || 0) > 33 || P.done[2]) { S.drawAt = now; slDrawReels(st.reels, S.pos); }
+  if (P.done[2]) {
+    S.spin = null; const sy = P.stops.map((i) => SL_STRIP[i]); let k = 0;
+    if (sy[0] === sy[1] && sy[1] === sy[2]) k = SL_PAY[sy[0]]; else if (sy[0] === 4 && sy[1] === 4) k = 2; else if (sy[0] === 4) k = 1;
+    const pay = k * S.bet; ibaData().medals += pay; if (profile) saveProfile();
+    S.last = pay ? (k >= 4 ? 'そろった！ ' : '') + SL_SYM[sy[0]][0] + ' → メダル ' + pay + 'まい' : 'はずれ（' + sy.map((i) => SL_SYM[i][0]).join('・') + '）';
+    if (k >= 4) { ibaLog('slot', SL_SYM[sy[0]][0] + ' が そろって +' + pay + '（のこり ' + ibaData().medals + 'まい）'); playSfx('coin'); toast(S.last); } else if (pay) playSfx('coin');
+    slShow(st);
+  }
+}
+
+// ---- ルーレット（0〜36 の ヨーロッパ式）--------------------------------------
+const RL_ORDER = [0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26];
+const RL_RED = new Set([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36]);
+const rlColor = (n) => (n === 0 ? '#2f8a3a' : RL_RED.has(n) ? '#c0392b' : '#1f2a33');
+const RL_BETS = { red: ['赤', 2, (n) => RL_RED.has(n)], black: ['黒', 2, (n) => n > 0 && !RL_RED.has(n)], odd: ['奇数', 2, (n) => n % 2 === 1], even: ['偶数', 2, (n) => n > 0 && n % 2 === 0],
+  low: ['1〜18', 2, (n) => n >= 1 && n <= 18], high: ['19〜36', 2, (n) => n >= 19], d1: ['1〜12', 3, (n) => n >= 1 && n <= 12], d2: ['13〜24', 3, (n) => n >= 13 && n <= 24], d3: ['25〜36', 3, (n) => n >= 25], num: ['数字', 36, null] };
+const RL_TOP = 0.82; const RL_WX = -0.72;
+function buildRoulette(st) {
+  const put = (geo, col, x, y, z, parent) => { const m = new THREE.Mesh(geo, cmat(col)); m.position.set(x, y, z); (parent || st.g).add(m); return m; };
+  put(box(2.6, 0.08, 1.4), '#5a3a22', 0, RL_TOP - 0.04, 0); put(box(2.5, 0.01, 1.3), '#1f6f3a', 0, RL_TOP + 0.005, 0);
+  [[-1.2, -0.6], [1.2, -0.6], [-1.2, 0.6], [1.2, 0.6]].forEach(([x, z]) => put(box(0.08, RL_TOP - 0.08, 0.08), '#3a2a1a', x, (RL_TOP - 0.08) / 2, z));
+  // 盤（かけ表）
+  const lay = new Board(1.4, 0.62, 500); lay.draw((ctx, W, H) => {
+    ctx.fillStyle = '#1f6f3a'; ctx.fillRect(0, 0, W, H); const cw = W / 13; const ch = H * 0.6 / 3;
+    ctx.fillStyle = rlColor(0); ctx.fillRect(0, 0, cw, ch * 3); ctx.fillStyle = '#fff'; ctx.font = '700 ' + Math.round(ch * 0.5) + 'px ' + FONT_BODY; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('0', cw / 2, ch * 1.5);
+    for (let n = 1; n <= 36; n++) { const c = Math.ceil(n / 3); const r = 2 - ((n - 1) % 3); ctx.fillStyle = rlColor(n); ctx.fillRect(c * cw + 1, r * ch + 1, cw - 2, ch - 2); ctx.fillStyle = '#fff'; ctx.fillText(String(n), c * cw + cw / 2, r * ch + ch / 2); }
+    ctx.font = '700 ' + Math.round(H * 0.08) + 'px ' + FONT_BODY; [['1〜12', 0], ['13〜24', 1], ['25〜36', 2]].forEach(([t, i]) => { ctx.strokeStyle = '#fff'; ctx.strokeRect(cw + i * 4 * cw, H * 0.62, 4 * cw, H * 0.17); ctx.fillStyle = '#fff'; ctx.fillText(t, cw + i * 4 * cw + 2 * cw, H * 0.705); });
+    [['1〜18', '#1f6f3a'], ['偶数', '#1f6f3a'], ['赤', '#c0392b'], ['黒', '#1f2a33'], ['奇数', '#1f6f3a'], ['19〜36', '#1f6f3a']].forEach(([t, c], i) => { ctx.fillStyle = c; ctx.fillRect(cw + i * 2 * cw + 1, H * 0.81, 2 * cw - 2, H * 0.17); ctx.fillStyle = '#fff'; ctx.fillText(t, cw + i * 2 * cw + cw, H * 0.895); });
+  });
+  lay.mesh.rotation.x = -Math.PI / 2; lay.mesh.position.set(0.5, RL_TOP + 0.012, 0.05); st.g.add(lay.mesh);
+  // 回転盤
+  const wg = new THREE.Group(); wg.position.set(RL_WX, RL_TOP, 0); st.g.add(wg); st.wheel = wg;
+  put(cyl(0.42, 0.44, 0.1, 40), '#5a3a22', RL_WX, RL_TOP + 0.05, 0); // 外わく（まわらない）
+  const tex = makeCanvas(512, 512); const c = tex.getContext('2d'); const N = 37;
+  c.fillStyle = '#3a2a1a'; c.fillRect(0, 0, 512, 512);
+  for (let k = 0; k < N; k++) { const a0 = (k - 0.5) / N * TAU; const a1 = (k + 0.5) / N * TAU; c.beginPath(); c.moveTo(256, 256); c.arc(256, 256, 250, a0, a1); c.closePath(); c.fillStyle = rlColor(RL_ORDER[k]); c.fill();
+    c.save(); c.translate(256, 256); c.rotate(k / N * TAU); c.fillStyle = '#ffffff'; c.font = '700 22px ' + FONT_BODY; c.textAlign = 'center'; c.textBaseline = 'middle'; c.translate(222, 0); c.rotate(Math.PI / 2); c.fillText(String(RL_ORDER[k]), 0, 0); c.restore(); }
+  c.beginPath(); c.arc(256, 256, 160, 0, TAU); c.fillStyle = '#8a5a2b'; c.fill(); c.beginPath(); c.arc(256, 256, 60, 0, TAU); c.fillStyle = '#e3b23c'; c.fill();
+  const disk = new THREE.Mesh(new THREE.CircleGeometry(0.36, 48), new THREE.MeshStandardMaterial({ map: new THREE.CanvasTexture(tex), roughness: 0.5 })); disk.rotation.x = -Math.PI / 2; disk.position.y = 0.105; wg.add(disk);
+  const knob = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.12, 12), cmat('#e3b23c')); knob.position.y = 0.16; wg.add(knob);
+  st.ball = put(ball(0.016, 12, 10), '#ffffff', RL_WX + 0.3, RL_TOP + 0.115, 0);
+  // ディーラー（立つ）と お客さん（すわる）
+  const dl = person('#1f2a33', '#1f2a33', true); dl.scale.setScalar(4.4); dl.position.set(RL_WX, 0, -1.05); st.g.add(dl);
+  [[0.9, 1.0, '#e3b23c'], [1.65, 0.2, '#2d9f8a'], [-1.65, 0.3, '#e07fa4']].forEach(([x, z, col]) => seatedPerson(st.g, col, '#3d4a54', x, z, Math.atan2(-x * 0.6, -z), { chair: '#8b1e2d' })); // 台の 方を 向いて すわる
+  st.R = { type: 'red', amt: 5, num: 17, spin: null, wAng: 0, last: '', hist: [] };
+}
+function rlShow(st) {
+  const R = st.R; const md = ibaData().medals; const B = RL_BETS[R.type];
+  const bet = (R.type === 'num' ? R.num + ' 番' : B[0]) + '・' + R.amt + 'まい（あたると ' + B[1] + ' 倍）';
+  const msg = [R.spin ? 'ボールが まわって います…' : R.last || 'かける ところと まい数を えらんで スピン', 'メダル ' + md + 'まい　｜　' + bet, R.hist.length ? 'さいきん：' + R.hist.slice(-8).join(' ') : ''];
+  const defs = R.spin ? [] : ['red', 'black', 'odd', 'even', 'low', 'high'].map((k) => ({ label: RL_BETS[k][0], act: () => { R.type = k; rlShow(st); }, on: R.type === k, row: 0, w: 0.13 }))
+    .concat(['d1', 'd2', 'd3', 'num'].map((k) => ({ label: RL_BETS[k][0], act: () => { R.type = k; rlShow(st); }, on: R.type === k, row: 1, w: 0.19 })))
+    .concat(R.type === 'num' ? [{ label: '◀', act: () => { R.num = (R.num + 36) % 37; rlShow(st); }, row: 2, w: 0.12 }, { label: R.num + ' 番', act: () => {}, on: true, row: 2, w: 0.16 }, { label: '▶', act: () => { R.num = (R.num + 1) % 37; rlShow(st); }, row: 2, w: 0.12 }] : [])
+    .concat([1, 5, 10].map((a) => ({ label: a + 'まい', act: () => { R.amt = a; rlShow(st); }, on: R.amt === a, row: 3, w: 0.17 })))
+    .concat([md < 1 ? casMedalBtn(st, rlShow, 3) : { label: 'スピン', act: () => rlSpin(st), row: 3, w: 0.26, color: '#c0392b' }]);
+  casUpdate(st, msg, defs);
+}
+function rlSpin(st) {
+  const R = st.R; const d = ibaData(); if (R.spin) return;
+  if (d.medals < R.amt) { toast('メダルが たりません'); return; }
+  d.medals -= R.amt; if (profile) saveProfile();
+  const n = Math.floor(Math.random() * 37); const idx = RL_ORDER.indexOf(n); const w0 = R.wAng; const w1 = w0 + TAU * (1.5 + Math.random());
+  const b1 = (idx / 37) * TAU - w1; // ボールが とまる 向き（盤の その 数字の ところ）
+  R.spin = { t0: performance.now(), dur: 5200, n, w0, w1, b1, b0: b1 - TAU * 5 }; playSfx('tool'); rlShow(st);
+}
+function stepRoulette(st, now) {
+  const R = st && st.R; if (!R) return; const P = R.spin;
+  if (!P) return;
+  const t = Math.min(1, (now - P.t0) / P.dur); const e = 1 - Math.pow(1 - t, 3);
+  R.wAng = P.w0 + (P.w1 - P.w0) * e; st.wheel.rotation.y = R.wAng;
+  const b = P.b0 + (P.b1 - P.b0) * e; const r = t < 0.72 ? 0.33 : 0.33 - (t - 0.72) / 0.28 * 0.1; // 最後は 内がわの 穴へ
+  st.ball.position.set(RL_WX + Math.cos(b) * r, RL_TOP + 0.115 + (t > 0.72 && t < 0.95 ? Math.abs(Math.sin(t * 60)) * 0.015 : 0), Math.sin(b) * r);
+  if (t >= 1) {
+    R.spin = null; const n = P.n; const B = RL_BETS[R.type]; const hit = R.type === 'num' ? n === R.num : B[2](n); const pay = hit ? R.amt * B[1] : 0;
+    ibaData().medals += pay; if (profile) saveProfile(); R.hist.push(n);
+    R.last = n + '（' + (n === 0 ? '緑' : RL_RED.has(n) ? '赤' : '黒') + '）… ' + (hit ? 'あたり！ メダル ' + pay + 'まい' : 'はずれ');
+    if (hit && B[1] >= 3) ibaLog('roulette', (R.type === 'num' ? R.num + ' 番' : B[0]) + ' あたり +' + pay + '（のこり ' + ibaData().medals + 'まい）');
+    playSfx(hit ? 'coin' : 'pop'); if (hit) toast(R.last); rlShow(st);
+  }
+}
+
+// ---- ブラックジャック（ディーラーは 17 で とまる）------------------------------
+const BJ_TOP = 0.78; const BJ_SUIT = [['♠', '#1f2a33'], ['♥', '#c0392b'], ['♦', '#c0392b'], ['♣', '#1f2a33']];
+const bjRank = (r) => (r === 1 ? 'A' : r === 11 ? 'J' : r === 12 ? 'Q' : r === 13 ? 'K' : String(r));
+function bjValue(hand) { let v = 0; let ace = 0; hand.forEach((c) => { v += Math.min(10, c.r); if (c.r === 1) ace++; }); while (ace > 0 && v + 10 <= 21) { v += 10; ace--; } return v; }
+function buildBj(st) {
+  const put = (geo, col, x, y, z, parent) => { const m = new THREE.Mesh(geo, cmat(col)); m.position.set(x, y, z); (parent || st.g).add(m); return m; };
+  const top = new THREE.Mesh(new THREE.CylinderGeometry(1.15, 1.15, 0.08, 32, 1, false, -Math.PI / 2, Math.PI), cmat('#5a3a22')); top.position.set(0, BJ_TOP - 0.04, -0.45); st.g.add(top);
+  const felt = new THREE.Mesh(new THREE.CylinderGeometry(1.08, 1.08, 0.01, 32, 1, false, -Math.PI / 2, Math.PI), cmat('#1f5f3a')); felt.position.set(0, BJ_TOP + 0.005, -0.45); st.g.add(felt);
+  put(box(2.3, 0.08, 0.3), '#5a3a22', 0, BJ_TOP - 0.04, -0.6); put(box(0.5, BJ_TOP - 0.08, 0.5), '#3a2a1a', 0, (BJ_TOP - 0.08) / 2, -0.2);
+  const lab = kcPlate('ブラックジャックは 2.5 倍・ディーラーは 17 で とまる', 1.2, 0.12, '#1f5f3a', '#e3b23c'); lab.rotation.x = -Math.PI / 2; lab.position.set(0, BJ_TOP + 0.012, -0.1); st.g.add(lab);
+  put(box(0.2, 0.12, 0.3), '#8b1e2d', 0.7, BJ_TOP + 0.06, -0.62); // カードの 箱
+  const dl = person('#1f2a33', '#1f2a33', true); dl.scale.setScalar(4.4); dl.position.set(0, 0, -0.95); st.g.add(dl);
+  [[-1.18, -0.2, '#4f9a45'], [1.18, -0.2, '#e0662f']].forEach(([x, z, col]) => seatedPerson(st.g, col, '#3d4a54', x, z, Math.atan2(-x, -0.45 - z), { chair: '#8b1e2d' }));
+  st.cards = new THREE.Group(); st.g.add(st.cards);
+  st.B = { phase: 'bet', amt: 5, p: [], d: [], last: '' };
+}
+function bjCard(c, down) {
+  const b = new Board(0.09, 0.13, 900); b.draw((ctx, W, H) => {
+    ctx.fillStyle = down ? '#8b1e2d' : '#ffffff'; roundRect(ctx, 0, 0, W, H, 10); ctx.fill(); ctx.strokeStyle = '#c9ced6'; ctx.lineWidth = 3; ctx.stroke();
+    if (down) { ctx.strokeStyle = '#e3b23c'; ctx.lineWidth = 4; ctx.strokeRect(W * 0.12, H * 0.1, W * 0.76, H * 0.8); return; }
+    const [s, col] = BJ_SUIT[c.s]; ctx.fillStyle = col; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = '700 ' + Math.round(H * 0.3) + 'px ' + FONT_BODY; ctx.fillText(bjRank(c.r), W / 2, H * 0.32); ctx.font = '700 ' + Math.round(H * 0.32) + 'px ' + FONT_BODY; ctx.fillText(s, W / 2, H * 0.7);
+  });
+  b.mesh.rotation.x = -Math.PI / 2; return b.mesh;
+}
+function bjLay(st) {
+  const B = st.B; st.cards.children.slice().forEach((m) => { st.cards.remove(m); m.material.map.dispose(); m.material.dispose(); m.geometry.dispose(); });
+  B.p.forEach((c, i) => { const m = bjCard(c); m.position.set(-0.1 + i * 0.075, BJ_TOP + 0.012 + i * 0.001, 0.25); st.cards.add(m); });
+  B.d.forEach((c, i) => { const m = bjCard(c, i === 1 && B.phase === 'play'); m.position.set(-0.1 + i * 0.075, BJ_TOP + 0.012 + i * 0.001, -0.42); m.rotation.z = Math.PI; st.cards.add(m); });
+}
+const bjDraw = () => ({ r: 1 + Math.floor(Math.random() * 13), s: Math.floor(Math.random() * 4) });
+function bjShow(st) {
+  const B = st.B; const md = ibaData().medals; const pv = bjValue(B.p);
+  let msg; let defs;
+  if (B.phase === 'bet') { msg = [B.last || 'かける まい数を えらんで 配る', 'メダル ' + md + 'まい　｜　' + B.amt + 'まい かける'];
+    defs = [1, 5, 10].map((a) => ({ label: a + 'まい', act: () => { B.amt = a; bjShow(st); }, on: B.amt === a, w: 0.17 })).concat([md < 1 ? casMedalBtn(st, bjShow, 0) : { label: '配る', act: () => bjDeal(st), w: 0.24, color: '#c0392b' }]); }
+  else if (B.phase === 'play') { msg = ['あなた ' + pv + '　｜　ディーラー ' + Math.min(10, B.d[0].r === 1 ? 11 : B.d[0].r) + ' ＋ ？', 'もう 1 まい ひく（ヒット）か、ここで とめる（スタンド）', 'かけた メダル ' + B.amt + 'まい'];
+    defs = [{ label: 'ヒット', act: () => bjHit(st), w: 0.3, color: '#2f6fc4' }, { label: 'スタンド', act: () => bjStand(st), w: 0.3, color: '#c0392b' }]; }
+  else { msg = [{ text: B.last, color: B.won ? '#2f7d4f' : B.push ? '#8a5a2b' : '#c0392b' }, 'あなた ' + pv + '　｜　ディーラー ' + bjValue(B.d), 'メダル ' + md + 'まい'];
+    defs = [{ label: 'つぎの 勝負', act: () => { B.phase = 'bet'; B.p = []; B.d = []; bjLay(st); bjShow(st); }, w: 0.4 }]; }
+  casUpdate(st, msg, defs);
+}
+function bjDeal(st) {
+  const B = st.B; const d = ibaData(); if (d.medals < B.amt) { toast('メダルが たりません'); return; }
+  d.medals -= B.amt; if (profile) saveProfile();
+  B.p = [bjDraw(), bjDraw()]; B.d = [bjDraw(), bjDraw()]; B.phase = 'play'; B.won = false; B.push = false; playSfx('paper');
+  if (bjValue(B.p) === 21) { bjEnd(st, true); return; }
+  bjLay(st); bjShow(st);
+}
+function bjHit(st) { const B = st.B; if (B.phase !== 'play') return; B.p.push(bjDraw()); playSfx('paper'); if (bjValue(B.p) > 21) { bjEnd(st); return; } bjLay(st); bjShow(st); }
+function bjStand(st) { const B = st.B; if (B.phase !== 'play') return; B.phase = 'dealer'; B.next = performance.now() + 600; bjLay(st); casUpdate(st, ['ディーラーが ひいて います…', 'あなた ' + bjValue(B.p)], []); }
+function stepBj(st, now) {
+  const B = st && st.B; if (!B || B.phase !== 'dealer' || now < B.next) return;
+  if (bjValue(B.d) < 17) { B.d.push(bjDraw()); playSfx('paper'); B.next = now + 700; bjLay(st); casUpdate(st, ['ディーラーが ひいて います…', 'あなた ' + bjValue(B.p) + '　｜　ディーラー ' + bjValue(B.d)], []); return; }
+  bjEnd(st);
+}
+function bjEnd(st, natural) {
+  const B = st.B; const pv = bjValue(B.p); const dv = bjValue(B.d); let pay = 0;
+  if (pv > 21) B.last = 'バースト（21 を こえた）… まけ';
+  else if (natural && !(dv === 21 && B.d.length === 2)) { pay = Math.floor(B.amt * 2.5); B.last = 'ブラックジャック！ メダル ' + pay + 'まい'; }
+  else if (dv > 21 || pv > dv) { pay = B.amt * 2; B.last = (dv > 21 ? 'ディーラーが バースト。' : '') + '勝ち！ メダル ' + pay + 'まい'; }
+  else if (pv === dv) { pay = B.amt; B.push = true; B.last = '引き分け（メダルは もどる）'; }
+  else B.last = 'まけ…';
+  B.phase = 'done'; B.won = pay > B.amt; ibaData().medals += pay; if (profile) saveProfile();
+  if (natural || (B.won && B.amt >= 5)) ibaLog('bj', B.last + '（のこり ' + ibaData().medals + 'まい）');
+  playSfx(B.won ? 'coin' : 'pop'); bjLay(st); bjShow(st);
+}
+buildRaceCourse(); buildIsle(); initBoats();
+// あそびの島に いる ときの 右上の 地図（島だけを 大きく）
+function drawIsleMap(x, W, H, px) {
+  const sc = Math.min(W / 112, H / 96); const ox = W / 2 - 7 * sc; const oy = H / 2 + 6 * sc; const mp = (wx, wz) => [ox + (wx - ISLE.c.x) * sc, oy + (wz - ISLE.c.z) * sc];
+  x.fillStyle = '#4f9fc4'; x.fillRect(0, 0, W, H);
+  const path = (pts) => { x.beginPath(); pts.forEach(([a, b], i) => { if (i) x.lineTo(a, b); else x.moveTo(a, b); }); x.closePath(); };
+  path(ISLE.poly.map(([a, b]) => mp(ISLE.c.x + a, ISLE.c.z + b))); x.fillStyle = '#ecdcae'; x.fill();
+  path(ISLE.poly.map(([a, b]) => mp(ISLE.c.x + a * 0.9, ISLE.c.z + b * 0.9))); x.fillStyle = season === 'winter' ? SNOW_TINT['#9cc47f'] : '#9cc47f'; x.fill();
+  const kc = (lx, lz) => mp(KC.c.x - lx, KC.c.z - lz); const oval = (r) => { const pts = []; for (let k = 0; k <= 40; k++) { const a = (k / 40) * TAU; const sx = Math.cos(a) >= 0 ? KC.L / 2 : -KC.L / 2; pts.push(kc(sx + r * Math.cos(a), r * Math.sin(a))); } return pts; };
+  path(oval(KC.R + KC.half)); x.fillStyle = '#5f9e46'; x.fill(); path(oval(KC.R - KC.half)); x.fillStyle = '#8fc56c'; x.fill();
+  path([kc(-11, 11.8), kc(11, 11.8), kc(11, KC.standBack + 2.3), kc(-11, KC.standBack + 2.3)]); x.fillStyle = '#9a8f80'; x.fill();
+  ISLE.rects.concat(ISLE.piers).forEach(([x0, x1, z0, z1], i) => { const [a, b] = mp(x0, z0); const [c, d] = mp(x1, z1); x.fillStyle = i === 1 ? '#2b2f45' : i === 0 ? '#e0662f' : '#a0784a'; x.fillRect(a, b, c - a, d - b); });
+  { const h = CASINO_SITE.W / 2; const [a, b] = mp(CASINO_SITE.pos.x - h, CASINO_SITE.pos.z - h); const [c, d] = mp(CASINO_SITE.pos.x + h, CASINO_SITE.pos.z + h); x.fillStyle = '#22284a'; x.fillRect(a, b, c - a, d - b); } // カジノ（バカラ・ポーカー）
+  x.font = '700 ' + Math.round(11 * px) + 'px ' + FONT_BODY; x.textAlign = 'center'; x.textBaseline = 'middle'; x.lineWidth = 3 * px; x.lineJoin = 'round';
+  [['アミューズメント', CAS_SITE.at.x, CAS_SITE.at.z], ['カジノ', CASINO_SITE.pos.x, CASINO_SITE.pos.z], ['観覧車', FERRIS.at.x, FERRIS.at.z - 3], ['競馬場', KC.c.x, KC.c.z], ['連絡船', BOATS.board.isle.x, BOATS.board.isle.z - 4]].forEach(([t, wx, wz]) => { const [u, v] = mp(wx, wz); x.strokeStyle = 'rgba(255,255,255,0.9)'; x.strokeText(t, u, v); x.fillStyle = '#1f2a33'; x.fillText(t, u, v); });
+  x.textAlign = 'right'; x.fillStyle = '#ffffff'; x.fillText('Work Island ▶', W - 4 * px, H * 0.5);
+  return mp;
+}
 // 歩いている とき、近くで できる こと
 function nearbyActions() {
   if (state.where !== 'walk') return [];
@@ -10904,11 +11464,14 @@ function nearbyActions() {
   if (Math.hypot(IBA_SITE.door.x - p.x, IBA_SITE.door.z - p.z) < 6) out.push(['iba', 'みんなの 居場所に 入る']);
   if (kcOutside().pos.distanceTo(new THREE.Vector3(p.x, 0, p.z)) < 6) out.push(['keiba', '競馬場の 馬券売り場へ']);
   if (Math.hypot(CASINO_SITE.door.x - p.x, CASINO_SITE.door.z - p.z) < 6) out.push(['casino', 'カジノに 入る']);
+  if (Math.hypot(CAS_SITE.door.x - p.x, CAS_SITE.door.z - p.z) < 6) out.push(['amuse', 'アミューズメント（スロット・ルーレット・ブラックジャック）に 入る']);
+  if (Math.hypot(BOATS.board.main.x - p.x, BOATS.board.main.z - p.z) < 5) out.push(['boatMain', 'あそびの島へ 連絡船' + (profile && profile.mode === 'money' ? '（往復 ' + yen(BOAT_PRICE) + '）' : '')]);
+  if (Math.hypot(BOATS.board.isle.x - p.x, BOATS.board.isle.z - p.z) < 6) out.push(['boatIsle', '連絡船で Work Island へ もどる']);
   const cf = booths.find((b) => b.job.id === 'cafe'); if (profile && cf && Math.hypot(cf.door.x - p.x, cf.door.z - p.z) < 6) { out.push(['cafe', 'カフェで のんびり']); out.push(['terrace', 'テラス席で のんびり']); }
   if (profile && PLAZA.c && Math.hypot(PLAZA.c.x - p.x, PLAZA.c.z - p.z) < 7) out.push(['plaza', 'テラスで のんびり']);
   return out;
 }
-const PLAY_ACTS = { iba: () => openIba(ibaOutside()), keiba: () => openKeiba(kcOutside()), casino: () => openIba(ibaOutside('casino'), 'casino'), rehab: () => openRehab(), ski: startSki, climb: startClimb, swim: startSwim, sun: startSun, buy: () => openYataiShop(), furn: () => goFurniture(), cafe: () => openCafeOrder('in'), terrace: () => openCafeOrder('out'), plaza: () => openCafeOrder('plaza') };
+const PLAY_ACTS = { iba: () => openIba(ibaOutside()), keiba: () => openKeiba(kcOutside()), casino: () => openIba(ibaOutside('casino'), 'casino'), amuse: () => openCasino(casOutside()), boatMain: () => boardBoat('main'), boatIsle: () => boardBoat('isle'), rehab: () => openRehab(), ski: startSki, climb: startClimb, swim: startSwim, sun: startSun, buy: () => openYataiShop(), furn: () => goFurniture(), cafe: () => openCafeOrder('in'), terrace: () => openCafeOrder('out'), plaza: () => openCafeOrder('plaza') };
 let lastNearby = '';
 function checkNearby() { const k = nearbyActions().map((a) => a[0]).join(',') + (state.skating ? '|s' : ''); if (k !== lastNearby) { lastNearby = k; renderHud(); } }
 // 屋台で 買う（お客さんとして）
@@ -11271,6 +11834,7 @@ renderer.setAnimationLoop((now) => {
   if (!renderer.xr.isPresenting) { camera.rotation.y = look.yaw; camera.rotation.x = -look.pitch; }
   walkStep(dt);
   stepFurn(dt);
+  stepBoats(now); // 連絡船・観覧車（乗って いる 人より 先に 動かす）
   stepPlay(dt, now);
   stepCover(dt, now);
   stepSlide(dt);
@@ -11306,9 +11870,9 @@ $('btn-season').addEventListener('click', () => setSeason(season === 'winter' ? 
 // 動作確認用（テストから 作業を 進めるため）
 $('btn-home').addEventListener('click', () => goHome());
 $('btn-settings').addEventListener('click', openSettings);
-window.hopeTown = {
+window.hopeTown = { scene, camera,
   CASINO, CASINO_SITE, casinoRefill, casinoCount, CASINO_REST_EVERY, bacPlay, bacPayout, bacTotal, bacDeal, pkEval, pkHandName, pkEquity, pkNew, pkAct,
-  IBA, IBA_SITE, openIba, ibaSit, ibaStand, ibaClickables, ibaData, sgLegal, sgPlay, sgThink, igoThink, igoScore, mjShanten, mjComplete, mjYaku, mjCounts, KC, openKeiba, kcWindow, kcSeat, kcPaddock, keibaBuy, keibaStart, keibaNew, kcClickables, walkable, kcOutside, shogiTap, igoTap, mjTap, mjRon,
+  IBA, IBA_SITE, openIba, ibaSit, ibaStand, ibaClickables, ibaData, sgLegal, sgPlay, sgThink, igoThink, igoScore, mjShanten, mjComplete, mjYaku, mjCounts, ISLE, BOATS, boardBoat, boatTrip, openCasino, casSit, casStand, CAS, slSpin, rlSpin, bjDeal, bjHit, bjStand, CAS_SITE, goBoatPier, KC, openKeiba, kcWindow, kcSeat, kcPaddock, keibaBuy, keibaStart, keibaNew, kcClickables, walkable, kcOutside, shogiTap, igoTap, mjTap, mjRon,
   state, goBooth, pickVariant, startSession, openRehab, startRehab, rehabPress, rehabSwipeThrow, rehabVolleyPress, REHAB, get rehabOpt() { return rehabOpt; }, set rehabOpt(v) { rehabOpt = v; }, select: onSelectItem, playSfx, sfxKind, SFX, nextTargetKey, setSeason, startWalk, exitToWalk, walkKeys, rig, look, walkable, booths, goHome, exitHome, goPlaza,
   get profile() { return profile; }, quitWork, openJobList, openCafeOrder, sitCafe, endPlay, CAFE_ORDER, doLeisure, LEISURE, home, HOME_LEVELS, upgradeHome, askUpgrade, homeLv, FURN, goFurniture, furnShop, pickFurn, exitFurniture, cheatCover() { const r = state.round; if (r && r.cover) { r.cover.surf.clearAll(); coverProgress(r, 1, performance.now()); } }, seasonal, LAKE, toWorld, nearbyActions, openShop, openBadgeBook, openSettings, openAreaPicker, openLookMaker, lookOf,
   // テスト用：オープニングを とばして 家を 用意する
