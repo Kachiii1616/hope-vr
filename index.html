@@ -8183,6 +8183,7 @@ function handleRay(ray) {
   if (obj.userData.ibaAct) { obj.userData.ibaAct(); return; }
   if (obj.userData.ibaEnter) { openIba(); return; }
   if (obj.userData.kcEnter) { openKeiba(); return; }
+  if (obj.userData.kcPad) { openKeiba(); kcPaddock(); return; }
   if (obj.userData.casinoEnter) { openIba(null, 'casino'); return; }
   if (obj.userData.furnBuy) { if (state.where === 'furn') { playSfx('coin'); buyFurn(obj.userData.furnBuy); } return; }
   if (obj.userData.furnCancel) { furnShop.selected = null; paintFurnTags(); renderHud(); return; }
@@ -10031,6 +10032,8 @@ function mjShow(st) {
 //   コースは 1 周 82 m の 楕円（左回り）。スタートは むこう正面の ゲート、1 周 半 まわって スタンド前の ゴールへ
 //   VR では 画面の カードが 見えないので、売り場と 席の 札と ボタンで ぜんぶ できる（画面の カードにも 同じ ボタン）。
 //   大型ビジョンには 先頭の 馬を 追う カメラの 映像を うつす
+//   パドック（スタンドの 西の 小さな 周回路）：発走前に 馬が 引き馬で 歩く。気配・馬体重を 見て 馬券を えらべる。
+//   調子（form）は オッズに 入らない かくれた 値で、レースの 速さに 少し きく。パドックの 気配は その 手がかり（見立ては ときどき はずれる）
 // ===========================================================================
 const KB_HORSES = [['シマカゼ', '#d0392b'], ['ウミネコ', '#2f6fc4'], ['ヤマビコ', '#e3b23c'], ['ハマナス', '#4f9a45'], ['ホシゾラ', '#6b4f9e'], ['カモメ', '#f2f2f2']];
 const KB_COATS = ['#7a4a2a', '#5a3a22', '#a0683a', '#3a2a22', '#b9b0a6', '#8a5a32'];
@@ -10040,6 +10043,8 @@ const KB_DIST = 2 * KB_P + KC.L * 0.7 - KB_START; // 1 周 半 → スタンド�
 const KB_GOAL_X = -KC.L / 2 + KC.L * 0.7;
 const KB_TIME = 20; // 先頭が ゴールするまで およそ 20 秒
 const KB_MAX_BETS = 5;
+const KC_PAD = { x: 15.5, z: 17.5, L: 4, R: 2.6, deck: 26.0, deckH: 1.2 }; // パドックの 中心・直線（南北）・半径・見る 台の 位置と 高さ（コースの ローカル）
+const KB_PP = 2 * KC_PAD.L + 2 * Math.PI * KC_PAD.R;
 const KC_SEAT = { row: 3, x: 2.2 }; // 自分の 席（だんの 番号と 横の 位置）
 const kcRowZ = (k) => 12.0 + k * 1.0; // だんの 前の はし
 const kcRowY = (k) => 0.3 + k * 0.45; // だんの ゆかの 高さ
@@ -10056,6 +10061,13 @@ function kbPoint(d, off, out) { // 中心線で d（スタンド前の 直線の
   d -= L; const a = d / R; return out.set(-L / 2 - r * Math.sin(a), y, -r * Math.cos(a));
 }
 const kbOff = (k) => -1.8 + k * KC.lane;
+function kbPadPoint(s, out) { // パドックの 周回路の 上で s（南の はしの 東から 北へ）
+  const { x, z, L, R } = KC_PAD; s = ((s % KB_PP) + KB_PP) % KB_PP;
+  if (s < L) return out.set(x - R, 0.05, z - L / 2 + s);
+  s -= L; if (s < Math.PI * R) { const a = s / R; return out.set(x - R * Math.cos(a), 0.05, z + L / 2 + R * Math.sin(a)); }
+  s -= Math.PI * R; if (s < L) return out.set(x + R, 0.05, z + L / 2 - s);
+  s -= L; const a = s / R; return out.set(x + R * Math.cos(a), 0.05, z - L / 2 - R * Math.sin(a));
+}
 function kbHorse(color, coat, n) { // 馬と 騎手（実物大。頭が +z）
   const g = new THREE.Group(); const put = (geo, c, x, y, z) => { const m = new THREE.Mesh(geo, cmat(c)); m.position.set(x, y, z); g.add(m); return m; };
   const body = new THREE.Group(); g.add(body); const bput = (geo, c, x, y, z) => { const m = new THREE.Mesh(geo, cmat(c)); m.position.set(x, y, z); body.add(m); return m; };
@@ -10077,7 +10089,8 @@ function kbHorse(color, coat, n) { // 馬と 騎手（実物大。頭が +z）
     const hf = new THREE.Mesh(box(0.13, 0.1, 0.16), cmat('#2b2f33')); hf.position.y = -1.08; L.add(hf); return L;
   });
   const tag = labelSprite(String(n), { h: 0.5, bg: color, fg: color === '#f2f2f2' || color === '#e3b23c' ? '#1f2a33' : '#ffffff' }); tag.position.set(0, 3.1, 0); g.add(tag);
-  g.userData.legs = legs; g.userData.body = body; return g;
+  const lead = person('#3d6f9e', '#3d4a54', true); lead.scale.setScalar(4.3); lead.position.set(-0.75, 0, 1.0); lead.visible = false; g.add(lead); // パドックの 引き手（馬の 左がわ）
+  g.userData.legs = legs; g.userData.body = body; g.userData.lead = lead; return g;
 }
 
 // ---- 埋め立て地・コース・スタンド・馬券売り場・大型ビジョン ---------------------
@@ -10174,6 +10187,23 @@ function buildRaceCourse() {
   const col = new THREE.Color(); const shirt = ['#d0392b', '#2f6fc4', '#e3b23c', '#4f9a45', '#f6f1e6', '#6b4f9e', '#3d4a54', '#e0662f']; const skin = ['#f1c9a8', '#e3b28e', '#d9a07a'];
   seats.forEach((p, i) => { bodyM.setColorAt(i, col.set(shirt[i % shirt.length])); headM.setColorAt(i, col.set(skin[i % 3])); });
   bodyM.frustumCulled = false; headM.frustumCulled = false; g.add(bodyM); g.add(headM); KC.crowd = { seats, bodyM, headM, jump: seats.map(() => Math.random() * TAU) }; kcCrowd(0);
+  // パドック（スタンドの 西。土の 周回路・白い さく・まん中の 芝生・北に 見る 台）
+  { const P = KC_PAD; const pg = new THREE.Group(); g.add(pg);
+    const oval = (r) => { const s = []; for (let k = 0; k <= 20; k++) { const a = (k / 20) * Math.PI; s.push(new THREE.Vector2(P.x + r * Math.cos(a), -(P.z + P.L / 2 + r * Math.sin(a)))); } for (let k = 0; k <= 20; k++) { const a = Math.PI + (k / 20) * Math.PI; s.push(new THREE.Vector2(P.x + r * Math.cos(a), -(P.z - P.L / 2 + r * Math.sin(a)))); } return s; }; // y は -z（ゆかを 上向きに ねかせる ため）
+    const pflat = (shape, color, y) => { const m = new THREE.Mesh(new THREE.ShapeGeometry(shape), cmat(color)); m.rotation.x = -Math.PI / 2; m.position.y = y; pg.add(m); return m; };
+    pflat(new THREE.Shape(oval(P.R + 1.5)), '#d9d4c7', 0.03); // まわりの しき石
+    const dirt = new THREE.Shape(oval(P.R + 0.7)); dirt.holes.push(new THREE.Path(oval(P.R - 0.7).reverse())); pflat(dirt, '#c9a36b', 0.04);
+    pflat(new THREE.Shape(oval(P.R - 0.7)), '#8fc56c', 0.045);
+    [P.R + 0.85, P.R - 0.85].forEach((r) => { const c = oval(r).map((v) => new THREE.Vector3(v.x, 0.85, -v.y));
+      pg.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(c, true), 80, 0.045, 6, true), cmat('#ffffff')));
+      c.forEach((v, i) => { if (i % 3 === 0) put(box(0.07, 0.85, 0.07), '#ffffff', v.x, 0.42, v.z, pg); }); });
+    [[-0.9, 0], [0.9, 0.4]].forEach(([dx, dz]) => { put(cyl(0.1, 0.14, 1.0, 8), '#7a5a3a', P.x + dx * 0.6, 0.5, P.z + dz); put(ball(0.6, 10, 8), '#4f8a3a', P.x + dx * 0.6, 1.4, P.z + dz); }); // まん中の 木
+    put(box(4.4, P.deckH, 1.6), '#b9ad98', P.x, P.deckH / 2, P.deck); [0.4, 0.8].forEach((hh, i) => put(box(1.2, hh, 0.35), '#b9ad98', P.x + 2.8, hh / 2, P.deck + 0.4 - i * 0.35)); // 台と 横の だん put(box(4.4, 0.06, 0.06), '#5a4a3a', P.x, P.deckH + 0.95, P.deck - 0.75); // 見る 台と 手すり
+    [-2.1, 2.1].forEach((dx) => put(box(0.06, 0.95, 0.06), '#5a4a3a', P.x + dx, P.deckH + 0.48, P.deck - 0.75));
+    const pn = kcPlate('パドック', 2.4, 0.45, '#2f7d4f', '#ffffff'); pn.position.set(P.x, 2.3, P.deck + 1.05); g.add(pn); // 広場から 見える 札
+    const pn2 = pn.clone(); pn2.rotation.y = Math.PI; pn2.position.z = P.deck + 1.03; g.add(pn2);
+    [-1.1, 1.1].forEach((dx) => put(box(0.08, 2.3, 0.08), '#5a4a3a', P.x + dx, 1.15, P.deck + 1.05));
+    pn.userData.kcPad = true; plazaClickables.push(pn); }
   // 馬（ゲートに ならべて おく）
   KC.horses = KB_HORSES.map(([, c], k) => { const h = kbHorse(c, KB_COATS[k], k + 1); g.add(h); return h; });
   // 島から 見える 看板・えらぶと 中へ
@@ -10183,6 +10213,7 @@ function buildRaceCourse() {
   KC.win = kcPanel('馬券売り場', 1.3, 0.78); KC.win.pg.position.set(KC_BUY.x, 1.62, AZ + 0.55); g.add(KC.win.pg); // まどの 前（買う 人の 方を 向く）
   KC.seatSt = kcPanel('観客席', 1.0, 0.6); const sy = kcRowY(KC_SEAT.row); KC.seatSt.pg.position.set(KC_SEAT.x - 0.6, sy + 0.8, kcRowZ(KC_SEAT.row) - 0.45); KC.seatSt.pg.rotation.set(-0.4, Math.atan2(0.6, 1.0), 0, 'YXZ'); g.add(KC.seatSt.pg); // 席の 左前の 下（コースに かからない）。VR の ときだけ 出す（画面では カードに 同じ ボタン）
   KC.seatSt.pg.visible = false;
+  KC.pad = kcPanel('パドック', 1.3, 0.8); KC.pad.pg.position.set(KC_PAD.x - 0.7, KC_PAD.deckH + 0.85, KC_PAD.deck - 0.5); KC.pad.pg.rotation.set(-0.4, Math.atan2(0.7, 1.0), 0, 'YXZ'); g.add(KC.pad.pg); KC.pad.pg.visible = false; // 台の 左前の 下（VR の ときだけ）
   g.updateMatrixWorld(true);
   keibaNew();
 }
@@ -10199,7 +10230,7 @@ function kcCrowd(now, cheer) {
   C.bodyM.instanceMatrix.needsUpdate = true; C.headM.instanceMatrix.needsUpdate = true;
 }
 function kcClickables() {
-  const out = []; [KC.win, KC.seatSt].forEach((st) => { if (st.pg.visible) out.push(...st.btnMeshes); });
+  const out = []; [KC.win, KC.seatSt, KC.pad].forEach((st) => { if (st.pg.visible) out.push(...st.btnMeshes); });
   return out.filter(ibaShown);
 }
 function kcUpdate(st, msg, defs) { st.msg = msg.filter(Boolean); ibaPaint(st); ibaButtons(st, defs); }
@@ -10217,18 +10248,25 @@ function kcWindow() {
   const pl = kcNow(); if (!pl) return; pl.at = 'window'; rig.position.y = 0;
   const K = KC.K; if (K.phase === 'post') { K.phase = 'bet'; } if (K.phase === 'done') keibaNew();
   rig.position.copy(kcW(KC_BUY.x, 0, KC_BUY.z)); rig.rotation.y = Math.PI; look.yaw = 0; look.pitch = 0.08;
-  KC.win.pg.visible = true; KC.seatSt.pg.visible = false; keibaShow(); renderHud();
+  KC.win.pg.visible = true; KC.seatSt.pg.visible = false; KC.pad.pg.visible = false; keibaShow(); renderHud();
+}
+function kcPaddock() {
+  const pl = kcNow(); if (!pl) return; const K = KC.K; if (K.phase === 'post') K.phase = 'bet'; if (K.phase === 'done') keibaNew();
+  if (K.phase !== 'bet') { toast('レースの あいだは パドックに 馬は いません'); return; }
+  pl.at = 'paddock'; const p = kcW(KC_PAD.x, 0, KC_PAD.deck + 0.3);
+  rig.position.set(p.x, KC_PAD.deckH, p.z); rig.rotation.y = Math.PI; look.yaw = 0; look.pitch = 0.3;
+  KC.win.pg.visible = false; KC.seatSt.pg.visible = false; KC.pad.pg.visible = renderer.xr.isPresenting; keibaShow(); renderHud();
 }
 function kcSeat() {
   const pl = kcNow(); if (!pl) return; pl.at = 'seat';
   const y = kcRowY(KC_SEAT.row); const p = kcW(KC_SEAT.x, 0, kcRowZ(KC_SEAT.row) + 0.55);
   rig.position.set(p.x, y + (renderer.xr.isPresenting ? 0 : -0.35), p.z); rig.rotation.y = Math.PI; look.yaw = 0; look.pitch = 0.12;
-  KC.win.pg.visible = false; KC.seatSt.pg.visible = renderer.xr.isPresenting;
-  const K = KC.K; if (K.phase === 'bet') { K.phase = 'post'; K.postAt = performance.now() + 6000; playSfx('fanfare'); }
+  KC.win.pg.visible = false; KC.pad.pg.visible = false; KC.seatSt.pg.visible = renderer.xr.isPresenting;
+  const K = KC.K; if (K.phase === 'bet') { K.phase = 'post'; K.postAt = performance.now() + 6000; playSfx('fanfare'); KC.horses.forEach((h) => { h.userData.body.rotation.set(0, 0, 0); h.userData.body.position.y = 0; h.userData.legs.forEach((L) => { L.rotation.x = 0; }); }); kbPlace(); } // 馬は パドックから ゲートへ
   keibaShow(); renderHud();
 }
 function leaveKeiba(pl) {
-  KC.win.pg.visible = true; KC.seatSt.pg.visible = false; rig.position.y = 0;
+  KC.win.pg.visible = true; KC.seatSt.pg.visible = false; KC.pad.pg.visible = false; rig.position.y = 0;
   const K = KC.K; if (K.phase === 'run') { for (let n = 0; n < 4000 && K.phase === 'run'; n++) stepKeiba(0.05, performance.now() + n * 50, true); } // とちゅうで 出ても レースは 最後まで（はらいもどしも）
   else if (K.phase === 'post') K.phase = 'bet';
   if (pl.from.iba) openIba(pl.from.iba); else if (pl.from.home && home.group) goHome(); else if (pl.from.pos) startWalk(pl.from.pos, pl.from.yaw); else goPlaza();
@@ -10239,12 +10277,26 @@ function keibaNew() {
   const prev = KC.K; const str = KB_HORSES.map(() => 0.93 + Math.random() * 0.14);
   const w = str.map((s) => Math.exp((s - 1) * 28)); const sum = w.reduce((a, b) => a + b, 0);
   const odds = w.map((x) => Math.min(50, Math.max(1.2, Math.round((0.8 * sum / x) * 10) / 10))); const place = odds.map((o) => Math.max(1.1, Math.round(o / 2.6 * 10) / 10));
-  KC.K = { phase: 'bet', pick: prev ? prev.pick : 0, amt: prev ? prev.amt : 5, type: prev ? prev.type : 'win', bets: [], str, odds, place, d: str.map(() => 0), v: str.map(() => 0), kick: str.map(() => 0.96 + Math.random() * 0.1), target: str.map(() => 0), retarget: 0, finish: [], call: 0, no: prev ? prev.no + 1 : 1 };
+  const form = str.map(() => Math.random() * 2 - 1); // 調子（オッズには 入らない）
+  const look = form.map((f) => f + (Math.random() - 0.5) * 0.8); // パドックで 見える 気配（ほんとうの 調子に ずれが ある）
+  const tier = look.map((v) => (v > 0.55 ? 0 : v > 0.1 ? 1 : v > -0.4 ? 2 : 3));
+  const pad = tier.map((t, k) => {
+    const wt = 440 + Math.round(Math.random() * 40) * 2; const dw = (Math.round((Math.random() - 0.5) * 6) + (t === 3 ? (Math.random() < 0.5 ? -4 : 5) : 0)) * 2;
+    const style = t === 3 ? (Math.random() < 0.5 ? 'ire' : 'dull') : t === 0 ? 'good' : 'calm';
+    const say = { good: ['毛づやが よく、気合 十分', '踏みこみが 力強い', '首を よく つかって 歩いている'], calm: ['落ちついて 歩いている', 'いつも どおりの 歩き', 'リラックス している'], ire: ['イレこみ ぎみ。汗を かいている', 'そわそわ して 落ちつかない'], dull: ['歩きに 元気が ない', '首が さがり ぎみ'] }[style];
+    return { wt, dw, style, say: say[k % say.length] };
+  });
+  KC.K = { form, tier, pad, pw: 0, phase: 'bet', pick: prev ? prev.pick : 0, amt: prev ? prev.amt : 5, type: prev ? prev.type : 'win', bets: [], str, odds, place, d: str.map(() => 0), v: str.map(() => 0), kick: str.map(() => 0.96 + Math.random() * 0.1), target: str.map(() => 0), retarget: 0, finish: [], call: 0, no: prev ? prev.no + 1 : 1 };
   KC.gateZ = 0; KC.gate.position.z = 0; KC.doors.forEach((h) => { h.rotation.y = 0; });
   kbPlace(); keibaShow();
 }
 const kbTmp = new THREE.Vector3(); const kbTmp2 = new THREE.Vector3();
-function kbPlace() { const K = KC.K; KC.horses.forEach((h, k) => { const off = kbOff(k); kbPoint(KB_START + K.d[k], off, h.position); kbPoint(KB_START + K.d[k] + 0.3, off, kbTmp2); h.rotation.y = Math.atan2(kbTmp2.x - h.position.x, kbTmp2.z - h.position.z); }); }
+function kbPlace() {
+  const K = KC.K; const inPad = K.phase === 'bet';
+  KC.horses.forEach((h, k) => { h.userData.lead.visible = inPad; if (!inPad) return; const s = K.pw + k * KB_PP / KB_HORSES.length; kbPadPoint(s, h.position); kbPadPoint(s + 0.3, kbTmp2); h.rotation.y = Math.atan2(kbTmp2.x - h.position.x, kbTmp2.z - h.position.z); });
+  if (!inPad) kbPlaceCourse();
+}
+function kbPlaceCourse() { const K = KC.K; KC.horses.forEach((h, k) => { const off = kbOff(k); kbPoint(KB_START + K.d[k], off, h.position); kbPoint(KB_START + K.d[k] + 0.3, off, kbTmp2); h.rotation.y = Math.atan2(kbTmp2.x - h.position.x, kbTmp2.z - h.position.z); }); }
 const kbBetShort = (b) => (b.type === 'win' ? '単' : '複') + (b.pick + 1) + '番×' + b.amt;
 const kbBetText = (b) => (b.type === 'win' ? '単勝' : '複勝') + ' ' + (b.pick + 1) + '番 ' + KB_HORSES[b.pick][0] + '・' + b.amt + 'まい';
 const kbOrder = (K) => K.d.map((_, k) => k).sort((a, b) => (K.finish.indexOf(a) + 1 || 99) - (K.finish.indexOf(b) + 1 || 99) || K.d[b] - K.d[a]);
@@ -10258,6 +10310,21 @@ function kbRows(ctx, W, Hh, y0, rh, K, mode) { // 出馬表（オッズ）か �
     ctx.textAlign = 'left'; ctx.fillStyle = '#1f2a33';
     ctx.fillText((mode === 'odds' ? '' : (r + 1) + '位 ') + H[k][0] + (mine ? ' ★' : ''), W * 0.05 + rh, y);
     ctx.textAlign = 'right'; ctx.fillText(mode === 'odds' ? '単 ' + K.odds[k].toFixed(1) + '　複 ' + K.place[k].toFixed(1) : K.finish.includes(k) ? 'ゴール' : Math.round(Math.min(1, K.d[k] / KB_DIST) * 100) + '%', W * 0.95, y);
+  });
+}
+const KB_TIER = [['とても よい', '#2f7d4f'], ['よい', '#4f9a45'], ['ふつう', '#5a6470'], ['いまひとつ', '#c0392b']];
+const kbPadText = (K, k) => (k + 1) + ' ' + KB_HORSES[k][0] + '　' + K.pad[k].wt + 'kg（' + (K.pad[k].dw > 0 ? '+' : K.pad[k].dw < 0 ? '' : '±') + K.pad[k].dw + '）　気配：' + KB_TIER[K.tier[k]][0] + '　' + K.pad[k].say;
+function kbPadRows(ctx, W, y0, rh, K) { // パドックの 札：番号・名前・馬体重・気配・ひとこと
+  ctx.textBaseline = 'middle'; const H = KB_HORSES;
+  H.forEach((h, k) => {
+    const y = y0 + k * rh; const P = K.pad[k];
+    ctx.fillStyle = K.pick === k ? 'rgba(224,102,47,0.2)' : k % 2 ? 'rgba(0,0,0,0.05)' : 'rgba(0,0,0,0)'; ctx.fillRect(W * 0.03, y - rh / 2, W * 0.94, rh);
+    ctx.font = '700 ' + Math.round(rh * 0.6) + 'px ' + FONT_BODY;
+    ctx.fillStyle = h[1]; ctx.fillRect(W * 0.04, y - rh * 0.36, rh * 0.72, rh * 0.72); ctx.fillStyle = h[1] === '#f2f2f2' || h[1] === '#e3b23c' ? '#1f2a33' : '#ffffff'; ctx.textAlign = 'center'; ctx.fillText(String(k + 1), W * 0.04 + rh * 0.36, y);
+    ctx.textAlign = 'left'; ctx.fillStyle = '#1f2a33'; ctx.fillText(h[0], W * 0.04 + rh, y);
+    ctx.font = '400 ' + Math.round(rh * 0.5) + 'px ' + FONT_BODY; ctx.fillText(P.wt + 'kg（' + (P.dw > 0 ? '+' : P.dw < 0 ? '' : '±') + P.dw + '）', W * 0.25, y);
+    ctx.font = '700 ' + Math.round(rh * 0.55) + 'px ' + FONT_BODY; ctx.fillStyle = KB_TIER[K.tier[k]][1]; ctx.fillText(KB_TIER[K.tier[k]][0], W * 0.43, y);
+    ctx.font = '400 ' + Math.round(rh * 0.48) + 'px ' + FONT_BODY; ctx.fillStyle = '#3d4a54'; ctx.fillText(P.say, W * 0.6, y, W * 0.37);
   });
 }
 function kbBoardRows(ctx, W, y0, rh, K, odds) { // 大きい 掲示板は 字を 大きく、列を へらす
@@ -10298,8 +10365,8 @@ function keibaShow() {
     defs = H.map((h, k) => ({ label: (k + 1) + ' ' + h[0], act: () => { K.pick = k; keibaShow(); }, on: K.pick === k, row: k < 3 ? 0 : 1, w: 0.4 }))
       .concat([{ label: '単勝（1着）', act: () => { K.type = 'win'; keibaShow(); }, on: K.type === 'win', row: 2, w: 0.27 }, { label: '複勝（2着まで）', act: () => { K.type = 'place'; keibaShow(); }, on: K.type === 'place', row: 2, w: 0.3 }])
       .concat([1, 5, 10].map((a) => ({ label: a + 'まい', act: () => { K.amt = a; keibaShow(); }, on: K.amt === a, row: 2, w: 0.2 })))
-      .concat(md < 1 && !K.bets.length ? [{ label: 'メダルを もらう（50）', act: () => { ibaData().medals += 50; if (profile) saveProfile(); toast('メダルを 50 まい もらいました'); keibaShow(); }, row: 3, w: 0.5 }] : [{ label: '馬券を 買う', act: keibaBuy, row: 3, w: 0.42, color: '#c0392b' }])
-      .concat([{ label: '観客席へ ▶', act: kcSeat, row: 3, w: 0.42, color: '#2f6fc4' }, { label: '出口', act: () => endPlay(), row: 3, w: 0.22, color: '#3d4a54' }]);
+      .concat(md < 1 && !K.bets.length ? [{ label: 'メダルを もらう（50）', act: () => { ibaData().medals += 50; if (profile) saveProfile(); toast('メダルを 50 まい もらいました'); keibaShow(); }, row: 3, w: 0.5 }] : [{ label: '馬券を 買う', act: keibaBuy, row: 3, w: 0.34, color: '#c0392b' }])
+      .concat([{ label: 'パドック ▶', act: kcPaddock, row: 3, w: 0.3, color: '#2f7d4f' }, { label: '観客席へ ▶', act: kcSeat, row: 3, w: 0.34, color: '#2f6fc4' }, { label: '出口', act: () => endPlay(), row: 3, w: 0.2, color: '#3d4a54' }]);
   } else {
     msg = ['レースの あいだは 観客席へ どうぞ', bets]; defs = [{ label: '観客席へ ▶', act: kcSeat, w: 0.42, color: '#2f6fc4' }, { label: '出口', act: () => endPlay(), w: 0.22, color: '#3d4a54' }];
   }
@@ -10316,6 +10383,14 @@ function keibaShow() {
     defs = [{ label: 'つぎの レース（売り場へ）', act: kcWindow, w: 0.5, color: '#2f6fc4' }, { label: '出口', act: () => endPlay(), w: 0.22, color: '#3d4a54' }];
   }
   kcUpdate(KC.seatSt, msg, defs);
+  // パドック：気配・馬体重を 見て、その場で 馬を えらべる
+  KC.pad.extraPaint = (ctx, W, Hh) => kbPadRows(ctx, W, Hh * 0.43, Hh * 0.09, K);
+  if (K.phase === 'bet') {
+    msg = ['第 ' + K.no + ' レース パドック：馬の 調子を 見よう', { text: 'メダル ' + md + 'まい　｜　' + bets, color: '#8a5a2b' }];
+    defs = H.map((h, k) => ({ label: (k + 1) + ' ' + h[0], act: () => { K.pick = k; keibaShow(); }, on: K.pick === k, row: k < 3 ? 0 : 1, w: 0.4 }))
+      .concat([{ label: '◀ 馬券売り場', act: kcWindow, row: 2, w: 0.4 }, { label: '観客席へ ▶', act: kcSeat, row: 2, w: 0.4, color: '#2f6fc4' }]);
+  } else { msg = ['馬は コースへ 出ました']; defs = [{ label: '観客席へ ▶', act: kcSeat, w: 0.4, color: '#2f6fc4' }]; }
+  kcUpdate(KC.pad, msg, defs);
   kbPaintBoard();
   if (pl) renderHud();
 }
@@ -10328,6 +10403,7 @@ function keibaBuy() {
 }
 function keibaStart() {
   const K = KC.K; if (K.phase !== 'bet' && K.phase !== 'post') return;
+  KC.horses.forEach((h) => { h.userData.body.rotation.set(0, 0, 0); }); KC.pad.pg.visible = false;
   K.phase = 'run'; K.t0 = performance.now(); K.callText = 'ゲートが ひらいて、スタート！'; K.call = 0; K.gateAt = K.t0;
   KC.doors.forEach((h) => { h.rotation.y = 1.4; }); playSfx('gate'); keibaShow();
 }
@@ -10335,10 +10411,17 @@ const KB_CALLS = [[0.12, '3 コーナーへ。先頭あらそい'], [0.28, '1 �
 function stepKeiba(dt, now, fast) {
   const K = KC.K; if (!K) return;
   if (K.phase === 'post' && now >= K.postAt) keibaStart();
+  if (K.phase === 'bet' && !fast) { // パドックを 歩く（気配で 歩き方が ちがう）
+    K.pw += dt * 1.0; kbPlace();
+    KC.horses.forEach((h, k) => { const st = K.pad[k].style; const b = h.userData.body; const fq = st === 'ire' ? 120 : st === 'dull' ? 260 : 190; const amp = st === 'good' ? 0.42 : st === 'dull' ? 0.22 : 0.32;
+      h.userData.legs.forEach((L, j) => { L.rotation.x = Math.sin(now / fq + j * 1.6 + k) * amp; });
+      b.position.y = st === 'good' ? Math.abs(Math.sin(now / fq + k)) * 0.04 : 0; b.rotation.x = st === 'dull' ? 0.07 : 0; b.rotation.z = st === 'ire' ? Math.sin(now / 70 + k) * 0.05 : 0;
+      if (st === 'ire') h.rotation.y += Math.sin(now / 160 + k) * 0.18; });
+  }
   if (K.phase !== 'run' && K.phase !== 'done') return;
   if (K.gateAt && now - K.gateAt > 2500 && KC.gateZ < 8.4) { KC.gateZ = Math.min(8.4, KC.gateZ + dt * 2.2); KC.gate.position.z = KC.gateZ; } // ゲートは 内がわへ よける
   const vb = KB_DIST / KB_TIME;
-  if (K.phase === 'run' && now > K.retarget) { K.retarget = now + 400; K.target = K.str.map((s, k) => vb * s * (1 + (Math.random() - 0.5) * 0.22) * (K.d[k] > KB_DIST * 0.7 ? K.kick[k] : 1) * Math.min(1, 0.35 + K.d[k] / 8)); }
+  if (K.phase === 'run' && now > K.retarget) { K.retarget = now + 400; K.target = K.str.map((s, k) => vb * s * (1 + (Math.random() - 0.5) * 0.22) * (K.d[k] > KB_DIST * 0.7 ? K.kick[k] : 1) * (1 + 0.035 * K.form[k]) * Math.min(1, 0.35 + K.d[k] / 8)); }
   let moving = false;
   K.d.forEach((d, k) => {
     const done = K.finish.includes(k); const want = done ? 0 : K.target[k];
@@ -10373,9 +10456,10 @@ function keibaDone(fast) {
 const kcCamP = new THREE.Vector3(); const kcCamT = new THREE.Vector3(); const kcCamF = new THREE.Vector3();
 function kcRenderScreen(now) {
   if (!KC.K || !kcNow()) return;
-  const K = KC.K; const every = K.phase === 'run' || K.phase === 'done' ? (renderer.xr.isPresenting ? 66 : 33) : 500;
+  const K = KC.K; const every = K.phase === 'run' || K.phase === 'done' ? (renderer.xr.isPresenting ? 66 : 33) : K.phase === 'bet' ? 100 : 500;
   if (now - (KC.shotAt || 0) < every) return; KC.shotAt = now;
-  if (K.phase === 'bet' || K.phase === 'post') { kbPoint(KB_START + 10, -KC.half - 1.6, kcCamP); kcCamP.y = 2.4; kbPoint(KB_START, 0, kcCamT); kcCamT.y = 1.4; }
+  if (K.phase === 'bet') { const h = KC.horses[K.pick]; kcCamT.set(h.position.x, 1.5, h.position.z); kcCamP.set(h.position.x - KC_PAD.x, 0, h.position.z - KC_PAD.z).normalize().multiplyScalar(4.5).add(kcCamT); kcCamP.y = 2.8; } // パドックの えらんでいる 馬
+  else if (K.phase === 'post') { kbPoint(KB_START + 10, -KC.half - 1.6, kcCamP); kcCamP.y = 2.4; kbPoint(KB_START, 0, kcCamT); kcCamT.y = 1.4; }
   else {
     const lead = kbOrder(K)[0]; const d = KB_START + Math.min(K.d[lead], KB_DIST + 6);
     kbPoint(d, 0, kcCamT); kbPoint(d + 1, 0, kcCamF); kcCamF.sub(kcCamT).normalize();
@@ -10386,15 +10470,16 @@ function kcRenderScreen(now) {
   renderer.setRenderTarget(KC.rt); renderer.render(scene, KC.cam); renderer.setRenderTarget(null);
   KC.screen.visible = true; renderer.xr.enabled = xr;
 }
-function stepKeibaPlay(pl, dt, now) { KC.seatSt.pg.visible = pl.at === 'seat' && renderer.xr.isPresenting; stepKeiba(dt, now); }
+function stepKeibaPlay(pl, dt, now) { KC.seatSt.pg.visible = pl.at === 'seat' && renderer.xr.isPresenting; KC.pad.pg.visible = pl.at === 'paddock' && KC.K.phase === 'bet' && renderer.xr.isPresenting; stepKeiba(dt, now); }
 function renderKeibaHud(el) {
-  const pl = state.play; const st = pl.at === 'seat' ? KC.seatSt : KC.win; const K = KC.K;
+  const pl = state.play; const st = pl.at === 'seat' ? KC.seatSt : pl.at === 'paddock' ? KC.pad : KC.win; const K = KC.K;
   const last = ibaData().log.filter((r) => r.game === 'keiba').slice(-3).reverse().map((r) => '<li>' + esc(r.result) + '</li>').join('');
-  el.innerHTML = '<span class="tag">HOPE 島 競馬場</span><h2>' + (pl.at === 'seat' ? '観客席' : '馬券売り場') + '</h2>' +
+  el.innerHTML = '<span class="tag">HOPE 島 競馬場</span><h2>' + (pl.at === 'seat' ? '観客席' : pl.at === 'paddock' ? 'パドック' : '馬券売り場') + '</h2>' +
     '<div class="feedback" id="kc-msg">' + st.msg.map((m) => esc(m.text || m)).join('<br>') + '</div>' +
     '<div class="row">' + st.btnDefs.map((d, i) => '<button type="button"' + (d.on ? ' class="primary"' : '') + ' data-kc-btn="' + i + '">' + esc(d.label) + '</button>').join('') + '</div>' +
+    (pl.at === 'paddock' && K.phase === 'bet' ? '<ul id="kc-pad" style="margin:0;padding-left:1.2em">' + KB_HORSES.map((_, k) => '<li' + (K.pick === k ? ' style="font-weight:700"' : '') + '>' + esc(kbPadText(K, k)) + '</li>').join('') + '</ul>' : '') +
     (K.phase !== 'run' && last ? '<label class="field">さいきんの きろく</label><ul style="margin:0;padding-left:1.2em;color:var(--ink-soft)">' + last + '</ul>' : '') +
-    '<div>' + (pl.at === 'seat' ? 'ドラッグで 見回せます。むこうの 大型ビジョンに 先頭の 馬が うつります' : 'まどの 前の 札でも 買えます（VR では ゆびさして トリガー）') + '</div>';
+    '<div>' + (pl.at === 'paddock' ? '馬は 引き手と パドックを 歩いています。気配は 見立てなので はずれる ことも あります。オッズに 入って いない 調子が わかる かも' : pl.at === 'seat' ? 'ドラッグで 見回せます。むこうの 大型ビジョンに 先頭の 馬が うつります' : 'まどの 前の 札でも 買えます（VR では ゆびさして トリガー）') + '</div>';
   el.querySelectorAll('[data-kc-btn]').forEach((b) => { b.onclick = () => { const d = st.btnDefs[Number(b.dataset.kcBtn)]; if (d) { playSfx('pop'); d.act(); } }; });
 }
 buildRaceCourse();
@@ -11210,7 +11295,7 @@ $('btn-home').addEventListener('click', () => goHome());
 $('btn-settings').addEventListener('click', openSettings);
 window.hopeTown = {
   CASINO, CASINO_SITE, casinoRefill, bacPlay, bacPayout, bacTotal, bacDeal, pkEval, pkHandName, pkEquity, pkNew, pkAct,
-  IBA, IBA_SITE, openIba, ibaSit, ibaStand, ibaClickables, ibaData, sgLegal, sgPlay, sgThink, igoThink, igoScore, mjShanten, mjComplete, mjYaku, mjCounts, KC, openKeiba, kcWindow, kcSeat, keibaBuy, keibaStart, keibaNew, kcClickables, walkable, kcOutside, shogiTap, igoTap, mjTap, mjRon,
+  IBA, IBA_SITE, openIba, ibaSit, ibaStand, ibaClickables, ibaData, sgLegal, sgPlay, sgThink, igoThink, igoScore, mjShanten, mjComplete, mjYaku, mjCounts, KC, openKeiba, kcWindow, kcSeat, kcPaddock, keibaBuy, keibaStart, keibaNew, kcClickables, walkable, kcOutside, shogiTap, igoTap, mjTap, mjRon,
   state, goBooth, pickVariant, startSession, openRehab, startRehab, rehabPress, rehabSwipeThrow, rehabVolleyPress, REHAB, get rehabOpt() { return rehabOpt; }, set rehabOpt(v) { rehabOpt = v; }, select: onSelectItem, playSfx, sfxKind, SFX, nextTargetKey, setSeason, startWalk, exitToWalk, walkKeys, rig, look, walkable, booths, goHome, exitHome, goPlaza,
   get profile() { return profile; }, quitWork, openJobList, openCafeOrder, sitCafe, endPlay, CAFE_ORDER, doLeisure, LEISURE, home, HOME_LEVELS, upgradeHome, askUpgrade, homeLv, FURN, goFurniture, furnShop, pickFurn, exitFurniture, cheatCover() { const r = state.round; if (r && r.cover) { r.cover.surf.clearAll(); coverProgress(r, 1, performance.now()); } }, seasonal, LAKE, toWorld, nearbyActions, openShop, openBadgeBook, openSettings, openAreaPicker, openLookMaker, lookOf,
   // テスト用：オープニングを とばして 家を 用意する
