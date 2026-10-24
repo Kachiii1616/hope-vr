@@ -9187,7 +9187,7 @@ window.addEventListener('keydown', (e) => {
 // ===========================================================================
 const IBA = { at: new THREE.Vector3(-640, 0, 0), g: null, room: { w: 13, d: 9 }, entry: new THREE.Vector3(0, 0, 3.4), signs: [], exitBtn: null, st: {} };
 const IBA_GAMES = { shogi: '将棋', go: '囲碁', mahjong: '麻雀', keiba: '競馬' };
-const IBA_NOTE = { shogi: 'コンピューターと 1 局。待ったも できます', go: '9 路盤で コンピューターと 1 局', mahjong: 'コンピューター 3 人と 東風戦', keiba: 'メダルを かけて レースを 見る' };
+const IBA_NOTE = { shogi: 'コンピューターと 1 局。待ったも できます', go: '9 路盤で 1 局。強さは 3 だんかい', mahjong: '3 人と 東風戦。強さは 3 だんかい', keiba: 'メダルを かけて レースを 見る' };
 const IBA_COLOR = { shogi: '#8a5a2b', go: '#3d4a54', mahjong: '#2f7d4f', keiba: '#c0533a' };
 const IBA_X = { shogi: -3.9, go: -1.3, mahjong: 1.3, keiba: 4.0 }; // 台の 位置（どれも 奥の かべ がわ。席は 台の 手前で 奥を 向く）
 const IBA_Z = -1.4;
@@ -9199,6 +9199,11 @@ function ibaData() {
   if (!profile.iba) profile.iba = { medals: IBA_START_MEDALS, log: [] };
   return profile.iba;
 }
+// 囲碁・麻雀の 相手の 強さ（0：やさしい・1：ふつう・2：つよい）。ゲームを はじめる ときに えらび、その ゲームの あいだは かわらない
+const IBA_LV = ['やさしい', 'ふつう', 'つよい'];
+const ibaLv = (key) => { const lv = profile ? ibaData().lv : IBA.lv; return lv && lv[key] !== undefined ? lv[key] : 1; };
+function ibaSetLv(key, v) { if (profile) { const d = ibaData(); d.lv = Object.assign({}, d.lv, { [key]: v }); saveProfile(); } else IBA.lv = Object.assign({}, IBA.lv, { [key]: v }); }
+const ibaLvDefs = (key, start) => IBA_LV.map((name, v) => ({ label: name, row: 1, w: 0.22, on: ibaLv(key) === v, act: () => { ibaSetLv(key, v); start(); } }));
 function ibaLog(game, result) { const d = ibaData(); d.log.push({ at: new Date().toISOString(), game, result }); d.log = d.log.slice(-40); if (profile) saveProfile(); }
 const ibaNow = () => (state.where === 'play' && state.play && state.play.kind === 'iba' ? state.play : null);
 const ibaShown = (o) => { for (let p = o; p; p = p.parent) if (!p.visible) return false; return true; };
@@ -9571,16 +9576,14 @@ function igoInfluence(b, i, c) { // c から 見た まわりの 石の ちか�
   b.forEach((s, j) => { if (!s) return; const d = Math.abs(j % 9 - x) + Math.abs(((j / 9) | 0) - y); if (d > 0 && d <= 3) v += (s === c ? 1 : -1) / d; });
   return v;
 }
-function igoThink(G) { // 白の 手（-1 は パス）
-  const c = G.turn; const o = 3 - c; let best = -1; let bs = -1e9;
-  for (let i = 0; i < 81; i++) {
-    const r = igoTry(G, i, c); if (!r) continue; const nb = IGO_NB[i];
-    if (!r.cap && nb.every((k) => G.b[k] === c)) continue; // 自分の 目は つぶさない
-    let sc = r.cap * 10; const mg = igoGroup(r.b, i);
+function igoMoveScore(G, i, c, r, tw) { // 手の よさ（ゆらぎ なし）。tw は とる・にげる など 戦いの 重み。自分の 目を つぶす 手は null
+  const o = 3 - c; const nb = IGO_NB[i];
+  if (!r.cap && nb.every((k) => G.b[k] === c)) return null; // 自分の 目は つぶさない
+  let sc = r.cap * 10 * tw; const mg = igoGroup(r.b, i);
     if (mg.libs.size === 1 && !r.cap) sc -= 9 * mg.stones.length; else sc += Math.min(mg.libs.size, 4) * 0.5;
     nb.forEach((k) => {
-      if (G.b[k] === c) { const g0 = igoGroup(G.b, k); if (g0.libs.size === 1 && mg.libs.size >= 2) sc += 7 * g0.stones.length; }
-      if (r.b[k] === o) { const g = igoGroup(r.b, k); if (g.libs.size === 1) sc += 3 * g.stones.length; else if (g.libs.size === 2) sc += 0.7; }
+      if (G.b[k] === c) { const g0 = igoGroup(G.b, k); if (g0.libs.size === 1 && mg.libs.size >= 2) sc += 7 * tw * g0.stones.length; }
+      if (r.b[k] === o) { const g = igoGroup(r.b, k); if (g.libs.size === 1) sc += 3 * tw * g.stones.length; else if (g.libs.size === 2) sc += 0.7; }
     });
     const x = i % 9; const y = (i / 9) | 0; const d = Math.min(x, y, 8 - x, 8 - y);
     if (G.moves < 10) sc += [-2, 0.2, 2.2, 1.6, 1.4][d]; else if (d === 0) sc -= 0.7;
@@ -9588,10 +9591,24 @@ function igoThink(G) { // 白の 手（-1 は パス）
     if (!r.cap && inf > 1.6) sc -= 3; // もう 自分の 地
     else if (!r.cap && inf < -1.8) sc -= 1.5; // 相手の 地の 中は 生きにくい
     else if (G.moves > 2) sc += 1.2 - Math.abs(inf) * 0.4; // さかいめ
-    sc += Math.random() * 1.1;
-    if (sc > bs) { bs = sc; best = i; }
+  return sc;
+}
+function igoThink(G) { // 白の 手（-1 は パス）。やさしい：戦いに にぶく、ゆらぎ 大。つよい：相手の いちばん いい 返しを 1 手 読んで 引く
+  const lv = G.lv === undefined ? 1 : G.lv; const c = G.turn; const o = 3 - c; const tw = lv === 0 ? 0.25 : 1;
+  const cands = [];
+  for (let i = 0; i < 81; i++) { const r = igoTry(G, i, c); if (!r) continue; const sc = igoMoveScore(G, i, c, r, tw); if (sc !== null) cands.push({ i, r, sc, base: sc + Math.random() * 1.1 }); }
+  if (lv === 2) {
+    cands.sort((a, b) => b.sc - a.sc);
+    cands.slice(0, 8).forEach((m) => {
+      const G2 = { b: m.r.b, prev: G.b.join(''), moves: G.moves + 1 }; let reply = 0;
+      for (let j = 0; j < 81; j++) { const r2 = igoTry(G2, j, o); if (!r2) continue; const s2 = igoMoveScore(G2, j, o, r2, 1); if (s2 !== null && s2 > reply) reply = s2; }
+      m.sc -= reply * 0.6;
+    });
+    cands.splice(8);
   }
-  if (best < 0 || bs < (G.passes ? 1.8 : 0.4)) return -1;
+  const noise = [7, 1.1, 0.3][lv]; let best = -1; let bs = -1e9;
+  cands.forEach((m) => { const sc = m.sc + Math.random() * noise; if (sc > bs) { bs = sc; best = m.i; } });
+  if (best < 0 || cands.find((m) => m.i === best).base < (G.passes ? 1.8 : 0.4)) return -1; // いい 手が なければ パス（読む 前の よさで きめる）
   return best;
 }
 const igoSq = (i) => new THREE.Vector3(((i % 9) - 4) * IGO_CELL, IGO_TOP, (((i / 9) | 0) - 4) * IGO_CELL);
@@ -9616,7 +9633,7 @@ function buildIgo(st) {
   st.G = null;
 }
 function igoEnter(st) { if (!st.G) igoNew(st); else igoShow(st); }
-function igoNew(st) { st.G = { b: Array(81).fill(0), turn: 1, prev: null, passes: 0, cap: { 1: 0, 2: 0 }, last: -1, moves: 0, hist: [] }; st.over = null; st.next = null; igoShow(st, 'あなたは 黒（先番）です。石を 置く 交点を えらんでください'); }
+function igoNew(st) { st.G = { b: Array(81).fill(0), turn: 1, prev: null, passes: 0, cap: { 1: 0, 2: 0 }, last: -1, moves: 0, hist: [], lv: ibaLv('go') }; st.over = null; st.next = null; igoShow(st, 'あなたは 黒（先番）です。石を 置く 交点を えらぶ（強さは 下の ボタンで かえられます）'); }
 function igoShow(st, note) {
   const G = st.G; st.stones.clear(); st.clicks = st.cells.slice();
   G.b.forEach((c, i) => { if (!c) return; const s = new THREE.Mesh(IGO_STONE, IGO_MAT[c]); s.scale.y = 0.45; s.position.copy(igoSq(i)); s.position.y += 0.011; st.stones.add(s); });
@@ -9625,7 +9642,9 @@ function igoShow(st, note) {
   const msg = st.over ? [{ text: st.over.head, color: '#c0392b' }, st.over.detail, 'もう 1 局 できます'] :
     G.turn === 1 ? ['あなた（黒）の 番です', note || '置ける 交点を えらぶ。おわる ときは パス', 'あげはま：黒 ' + G.cap[1] + '・白 ' + G.cap[2] + '　' + (G.moves + 1) + ' 手め']
       : ['よしこさん（白）が 考えています…', 'あげはま：黒 ' + G.cap[1] + '・白 ' + G.cap[2]];
-  const defs = st.over ? [{ label: 'もう 1 局', act: () => igoNew(st) }] : [{ label: 'パス', act: () => igoUserPass(st) }, { label: '待った', act: () => igoUndo(st) }, { label: 'はじめから', act: () => igoNew(st) }, { label: '投了', color: '#55626d', act: () => igoEnd(st, { head: 'あなたの 投了です', detail: 'おつかれさまでした' }, 'まけ（投了）') }];
+  msg.push('よしこさんの 強さ：' + IBA_LV[G.lv] + (st.over || !G.moves ? '' : '（つぎの 局から かえられます）'));
+  const defs = (st.over ? [{ label: 'もう 1 局', act: () => igoNew(st) }] : [{ label: 'パス', act: () => igoUserPass(st) }, { label: '待った', act: () => igoUndo(st) }, { label: 'はじめから', act: () => igoNew(st) }, { label: '投了', color: '#55626d', act: () => igoEnd(st, { head: 'あなたの 投了です', detail: 'おつかれさまでした' }, 'まけ（投了）') }])
+    .concat(st.over || !G.moves ? ibaLvDefs('go', () => igoNew(st)) : []);
   ibaUpdate(st, msg, defs);
 }
 function igoTap(st, i) {
@@ -9651,7 +9670,7 @@ function igoFinish(st) {
   const s = igoScore(st.G.b); const w = s[2] + 6.5; const win = s[1] > w;
   igoEnd(st, { head: win ? 'あなた（黒）の 勝ち！' : 'よしこさん（白）の 勝ち', detail: '黒 ' + s[1] + '・白 ' + s[2] + ' ＋ コミ 6.5 ＝ ' + w + '（地と 石の 数）' }, (win ? 'かち' : 'まけ') + '（黒 ' + s[1] + '・白 ' + w + '）');
 }
-function igoEnd(st, over, result) { st.over = over; st.next = null; ibaLog('go', result); toast(over.head); igoShow(st); }
+function igoEnd(st, over, result) { st.over = over; st.next = null; ibaLog('go', result + '・' + IBA_LV[st.G.lv]); toast(over.head); igoShow(st); }
 
 // ===========================================================================
 // 麻雀：あなたと コンピューター 3 人で 東風戦（4 局）。
@@ -9742,13 +9761,21 @@ function mjYaku(c, tsumo, seatWind) { // [役の 名前, 翻] の リスト
 }
 const MJ_POINTS = [0, 1000, 2000, 3900, 7700, 8000, 12000, 12000, 16000, 16000, 16000, 24000];
 const mjPts = (han) => MJ_POINTS[Math.min(han, 11)] || 32000;
-function mjPickDiscard(hand) { // コンピューター：テンパイに 近く なる 牌を すてる（同じなら はなれた 牌から）
+function mjPickDiscard(hand, lv, M) { // コンピューター：テンパイに 近く なる 牌を すてる（同じなら はなれた 牌から）
+  //   やさしい：ときどき 思いつきで すてる。つよい：すてた あと 進む 牌（受け入れ）が 多い ほうを えらぶ（見えて いる 牌は 数えない）
+  if (lv === 0 && Math.random() < 0.4) return hand[Math.floor(Math.random() * hand.length)];
   const c = mjCounts(hand); let best = null; let bs = 1e9;
-  [...new Set(hand.map((id) => id >> 2))].forEach((t) => {
-    c[t]--; const sh = mjShanten(c); c[t]++;
+  const seen = Array(34).fill(0); if (lv === 2 && M) M.river.forEach((r) => r.forEach((id) => { seen[id >> 2]++; }));
+  const kinds = [...new Set(hand.map((id) => id >> 2))];
+  const shs = kinds.map((t) => { c[t]--; const sh = mjShanten(c); c[t]++; return sh; }); const minSh = Math.min(...shs);
+  const near = (u) => c[u] > 0 || (u < 27 && [-2, -1, 1, 2].some((d) => { const v = u + d; return v >= 0 && v < 27 && Math.floor(v / 9) === Math.floor(u / 9) && c[v] > 0; })); // 手に ある 牌と つながる 牌だけ 数える
+  kinds.forEach((t, ti) => {
+    const sh = shs[ti]; let uke = 0;
+    if (lv === 2 && sh === minSh && sh <= 2) { // 遠い 手（3 シャンテン 以上）は 計算が 重いので かたちだけで きめる
+      c[t]--; for (let u = 0; u < 34; u++) { const left = 4 - c[u] - seen[u]; if (left <= 0 || !near(u)) continue; c[u]++; if (mjShanten(c) < sh) uke += left; c[u]--; } c[t]++; }
     let keep = 0; if (t >= 27) keep = (c[t] - 1) * 3 + (t >= 31 ? 0.5 : 0); else for (let d = -2; d <= 2; d++) { const u = t + d; if (d && u >= 0 && Math.floor(u / 9) === Math.floor(t / 9) && u < 27) keep += c[u] * (Math.abs(d) === 1 ? 2 : 1); }
     if (t < 27 && c[t] > 1) keep += 2; if (t < 27 && (t % 9 === 0 || t % 9 === 8)) keep -= 0.5;
-    const sc = sh * 100 + keep + Math.random() * 0.5;
+    const sc = sh * 100 + (lv === 2 ? -uke * 2 + keep * 0.3 + Math.random() * 0.2 : keep + Math.random() * 0.5);
     if (sc < bs) { bs = sc; best = t; }
   });
   return hand.find((id) => id >> 2 === best);
@@ -9764,7 +9791,7 @@ function buildMahjong(st) {
   st.M = null;
 }
 function mjEnter(st) { if (!st.M) mjNewGame(st); else mjShow(st); }
-function mjNewGame(st) { st.M = { scores: [25000, 25000, 25000, 25000], kyoku: 0, dealer: 0 }; mjDeal(st); }
+function mjNewGame(st) { st.M = { scores: [25000, 25000, 25000, 25000], kyoku: 0, dealer: 0, lv: ibaLv('mahjong'), fresh: true }; mjDeal(st); }
 function mjDeal(st) {
   const M = st.M; const wall = shuffle(Array.from({ length: 136 }, (_, i) => i));
   Object.assign(M, { wall, hands: [0, 1, 2, 3].map(() => wall.splice(0, 13)), river: [[], [], [], []], turn: M.dealer, drawn: null, sel: null, phase: 'play', ron: null, result: null, hint: null });
@@ -9780,11 +9807,11 @@ function mjDraw(st, i) {
   mjShow(st);
   ibaWait(st, 650, () => {
     if (mjComplete(M.hands[i])) { mjWin(st, i, true, null); return; }
-    mjDiscard(st, i, mjPickDiscard(M.hands[i]));
+    mjDiscard(st, i, mjPickDiscard(M.hands[i], M.lv, M));
   });
 }
 function mjDiscard(st, i, id) {
-  const M = st.M; const h = M.hands[i]; h.splice(h.indexOf(id), 1); M.river[i].push(id); playSfx('plastic');
+  const M = st.M; const h = M.hands[i]; h.splice(h.indexOf(id), 1); M.river[i].push(id); M.fresh = false; playSfx('plastic');
   if (i === 0) { h.sort((a, b) => a - b); M.drawn = null; M.sel = null; M.hint = null; }
   mjAfterDiscard(st, i, id, 1);
 }
@@ -9793,6 +9820,7 @@ function mjAfterDiscard(st, from, id, k0) { // 下家から 順に ロンを 見
   for (let k = k0; k < 4; k++) {
     const j = (from + k) % 4;
     if (!mjComplete(M.hands[j], id)) continue;
+    if (j !== 0 && from === 0 && M.lv === 0) continue; // やさしい：コンピューターは あなたの すて牌では ロンしない
     if (j === 0) { M.ron = { from, id, k }; M.phase = 'ron'; mjShow(st); return; }
     mjWin(st, j, false, { from, id }); return;
   }
@@ -9811,7 +9839,7 @@ function mjWin(st, i, tsumo, ron) {
   else { M.scores[ron.from] -= pts; M.scores[i] += pts; }
   M.phase = 'end'; M.result = { win: i, tsumo, from: ron ? ron.from : null, yaku, han, pts, hand };
   playSfx(i === 0 ? 'coin' : 'pop');
-  if (i === 0) ibaLog('mahjong', (tsumo ? 'ツモ' : 'ロン') + ' ' + han + '翻 ' + pts + '点');
+  if (i === 0) ibaLog('mahjong', (tsumo ? 'ツモ' : 'ロン') + ' ' + han + '翻 ' + pts + '点・' + IBA_LV[M.lv]);
   toast(i === 0 ? 'あがり！ ' + han + '翻 ' + pts + '点' : MJ_SEATS[i] + 'の ' + (tsumo ? 'ツモ' : 'ロン') + 'です');
   mjShow(st);
 }
@@ -9824,7 +9852,7 @@ function mjNextKyoku(st) {
 }
 function mjGameOver(st) {
   const M = st.M; M.phase = 'over'; const rank = [0, 1, 2, 3].sort((a, b) => M.scores[b] - M.scores[a]).indexOf(0) + 1;
-  ibaLog('mahjong', '東風戦 ' + rank + '位（' + M.scores[0] + '点）'); toast('東風戦 おわり。あなたは ' + rank + '位です'); mjShow(st);
+  ibaLog('mahjong', '東風戦 ' + rank + '位（' + M.scores[0] + '点）・' + IBA_LV[M.lv]); toast('東風戦 おわり。あなたは ' + rank + '位です'); mjShow(st);
 }
 function mjRon(st, yes) {
   const M = st.M; if (M.phase !== 'ron') return; const r = M.ron; M.ron = null; M.phase = 'play';
@@ -9882,12 +9910,14 @@ function mjShow(st) {
       M.sel !== null ? mjName(M.sel >> 2) + '：もう 一度 えらぶと すてます' + (sh === 0 ? '（すてると テンパイ：待ち ' + mjWaits(after).map(mjName).join('・') + '）' : sh > 0 ? '（すてると あと ' + sh + ' まいで テンパイ）' : '') : '牌を えらぶと 少し 上がります。右はしが 引いた 牌',
       M.hint !== null ? 'ヒント：' + mjName(M.hint >> 2) + 'を すてると よさそう' : '');
     defs = (win ? [{ label: 'ツモ', act: () => mjWin(st, 0, true, null), on: true }] : []).concat(M.sel !== null ? [{ label: 'すてる', act: () => mjDiscard(st, 0, M.sel) }] : [])
-      .concat([{ label: 'ヒント', act: () => { M.hint = mjPickDiscard(M.hands[0]); M.sel = M.hint; mjShow(st); } }, { label: 'はじめから', color: '#55626d', act: () => mjNewGame(st) }]);
+      .concat([{ label: 'ヒント', act: () => { M.hint = mjPickDiscard(M.hands[0], 2, M); M.sel = M.hint; mjShow(st); } }, { label: 'はじめから', color: '#55626d', act: () => mjNewGame(st) }]);
   } else {
     const sh = mjShanten(mjCounts(M.hands[0]));
     msg.push(MJ_SEATS[M.turn] + 'の 番です…', sh === 0 ? 'あなたは テンパイ（待ち ' + mjWaits(M.hands[0]).map(mjName).join('・') + '）' : 'あと ' + sh + ' まいで テンパイ');
     defs = [{ label: 'はじめから', color: '#55626d', act: () => mjNewGame(st) }];
   }
+  msg.push('相手の 強さ：' + IBA_LV[M.lv] + (M.phase === 'over' || M.fresh ? '（下の ボタンで かえられます）' : ''));
+  if (M.phase === 'over' || M.fresh) defs = defs.concat(ibaLvDefs('mahjong', () => mjNewGame(st)));
   ibaUpdate(st, msg.filter((m) => m), defs);
 }
 
