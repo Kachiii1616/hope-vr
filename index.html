@@ -11149,12 +11149,56 @@ function buildIsle() {
   ISLE.rects.push([FERRIS.at.x - 3.4, FERRIS.at.x + 3.4, FERRIS.at.z - 1.6, FERRIS.at.z + 4.1]);
   ISLE.rects.push([FERRIS.at.x + 3.4, FERRIS.at.x + 5.2, FERRIS.at.z + 2.3, FERRIS.at.z + 4.1]); // きっぷ売り場
   { const C = CASINO_SITE; ISLE.rects.push([C.pos.x - C.W / 2, C.pos.x + C.W / 2, C.pos.z - C.D / 2, C.pos.z + C.D / 2]); } // HOPE アミューズメント（外観は 本島の 町と いっしょに 建てる）
-  // 案内板（桟橋の 前）
-  const gb = new Board(3.2, 1.6, 220); gb.draw((ctx, W, H) => { ctx.fillStyle = '#fffdf8'; roundRect(ctx, 0, 0, W, H, 20); ctx.fill(); ctx.fillStyle = '#2d6fa3'; ctx.fillRect(0, 0, W, H * 0.24);
-    ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = '700 ' + Math.round(H * 0.15) + 'px ' + FONT_DISPLAY; ctx.fillText('ようこそ あそびの島へ', W / 2, H * 0.12);
-    ctx.fillStyle = '#1f2a33'; ctx.font = '700 ' + Math.round(H * 0.11) + 'px ' + FONT_BODY; ctx.textAlign = 'left';
-    [['↖ 北西：HOPE アミューズメント', 0.4], ['　（スロット・ルーレット・ポーカー）', 0.54], ['↙ 南西：HOPE 競馬場', 0.68], ['↑ 北東：観覧車（のれます）', 0.82], ['→ 東：連絡船のりば', 0.95]].forEach(([t, y]) => ctx.fillText(t, W * 0.05, H * y)); });
-  const gq = P(33, -18.2); gb.mesh.position.set(gq.x, 1.6, gq.z); gb.mesh.rotation.y = Math.PI / 2; scene.add(gb.mesh); [-1.4, 1.4].forEach((dz) => put(box(0.1, 1.6, 0.1), '#5a4a3a', gq.x, 0.8, gq.z + dz));
+  welcomeArch(P(40.6, -21.75), put);
+}
+// 桟橋の 根もとの「ようこそ」アーチ：紅白の 柱・虹色の 横断幕・ふうせん・旗の ガーランド（船から おりて すぐ 目に 入る）
+const ISLE_FUN = { balloons: [], flags: [] };
+function welcomeArch(at, put) {
+  const PC = ['#e94b5a', '#f6a531', '#f4d03f', '#5cc46a', '#3f9be0', '#9b6ad8', '#ff7fb0'];
+  const zs = [-2.0, 2.0];
+  zs.forEach((dz) => { // しま もようの 柱と 上の 星
+    for (let k = 0; k < 8; k++) put(cyl(0.16, 0.16, 0.5, 12), k % 2 ? '#ffffff' : '#e94b5a', at.x, 0.25 + k * 0.5, at.z + dz);
+    put(ball(0.26, 14, 10), '#f4d03f', at.x, 4.15, at.z + dz).material = mat('#f4d03f', { emissive: '#ffcf4a', emissiveIntensity: 0.6 });
+    block(at.x, at.z + dz, 0.35);
+    // ふうせんの たば（ゆらゆら）
+    const bg = new THREE.Group(); bg.position.set(at.x, 4.2, at.z + dz); scene.add(bg);
+    for (let k = 0; k < 5; k++) {
+      const a = (k / 5) * TAU; const h = 0.9 + (k % 3) * 0.28; const ox = Math.cos(a) * 0.35; const oz = Math.sin(a) * 0.35;
+      const b = new THREE.Mesh(ball(0.24, 14, 10), mat(PC[(k + (dz > 0 ? 3 : 0)) % PC.length], { roughness: 0.25, metalness: 0.05 })); b.scale.y = 1.18; b.position.set(ox, h, oz); bg.add(b);
+      const str = new THREE.Mesh(cyl(0.006, 0.006, h - 0.2, 4), cmat('#ffffff')); str.position.set(ox / 2, (h - 0.2) / 2, oz / 2); str.rotation.set(oz * 0.6, 0, -ox * 0.6); bg.add(str);
+    }
+    ISLE_FUN.balloons.push({ g: bg, ph: dz });
+  });
+  // 虹色の アーチの 板と 横断幕（表は 船から 来る 東がわ、うらは 帰る 人へ）
+  const bar = new THREE.Group(); bar.position.set(at.x, 4.05, at.z); scene.add(bar);
+  PC.slice(0, 6).forEach((c, i) => { const m = new THREE.Mesh(box(0.22, 0.09, 4.4), cmat(c)); m.position.y = 0.42 - i * 0.09; bar.add(m); });
+  const front = new Board(3.8, 0.78, 300); front.draw((ctx, W, H) => {
+    const gr = ctx.createLinearGradient(0, 0, W, 0); PC.forEach((c, i) => gr.addColorStop(i / (PC.length - 1), c));
+    ctx.fillStyle = gr; roundRect(ctx, 0, 0, W, H, H * 0.3); ctx.fill(); ctx.fillStyle = '#ffffff'; roundRect(ctx, 8, 8, W - 16, H - 16, H * 0.26); ctx.fill();
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const t = 'ようこそ！ あそびの島へ'; let fp = Math.round(H * 0.46); ctx.font = '700 ' + fp + 'px ' + FONT_DISPLAY; while (fp > 12 && ctx.measureText(t).width > W - H * 1.3) { fp -= 2; ctx.font = '700 ' + fp + 'px ' + FONT_DISPLAY; } const tw = ctx.measureText(t).width; let x = W / 2 - tw / 2; ctx.textAlign = 'left';
+    [...t].forEach((ch, i) => { ctx.fillStyle = ch === ' ' ? '#000' : PC[i % PC.length]; ctx.strokeStyle = '#1f2a33'; ctx.lineWidth = 3; ctx.strokeText(ch, x, H * 0.54); ctx.fillText(ch, x, H * 0.54); x += ctx.measureText(ch).width; });
+    ctx.fillStyle = '#f4d03f'; ['★', '★'].forEach((s, i) => { ctx.font = '700 ' + Math.round(H * 0.32) + 'px ' + FONT_BODY; ctx.textAlign = 'center'; ctx.fillText(s, i ? W - H * 0.35 : H * 0.35, H * 0.5); });
+  });
+  front.mesh.position.set(0.13, -0.12, 0); front.mesh.rotation.y = Math.PI / 2; bar.add(front.mesh);
+  const back = kcPlate('また あそびに きてね！', 3.4, 0.5, '#2d6fa3', '#ffffff'); back.position.set(-0.13, -0.05, 0); back.rotation.y = -Math.PI / 2; bar.add(back);
+  // 旗の ガーランド：アーチ → 桟橋の 先まで（両がわの 手すりの 柱から）
+  const tip = at.x + 9.0;
+  zs.forEach((dz) => { const z = at.z + dz * 0.65; const q = put(cyl(0.05, 0.05, 2.6, 8), '#e9ecef', tip, 1.3, z); void q;
+    const n = 14; for (let k = 0; k <= n; k++) {
+      const t = k / n; const x = at.x + (tip - at.x) * t; const y = 3.7 - (3.7 - 2.5) * t - Math.sin(t * Math.PI) * 0.55; // たるみ
+      if (k < n) { const f = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.32, 3), mat(PC[k % PC.length], { emissive: PC[k % PC.length], emissiveIntensity: 0.45 })); f.rotation.z = Math.PI; f.position.set(x + 0.3, y - 0.2, z); scene.add(f); ISLE_FUN.flags.push({ m: f, y0: f.position.y, ph: k * 0.7 + dz }); }
+    }
+    const line = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([0, 0.25, 0.5, 0.75, 1].map((t) => new THREE.Vector3(at.x + (tip - at.x) * t, 3.7 - 1.2 * t - Math.sin(t * Math.PI) * 0.55, z))), 16, 0.012, 4), cmat('#ffffff')); scene.add(line);
+  });
+  // 花の プランター（アーチの 足もと）
+  zs.forEach((dz) => { const q = new THREE.Vector3(at.x - 0.7, 0, at.z + dz * 1.15); put(box(0.9, 0.4, 0.5), '#8a6a46', q.x, 0.2, q.z);
+    for (let k = 0; k < 6; k++) put(ball(0.11, 8, 6), PC[(k * 2) % PC.length], q.x - 0.33 + k * 0.13, 0.48, q.z + ((k % 2) - 0.5) * 0.18); });
+}
+function islePierFun(now) { // ふうせんと 旗を ゆらす（島の 近くに いる ときだけ）
+  if (reduceMotion || !(rig.position.x < -100)) return; const t = now / 1000;
+  ISLE_FUN.balloons.forEach((b) => { b.g.position.y = 4.2 + Math.sin(t * 1.3 + b.ph) * 0.08; b.g.rotation.y = Math.sin(t * 0.5 + b.ph) * 0.25; });
+  ISLE_FUN.flags.forEach((f) => { f.m.rotation.x = Math.sin(t * 3 + f.ph) * 0.35; });
 }
 // のりばの 小屋と「のる」ボタン（VR でも えらべる）
 function boatKiosk(at, yaw, side) {
@@ -11317,6 +11361,7 @@ function boatRide(b, now) { // 乗っている 人（自分）は へさきの �
   rig.position.set(seat.x, seat.y, seat.z); rig.rotation.y = b.g.rotation.y - Math.PI / 2;
 }
 function stepBoats(now) {
+  islePierFun(now);
   if (FERRIS.wheel) { const dt = Math.min(0.1, (now - (FERRIS.last || now)) / 1000); FERRIS.last = now; if (!reduceMotion || (state.play && state.play.kind === 'ferris')) FERRIS.ang += dt * FERRIS.speed; FERRIS.wheel.rotation.z = FERRIS.ang; FERRIS.cars.forEach((c) => { c.rotation.z = -FERRIS.ang; }); if (FERRIS.crew) FERRIS.crew.guide.rotation.y = FERRIS.crew.y0 + Math.sin(now / 1800) * 0.45; }
   BOATS.list.forEach((b) => {
     const T = b.trip; const ph = b.at === 'main' ? 0 : 2; const bob = Math.sin(now / 900 + ph) * 0.05;
@@ -11444,14 +11489,15 @@ function isleMenu(arrived) {
     '<div class="pick-list">' + ISLE_DEST.map(([id, name, note]) => '<button type="button" data-isle="' + id + '"><span><b>' + esc(name) + '</b><small>' + esc(note) + '</small></span></button>').join('') + '</div>',
   (card) => { card.querySelectorAll('[data-isle]').forEach((btn) => { btn.onclick = () => isleGo(btn.dataset.isle); }); });
 }
-// 桟橋の 根もとの 行き先の 看板（VR でも ゆびさして えらべる）
+// 桟橋の 根もとの 行き先の 看板（ようこその 案内と いっしょ。VR でも ゆびさして えらべる）
+const ISLE_DIR = { keiba: '（南西）', paddock: '（南西）', amuse: '（北西）', ferris: '（北東）', back: '（東）' };
 function isleMenuBoard() {
-  const g = new THREE.Group(); g.position.copy(isW(39.4, -18.2)); g.rotation.y = Math.PI / 2 - 0.5; scene.add(g); // 船から おりて 島の 方を 向くと 右前に 見える
+  const g = new THREE.Group(); g.position.copy(isW(38.6, -18.2)); g.rotation.y = Math.PI / 2 - 0.5; scene.add(g); // 船から おりて 島の 方を 向くと 右前に 見える
   const put = (geo, color, x, y, z) => { const m = new THREE.Mesh(geo, cmat(color)); m.position.set(x, y, z); g.add(m); return m; };
-  put(box(2.3, 2.5, 0.08), '#2d6fa3', 0, 1.65, -0.05); [-1.05, 1.05].forEach((x) => put(box(0.1, 2.9, 0.1), '#5a4a3a', x, 1.45, -0.12));
-  const t = kcPlate('行き先を えらぶ', 2.1, 0.3, '#ffffff', '#2d6fa3'); t.position.set(0, 2.68, 0); g.add(t);
+  put(box(2.5, 2.75, 0.08), '#2d6fa3', 0, 1.62, -0.05); [-1.15, 1.15].forEach((x) => put(box(0.1, 3.1, 0.1), '#5a4a3a', x, 1.55, -0.12));
+  const t = kcPlate('ようこそ あそびの島へ！ 行き先を えらぶ', 2.3, 0.34, '#ffffff', '#2d6fa3'); t.position.set(0, 2.78, 0); g.add(t);
   ISLE_DEST.filter((d) => d[0] !== 'walk').forEach(([id, name], i) => {
-    const btn = makeButton(name, id === 'back' ? '#e0662f' : '#1f5a8a', 1.9, 0.24); btn.position.set(0, 2.32 - i * 0.3, 0.01); g.add(btn);
+    const btn = makeButton(name + ISLE_DIR[id], id === 'back' ? '#e0662f' : '#1f5a8a', 2.1, 0.26); btn.position.set(0, 2.38 - i * 0.33, 0.01); g.add(btn);
     btn.userData.ibaAct = () => { if (state.where === 'walk') isleGo(id); }; plazaClickables.push(btn);
   });
   block(g.position.x, g.position.z, 0.7);
