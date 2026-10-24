@@ -8463,6 +8463,18 @@ function renderChips() {
     el.addEventListener('click', () => goBooth(i));
     chipsEl.appendChild(el);
   });
+  // リハビリステーション（お店では ないが、チップから すぐ 行けるように）
+  const rehabChip = document.createElement('button');
+  rehabChip.type = 'button'; rehabChip.className = 'chip'; rehabChip.dataset.rehab = '1';
+  rehabChip.innerHTML = '<i style="background:#d9822b"></i>リハビリ<span>しずかな 庭・' + Object.values(REHAB_GAMES).join('・') + '</span>';
+  rehabChip.setAttribute('aria-current', String(!!rehabNow()));
+  rehabChip.addEventListener('click', rehabChipGo);
+  chipsEl.appendChild(rehabChip);
+}
+function rehabChipGo() {
+  if (state.phase === 'work' || state.phase === 'between') { toast('作業が おわってから 行けます'); return; }
+  if (state.where === 'play' && state.play && !rehabNow()) endPlay(); // いまの 場所を 出てから 行く
+  openRehab();
 }
 
 function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
@@ -8479,8 +8491,9 @@ function renderHud() {
     kids.forEach((el) => el.setAttribute('aria-current', String(el.dataset.isle === now)));
     cur = kids.findIndex((el) => el.dataset.isle === now);
   } else {
-    chipsEl.querySelectorAll('.chip').forEach((el, i) => el.setAttribute('aria-current', String(i === 0 ? state.where === 'plaza' : state.booth === booths[i - 1])));
-    cur = state.where === 'plaza' ? 0 : booths.indexOf(state.booth) + 1;
+    const rh = !!rehabNow();
+    chipsEl.querySelectorAll('.chip').forEach((el, i) => el.setAttribute('aria-current', String(el.dataset.rehab ? rh : i === 0 ? state.where === 'plaza' : state.booth === booths[i - 1])));
+    cur = rh ? booths.length + 1 : state.where === 'plaza' ? 0 : booths.indexOf(state.booth) + 1;
   }
   // いまの 場所の チップが 画面の外なら 見える ところまで 送る
   if (cur !== shownChip) {
