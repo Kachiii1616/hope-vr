@@ -11371,7 +11371,7 @@ function buildFerrisStation(fw, put) {
     const g = person(c, '#3d4a54', false, hair); g.scale.setScalar(4.4 * k); g.position.set(-1.85, 0.05, z); g.rotation.y = Math.PI; fw.add(g);
   });
   // 係の 人：ゴンドラの 横で ドアを おさえて 案内（すこし 向きを かえて お客さんを 見る）と、操作台の 運転係
-  const guide = ferrisCrew(CREW); guide.position.set(1.2, 0.05, 1.75); guide.rotation.y = -2.5; // ゴンドラから 半歩 はなれて 立つ（乗った とき 景色を ふさがない） fw.add(guide);
+  const guide = ferrisCrew(CREW); guide.position.set(1.2, 0.05, 1.75); guide.rotation.y = -2.5; fw.add(guide); // ゴンドラから 半歩 はなれて 立つ（乗った とき 景色を ふさがない）
   const op = ferrisCrew(CREW); op.position.set(2.42, 0.05, 2.4); op.rotation.y = -Math.PI / 2 - 0.5; fw.add(op);
   put(box(0.6, 0.95, 0.45), '#5a6470', 2.0, 0.5, 2.4, fw); const panel = put(box(0.62, 0.05, 0.5), '#3d4a54', 2.0, 1.0, 2.4, fw); panel.rotation.z = 0.25; // 操作台（のりばの 東の おく。ゴンドラから はなす）
   [['#d0453a', -0.12], ['#4f9a45', 0.0], ['#f2c230', 0.12]].forEach(([c, dz]) => put(cyl(0.035, 0.035, 0.04, 10), c, 2.01, 1.04, 2.4 + dz, fw));
