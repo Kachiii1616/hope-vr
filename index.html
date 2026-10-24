@@ -1662,6 +1662,11 @@ const FURN = { near: [412, 636], W: 5.8, H: 3.4 }; // 中を 歩いて 家具を
   const side = new THREE.Vector3(1, 0, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), r.yaw).multiplyScalar(0.7); // となりの スーパーに かからないよう 道ぞいに ずらす
   FURN.pos = r.foot.clone().add(side).addScaledVector(r.front, -(ROAD_W / 2 + 0.6 + FURN.W / 2)); FURN.door = r.foot.clone().add(side).addScaledVector(r.front, -ROAD_W / 2);
   FURN.at = toMap(FURN.pos.x, FURN.pos.z); block(FURN.pos.x, FURN.pos.z, FURN.W * 0.72, FURN.W / 2 + 0.2); })(); // 歩く ときは 入口の 前まで 行ける
+// みんなの 居場所（集会所。中で 将棋・囲碁・麻雀・競馬が できる）。学校の 東の 交差点の そば、目抜き通りぞい
+const IBA_SITE = { near: [432, 516], W: 5.4, H: 3.2 };
+(() => { const r = roadside(IBA_SITE.near); IBA_SITE.yaw = r.yaw; IBA_SITE.front = r.front;
+  IBA_SITE.pos = r.foot.clone().addScaledVector(r.front, -(ROAD_W / 2 + 0.6 + IBA_SITE.W / 2)); IBA_SITE.door = r.foot.clone().addScaledVector(r.front, -ROAD_W / 2);
+  IBA_SITE.at = toMap(IBA_SITE.pos.x, IBA_SITE.pos.z); block(IBA_SITE.pos.x, IBA_SITE.pos.z, IBA_SITE.W * 0.72, IBA_SITE.W / 2 + 0.2); })();
 
 // 地域の名前（お店のない地域・目じるし）
 [['ビーチ', [250, 205]], ['カフェの テラス', [195, 660]], ['りんご畑', [745, 700]], ['湖（冬は スケート場）', [265, 592]], ['表：夏山登山　裏：冬スキー', [520, 392]],
@@ -1960,6 +1965,23 @@ function tree(x, z, kind) {
     const sign = new Board(3.2, 0.8, 120); sign.draw((ctx, w, h) => { ctx.fillStyle = '#8a6a46'; roundRect(ctx, 0, 0, w, h, h * 0.2); ctx.fill(); ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = '700 ' + Math.round(h * 0.55) + 'px ' + FONT_DISPLAY; ctx.fillText('家具屋', w / 2, h * 0.54); });
     sign.mesh.position.set(0, H - 0.42, fz + 0.07); sign.mesh.scale.setScalar(0.7); g.add(sign.mesh);
     const pin = overviewSign('家具屋', '家具を 買う', '#8a6a46', 5); pin.position.set(p.x, 8, p.z); pin.lookAt(OVERVIEW.pos); scene.add(pin); overviewOnly.push(pin);
+  })();
+
+  // みんなの 居場所：白い かべに 瓦の 屋根の 集会所。入口の 上に 看板。外から えらぶと 中へ
+  (() => {
+    const { pos: p, W, H } = IBA_SITE; const fz = W / 2;
+    const g = new THREE.Group(); g.position.copy(p); g.rotation.y = IBA_SITE.yaw; scene.add(g); IBA_SITE.group = g;
+    const put = (geo, color, x, y, z, extra) => { const o = new THREE.Mesh(geo, extra ? mat(color, extra) : cmat(color)); o.position.set(x, y, z); g.add(o); return o; };
+    const bx = (w, h, d) => new THREE.BoxGeometry(w, h, d);
+    const body = put(bx(W, H, W), '#f6f1e6', 0, H / 2, 0);
+    const roof = put(new THREE.ConeGeometry(W * 0.8, 1.5, 4), '#5a6f8a', 0, H + 0.75, 0); roof.rotation.y = Math.PI / 4;
+    put(bx(1.5, 2.2, 0.06), '#8a6a46', 0, 1.1, fz + 0.01); // 戸
+    [-1, 1].forEach((sd) => put(bx(1.2, 0.9, 0.04), '#bfe3f2', sd * 1.6, 1.6, fz + 0.01, { emissive: '#7ab3cc', emissiveIntensity: 0.2 }));
+    const sign = textPlate('みんなの 居場所', 2.6, 0.5, '#e0662f', '#ffffff'); sign.position.set(0, H - 0.4, fz + 0.04); g.add(sign);
+    const sub = textPlate('将棋・囲碁・麻雀・競馬', 2.2, 0.3, '#ffffff', '#1f2a33'); sub.position.set(0, 2.42, fz + 0.04); g.add(sub);
+    [body, roof, sign, sub].forEach((m) => { m.userData.ibaEnter = true; plazaClickables.push(m); });
+    const pin = overviewSign('みんなの 居場所', '将棋・囲碁・麻雀・競馬', '#e0662f', 6); pin.position.set(p.x, 9, p.z); pin.lookAt(OVERVIEW.pos); scene.add(pin); overviewOnly.push(pin);
+    pin.userData.ibaEnter = true; plazaClickables.push(pin);
   })();
 
   // IT街：南の 通りぞいの ガラスの ビル
@@ -3575,6 +3597,7 @@ const LEISURE = [
   { id: 'swim', name: '海で 泳ぐ', cost: 0, ok: () => season === 'summer', go: () => { goBeach(); startSwim(); } },
   { id: 'sun', name: 'ビーチで 日向ぼっこ', cost: 0, ok: () => season === 'summer', go: () => { goBeach(); startSun(); } },
   { id: 'rehab', name: 'リハビリステーション', cost: 0, ok: () => true, go: () => openRehab() },
+  { id: 'iba', name: 'みんなの 居場所（将棋・囲碁・麻雀・競馬）', cost: 0, ok: () => true, go: () => openIba() },
   { id: 'skate', name: '湖で スケート', price: 400, label: 'スケートぐつ 400円', ok: () => season === 'winter', go: () => { const c = LAKE.blk; startWalk(new THREE.Vector3(c.x, 0, c.z), 0); } },
   { id: 'ski', name: 'スキー', price: 500, label: 'リフト券 500円', ok: () => season === 'winter', go: () => startSki() },
   { id: 'cafe', name: 'カフェで のんびり', label: '300円〜', ok: () => true, go: () => openCafeOrder('in') },
@@ -3903,6 +3926,7 @@ function walkStep(dt) {
   const near = booths.findIndex((b) => Math.hypot(b.door.x - p.x, b.door.z - p.z) < 1.3);
   if (near >= 0) { Object.keys(walkKeys).forEach((k) => { walkKeys[k] = false; }); syncPad(); goBooth(near); return; }
   if (profile && Math.hypot(FURN.door.x - p.x, FURN.door.z - p.z) < 1.3) goFurniture(); // 家具屋の 入口
+  if (Math.hypot(IBA_SITE.door.x - p.x, IBA_SITE.door.z - p.z) < 1.3) { Object.keys(walkKeys).forEach((k) => { walkKeys[k] = false; }); syncPad(); openIba(ibaOutside()); } // みんなの 居場所の 入口
 }
 function snapTurn(a) {
   camera.getWorldPosition(tmpHead); const before = tmpHead.clone();
@@ -8039,6 +8063,7 @@ function currentClickables() {
   if (state.where === 'plaza') return booths.map((b) => b.pin).concat(plazaClickables);
   if (state.where === 'walk') return plazaClickables;
   if (state.where === 'home') return home.btns ? Object.values(home.btns).concat(home.leisureBtns || []) : [];
+  if (state.where === 'play' && state.play && state.play.kind === 'iba') return ibaClickables();
   if (state.where === 'opening' || state.where === 'play') return [];
   if (state.where === 'furn') return (furnShop.btns || []).concat(furnShop.clickables); // 札の 下の ボタンも えらべる
   const b = state.booth; const list = Object.values(b.btns).filter((m) => m.visible);
@@ -8050,6 +8075,8 @@ function handleRay(ray) {
   const hits = ray.intersectObjects(currentClickables(), false);
   if (!hits.length) return;
   const obj = hits[0].object;
+  if (obj.userData.ibaAct) { obj.userData.ibaAct(); return; }
+  if (obj.userData.ibaEnter) { openIba(); return; }
   if (obj.userData.furnBuy) { if (state.where === 'furn') { playSfx('coin'); buyFurn(obj.userData.furnBuy); } return; }
   if (obj.userData.furnCancel) { furnShop.selected = null; paintFurnTags(); renderHud(); return; }
   if (obj.userData.furnId) { if (state.where === 'furn') { playSfx(SFX_FURN[obj.userData.furnId] || 'pop'); pickFurn(obj.userData.furnId); } return; }
@@ -8259,7 +8286,7 @@ function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 function renderHud() {
   $('btn-home').hidden = !home.group;
   $('place').textContent = state.where === 'plaza' ? '島ぜんたい' : state.where === 'walk' ? '島を 歩いています' : state.where === 'home' ? profile.name + 'さんの ' + homeName() + '（' + home.site.name + '）' : state.where === 'opening' ? 'フェリーで 入港中' : state.where === 'play' ? PLAY_NAME[state.play.kind] : state.where === 'furn' ? '家具屋（お店の 中）' : state.booth.job.area + '　' + state.booth.job.name + '・' + state.booth.job.work;
-  $('pad').hidden = !(state.where === 'walk' || state.where === 'furn' || (state.where === 'play' && state.play && !['sun', 'cafe', 'terrace', 'plaza', 'rehab'].includes(state.play.kind)) || (state.where === 'booth' && state.phase === 'work' && state.round && (state.round.cover || state.round.slide)));
+  $('pad').hidden = !(state.where === 'walk' || state.where === 'furn' || (state.where === 'play' && state.play && !['sun', 'cafe', 'terrace', 'plaza', 'rehab', 'iba'].includes(state.play.kind)) || (state.where === 'booth' && state.phase === 'work' && state.round && (state.round.cover || state.round.slide)));
   $('btn-walk').textContent = state.where === 'walk' ? '見わたす' : '島を歩く';
   chipsEl.querySelectorAll('.chip').forEach((el, i) => el.setAttribute('aria-current', String(i === 0 ? state.where === 'plaza' : state.booth === booths[i - 1])));
   // いまの 場所の チップが 画面の外なら 見える ところまで 送る
@@ -8277,13 +8304,14 @@ function renderHud() {
   if (state.where === 'plaza') {
     el.innerHTML = '<span class="tag">Work Island</span><h2>やってみたい しごとを えらぶ</h2>' +
       '<div>島の 地域ごとに、その土地の しごとが あります。旗や お店を タップ（VR では ゆびさして トリガー）すると、その お店の前に 移動します。ドラッグで 見回せます。</div>' +
-      '<div class="row"><button type="button" class="primary" id="h-walk">島を 歩いてみる</button><button type="button" id="h-rehab">リハビリステーション</button></div>';
-    $('h-walk').onclick = () => startWalk(); $('h-rehab').onclick = openRehab;
+      '<div class="row"><button type="button" class="primary" id="h-walk">島を 歩いてみる</button><button type="button" id="h-rehab">リハビリステーション</button><button type="button" id="h-iba">みんなの 居場所</button></div>';
+    $('h-walk').onclick = () => startWalk(); $('h-rehab').onclick = openRehab; $('h-iba').onclick = () => openIba();
     return;
   }
   if (state.where === 'play') {
     const k = state.play.kind;
     if (k === 'rehab') { renderRehabHud(el); return; }
+    if (k === 'iba') { renderIbaHud(el); return; }
     const how = { ski: '← → で よける・▲を 押すと そのまま（Shift で 速く）。下まで すべると ゴール', climb: '▲で のぼる・▼で おりる。頂上から 島ぜんたいが 見えます', swim: '▲▼で 進む・◀▶で 向きを かえる。岸から 遠くへは 行けません', sun: 'パラソルの 下で ねころんでいます。ドラッグで 見回せます', cafe: '中の 席に すわって います。ドラッグで 見回せます', terrace: '外の テラス席に すわって います。ドラッグで 見回せます', plaza: '町の テラス席に すわって います。ドラッグで 見回せます' }[k];
     el.innerHTML = '<span class="tag">あそぶ</span><h2>' + PLAY_NAME[k] + '</h2><div>' + how + '</div><div class="row"><button type="button" class="primary" id="h-endplay">' + (k === 'sun' ? 'おきる' : k === 'swim' ? '岸に あがる' : k === 'cafe' || k === 'terrace' ? 'お店を 出る' : k === 'plaza' ? '席を たつ' : 'おわる') + '</button></div>';
     $('h-endplay').onclick = endPlay;
@@ -8393,7 +8421,7 @@ const inPoly = (poly, px, py) => { let ins = false; for (let i = 0, j = poly.len
 const onIce = (x, z) => season === 'winter' && LAKE.blk && ((x - LAKE.blk.x) / LAKE.rx) ** 2 + ((z - LAKE.blk.z) / LAKE.rz) ** 2 < 1;
 const onBeach = (x, z) => inPoly(BEACH, ...toMap(x, z));
 const skateV = new THREE.Vector3();
-const PLAY_NAME = { ski: 'スキー', climb: '山登り', swim: '海で 泳ぐ', sun: '日向ぼっこ', cafe: 'カフェで のんびり', terrace: 'カフェの テラス席', plaza: '町の テラス席', rehab: 'リハビリステーション' };
+const PLAY_NAME = { iba: 'みんなの 居場所', ski: 'スキー', climb: '山登り', swim: '海で 泳ぐ', sun: '日向ぼっこ', cafe: 'カフェで のんびり', terrace: 'カフェの テラス席', plaza: '町の テラス席', rehab: 'リハビリステーション' };
 const isCafePlay = (k) => k === 'cafe' || k === 'terrace' || k === 'plaza';
 // 左スティック（VR）
 function xrMove() {
@@ -8515,6 +8543,7 @@ function endPlay() {
   const m = seasonal.mount; if (towel) towel.visible = false;
   state.play = null;
   if (pl.kind === 'rehab') { leaveRehab(pl); return; }
+  if (pl.kind === 'iba') { rig.position.y = 0; leaveIba(pl); return; }
   if (pl.kind === 'ski') { const dir = m.runs[pl.run]; startWalk(new THREE.Vector3(m.peak.x + dir.x * (m.MR + 2.5), 0, m.peak.z + dir.z * (m.MR + 2.5)), Math.atan2(-dir.x, -dir.z)); }
   else if (pl.kind === 'climb') startWalk(seasonal.trailAt.clone().add(new THREE.Vector3(1.5, 0, 1.5)), 0);
   else if (pl.kind === 'swim') startWalk(pl.land, rig.rotation.y + Math.PI);
@@ -8524,6 +8553,7 @@ function endPlay() {
 function stepPlay(dt, now) {
   const pl = state.play; if (state.where !== 'play' || !pl) return;
   if (pl.kind === 'rehab') { stepRehab(pl, dt, now); return; }
+  if (pl.kind === 'iba') { stepIba(pl, dt, now); return; }
   const m = seasonal.mount; const xr = xrMove();
   const fwd = xr ? xr.fwd : (walkKeys.fwd ? 1 : 0) - (walkKeys.back ? 1 : 0);
   const side = xr ? xr.strafe : (walkKeys.right ? 1 : 0) - (walkKeys.left ? 1 : 0);
@@ -9096,6 +9126,835 @@ window.addEventListener('keydown', (e) => {
   else if (pl.game === 'fruit') { if (e.code === 'ArrowLeft' || e.code === 'KeyF') { e.preventDefault(); rehabPress('left'); } else if (e.code === 'ArrowRight' || e.code === 'KeyJ') { e.preventDefault(); rehabPress('right'); } }
   else if (e.code === 'Space') { e.preventDefault(); rehabSwipeThrow(0.55, 0); }
 });
+// ===========================================================================
+// みんなの 居場所（住宅地の 集会所）：競馬・麻雀・将棋・囲碁を 実際に あそべる 部屋
+//   居場所づくり支援：しごとの あいまや 休みの 日に 立ちよって、ひとりでも あそべる（相手は コンピューター）。
+//   中は 島の 外に 建てた 部屋（リハビリステーションと 同じ しくみ）。入口から 4 つの 台が 見え、台の 札を えらぶと その 席に つく。
+//   VR では 画面の カードが 見えないので、台の 札と ボタンで ぜんぶ できる（画面の カードにも 同じ ボタンを 出す）。
+//   競馬は メダル競馬（あそび用の メダル。お金・バッジとは べつ）。麻雀は 鳴き・リーチ なしの かんたん ルール（役が なくても あがれる）。
+//   きろくは profile.iba（いつ・何で・どう だったか）。hope-work の 作業体験の きろく（TrialPhase）とは べつ
+// ===========================================================================
+const IBA = { at: new THREE.Vector3(-640, 0, 0), g: null, room: { w: 13, d: 9 }, entry: new THREE.Vector3(0, 0, 3.4), signs: [], exitBtn: null, st: {} };
+const IBA_GAMES = { shogi: '将棋', go: '囲碁', mahjong: '麻雀', keiba: '競馬' };
+const IBA_NOTE = { shogi: 'コンピューターと 1 局。待ったも できます', go: '9 路盤で コンピューターと 1 局', mahjong: 'コンピューター 3 人と 東風戦', keiba: 'メダルを かけて レースを 見る' };
+const IBA_COLOR = { shogi: '#8a5a2b', go: '#3d4a54', mahjong: '#2f7d4f', keiba: '#c0533a' };
+const IBA_X = { shogi: -3.9, go: -1.3, mahjong: 1.3, keiba: 4.0 }; // 台の 位置（どれも 奥の かべ がわ。席は 台の 手前で 奥を 向く）
+const IBA_Z = -1.4;
+const IBA_SEAT = { shogi: 0.8, go: 0.75, mahjong: 0.78, keiba: 1.05 }; // 台の 中心から 席までの 長さ
+const IBA_TOP = 0.72; // 台の 高さ
+const IBA_START_MEDALS = 100;
+function ibaData() {
+  if (!profile) return { medals: IBA_START_MEDALS, log: [] };
+  if (!profile.iba) profile.iba = { medals: IBA_START_MEDALS, log: [] };
+  return profile.iba;
+}
+function ibaLog(game, result) { const d = ibaData(); d.log.push({ at: new Date().toISOString(), game, result }); d.log = d.log.slice(-40); if (profile) saveProfile(); }
+const ibaNow = () => (state.where === 'play' && state.play && state.play.kind === 'iba' ? state.play : null);
+const ibaShown = (o) => { for (let p = o; p; p = p.parent) if (!p.visible) return false; return true; };
+function ibaClickables() {
+  const out = IBA.signs.concat(IBA.exitBtn ? [IBA.exitBtn] : []);
+  Object.values(IBA.st).forEach((st) => { out.push(...st.btnMeshes); if (ibaNow() && ibaNow().at === st.key) out.push(...st.clicks); });
+  return out.filter(ibaShown);
+}
+const ibaClick = (m, fn) => { m.userData.ibaAct = fn; return m; };
+
+// ---- 部屋 -----------------------------------------------------------------
+function buildIba() {
+  if (IBA.g) return;
+  const g = new THREE.Group(); g.position.copy(IBA.at); scene.add(g); IBA.g = g; const { w, d } = IBA.room; const H = 3.0;
+  g.updateMatrixWorld(true); // すぐ あとの localToWorld で 使う
+  part(g, box(w, 0.1, d), '#d9c29a', 0, -0.05, 0, { roughness: 0.9 }); // ゆか（木）
+  part(g, box(5.2, 0.012, 2.4), '#c9b98a', 0, 0.006, 2.6); // 入口の マット
+  const wall = '#f3ece0';
+  part(g, box(w, H, 0.12), wall, 0, H / 2, -d / 2); part(g, box(0.12, H, d), wall, -w / 2, H / 2, 0); part(g, box(0.12, H, d), wall, w / 2, H / 2, 0);
+  [-1, 1].forEach((sd) => part(g, box(w / 2 - 0.8, H, 0.12), wall, sd * (w / 4 + 0.4), H / 2, d / 2));
+  part(g, box(1.6, H - 2.3, 0.12), wall, 0, (H + 2.3) / 2, d / 2);
+  part(g, box(w, 0.08, d), '#fbfaf6', 0, H, 0); // 天井
+  part(g, box(w, 0.12, 0.04), '#b08a5a', 0, 0.06, -d / 2 + 0.08); // はばき
+  for (let k = -2; k <= 2; k++) part(g, cyl(0.3, 0.3, 0.04, 20), '#fff8e0', k * 2.6, H - 0.06, -0.6, { emissive: '#fff1c2', emissiveIntensity: 0.8 });
+  // まど（左右の かべ）・時計・お茶の コーナー・本だな・観葉植物
+  [-1, 1].forEach((sd) => [-2, 1].forEach((z) => part(g, box(0.02, 1.0, 1.6), '#bfe3f2', sd * (w / 2 - 0.07), 1.6, z, { emissive: '#7ab3cc', emissiveIntensity: 0.25 })));
+  const clock = new Board(0.5, 0.5, 200); clock.draw((ctx, W, Hh) => { ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(W / 2, Hh / 2, W / 2 - 4, 0, TAU); ctx.fill(); ctx.strokeStyle = '#3d4a54'; ctx.lineWidth = 6; ctx.stroke();
+    ctx.fillStyle = '#3d4a54'; for (let k = 0; k < 12; k++) { const a = k / 12 * TAU; ctx.fillRect(W / 2 + Math.sin(a) * W * 0.4 - 3, Hh / 2 - Math.cos(a) * W * 0.4 - 3, 6, 6); }
+    ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(W / 2, Hh / 2); ctx.lineTo(W / 2 + W * 0.2, Hh / 2 - W * 0.1); ctx.moveTo(W / 2, Hh / 2); ctx.lineTo(W / 2 - W * 0.05, Hh / 2 - W * 0.33); ctx.stroke(); });
+  clock.mesh.position.set(0, 2.55, -d / 2 + 0.07); g.add(clock.mesh);
+  const tea = new THREE.Group(); tea.position.set(-w / 2 + 0.7, 0, 3.0); g.add(tea);
+  part(tea, box(0.6, 0.85, 1.4), '#b08a5a', 0, 0.425, 0); part(tea, cyl(0.09, 0.1, 0.3, 16), '#d9dde0', 0, 1.0, -0.3); part(tea, cyl(0.02, 0.02, 0.06), '#3d4a54', 0, 1.18, -0.3);
+  [-0.05, 0.12, 0.29].forEach((z) => part(tea, cyl(0.035, 0.03, 0.08, 12), '#e9e2cf', 0.05, 0.89, z));
+  const teaSign = textPlate('お茶は ご自由に', 0.9, 0.2, '#2f7d4f', '#ffffff'); teaSign.position.set(0.31, 1.25, 0); teaSign.rotation.y = Math.PI / 2; tea.add(teaSign);
+  const shelf = new THREE.Group(); shelf.position.set(w / 2 - 0.35, 0, 3.0); g.add(shelf);
+  part(shelf, box(0.4, 1.6, 1.4), '#8a6a46', 0, 0.8, 0);
+  for (let r = 0; r < 3; r++) for (let k = 0; k < 9; k++) part(shelf, box(0.22, 0.3, 0.1), LIB_BOOK_COLORS[(k + r) % LIB_BOOK_COLORS.length], -0.21, 0.3 + r * 0.5, -0.55 + k * 0.135);
+  [[-w / 2 + 0.5, -d / 2 + 0.5], [w / 2 - 0.5, -d / 2 + 0.5]].forEach(([x, z]) => { part(g, cyl(0.2, 0.16, 0.4, 14), '#c46a3a', x, 0.2, z); part(g, ball(0.42, 12, 10), '#4f8a3a', x, 0.85, z); });
+  const name = textPlate('みんなの 居場所', 3.2, 0.5, '#e0662f', '#ffffff'); name.position.set(0, 2.62, -d / 2 + 0.08); name.scale.setScalar(0.9); g.add(name);
+  const rule = new Board(2.4, 0.5, 300); rule.draw((ctx, W, Hh) => { ctx.fillStyle = '#fffdf8'; roundRect(ctx, 0, 0, W, Hh, 20); ctx.fill(); ctx.fillStyle = '#1f2a33'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = '700 ' + Math.round(Hh * 0.22) + 'px ' + FONT_BODY; ctx.fillText('すきな 台の 札を えらぶと 席に つきます', W / 2, Hh * 0.33);
+    ctx.font = '400 ' + Math.round(Hh * 0.18) + 'px ' + FONT_BODY; ctx.fillText('ひとりでも だいじょうぶ。相手は コンピューターです', W / 2, Hh * 0.7); });
+  rule.mesh.position.set(-w / 2 + 0.07, 1.7, 0.6); rule.mesh.rotation.y = Math.PI / 2; g.add(rule.mesh);
+  IBA.exitBtn = ibaClick(makeButton('外に 出る', '#3d4a54', 0.6, 0.15), () => endPlay()); IBA.exitBtn.position.set(0, 1.55, d / 2 - 0.1); IBA.exitBtn.rotation.y = Math.PI; g.add(IBA.exitBtn);
+  // 台ごとの 札（えらぶと その 席へ）・パネル
+  Object.keys(IBA_GAMES).forEach((key) => {
+    const sg = overviewSign(IBA_GAMES[key], IBA_NOTE[key], IBA_COLOR[key], 1.5); sg.material.depthTest = true; sg.renderOrder = 0;
+    sg.position.set(IBA_X[key], 2.42, IBA_Z - (key === 'keiba' ? 1.05 : 0.95)); g.add(sg); IBA.signs.push(ibaClick(sg, () => ibaSit(key)));
+    const big = key === 'keiba';
+    const st = { key, x: IBA_X[key], g: new THREE.Group(), pg: new THREE.Group(), panel: new Board(big ? 1.2 : 0.9, big ? 0.74 : 0.5, 900), ph: big ? 0.74 : 0.5, btnDefs: [], btnMeshes: [], clicks: [], msg: [], title: IBA_GAMES[key] };
+    st.g.position.set(IBA_X[key], 0, IBA_Z); g.add(st.g); IBA.st[key] = st;
+    // パネルは 相手の 顔に かからない ところ（左の おく）に 席の 方を 向けて 立てる。競馬は コースの おく
+    const [px, py, pz] = big ? [0, 1.62, -0.72] : key === 'mahjong' ? [-0.84, 1.3, -0.84] : [-0.76, 1.26, -0.44];
+    st.pg.position.set(px, py, pz); st.pg.rotation.y = Math.atan2(-px, IBA_SEAT[key] - pz); st.g.add(st.pg); st.pg.add(st.panel.mesh);
+    const chair = new THREE.Group(); chair.position.set(0, 0, IBA_SEAT[key] + 0.1); st.g.add(chair); // 自分の いす
+    part(chair, box(0.44, 0.05, 0.42), '#8a6a46', 0, 0.44, 0); part(chair, box(0.44, 0.45, 0.05), '#8a6a46', 0, 0.68, 0.2);
+    [[-0.19, -0.18], [0.19, -0.18], [-0.19, 0.18], [0.19, 0.18]].forEach(([x, z]) => part(chair, box(0.04, 0.44, 0.04), '#5a4a3a', x, 0.22, z));
+  });
+  buildShogi(IBA.st.shogi); buildIgo(IBA.st.go); buildMahjong(IBA.st.mahjong); buildKeiba(IBA.st.keiba);
+}
+function ibaTable(st, w, dd, color) { // 台（脚つき）
+  part(st.g, box(w, 0.04, dd), color || '#a77b4f', 0, IBA_TOP - 0.02, 0);
+  [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([sx, sz]) => part(st.g, box(0.05, IBA_TOP - 0.04, 0.05), '#5a4a3a', sx * (w / 2 - 0.06), (IBA_TOP - 0.04) / 2, sz * (dd / 2 - 0.06)));
+}
+function ibaOpponent(st, color, name, at, yaw, sc) { // コンピューターの 相手（台の 向こうに すわる 高さ）
+  const p = person(color, '#3d4a54'); p.scale.setScalar(sc || 3.2); p.position.copy(at); p.rotation.y = yaw; st.g.add(p);
+  const t = labelSprite(name, { h: 0.07 }); t.position.set(at.x, 1.3, at.z); st.g.add(t); return p;
+}
+
+// ---- パネルと ボタン（VR でも 見える 台の 札） -------------------------------
+function ibaPaint(st) {
+  st.panel.draw((ctx, W, H) => {
+    ctx.fillStyle = 'rgba(255,253,248,0.96)'; roundRect(ctx, 0, 0, W, H, 22); ctx.fill();
+    ctx.fillStyle = IBA_COLOR[st.key]; roundRect(ctx, 0, 0, W, H * 0.17, 22); ctx.fill(); ctx.fillRect(0, H * 0.1, W, H * 0.07);
+    ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = '700 ' + Math.round(H * 0.1) + 'px ' + FONT_DISPLAY; ctx.fillText(st.title, W / 2, H * 0.088);
+    ctx.textAlign = 'left'; ctx.fillStyle = '#1f2a33'; let y = H * 0.25; const lh = H * 0.088;
+    st.msg.forEach((ln, k) => {
+      const big = k === 0; ctx.font = (big ? '700 ' : '400 ') + Math.round(big ? H * 0.075 : H * 0.062) + 'px ' + FONT_BODY; ctx.fillStyle = ln.color || '#1f2a33';
+      wrapLines(ctx, ln.text || ln, W * 0.92).forEach((t) => { if (y < H - lh * 0.4) ctx.fillText(t, W * 0.04, y); y += lh; });
+    });
+    if (st.extraPaint) st.extraPaint(ctx, W, H);
+  });
+}
+function ibaButtons(st, defs) { // defs：[{ label, act, color, row, w }]。パネルの 下に 行ごとに ならべる
+  st.btnMeshes.forEach((m) => { m.parent.remove(m); m.material.map.dispose(); m.material.dispose(); m.geometry.dispose(); });
+  st.btnDefs = defs; st.btnMeshes = []; const rows = {};
+  defs.forEach((d) => { (rows[d.row || 0] = rows[d.row || 0] || []).push(d); });
+  Object.entries(rows).forEach(([r, list]) => {
+    const gap = 0.02; const tw = list.reduce((a, d) => a + (d.w || 0.3) + gap, -gap); let x = -tw / 2;
+    list.forEach((d) => {
+      const w = d.w || 0.3; const m = ibaClick(makeButton(d.label, d.on ? '#e0662f' : d.color || IBA_COLOR[st.key], w, 0.085), () => { playSfx('pop'); d.act(); });
+      m.position.set(x + w / 2, -st.ph / 2 - 0.06 - Number(r) * 0.1, 0.01); st.pg.add(m); st.btnMeshes.push(m); x += w + gap;
+    });
+  });
+}
+function ibaUpdate(st, msg, defs) { st.msg = msg.filter(Boolean); ibaPaint(st); ibaButtons(st, defs); if (ibaNow() && ibaNow().at === st.key) renderHud(); }
+function ibaWait(st, ms, fn) { st.wait = performance.now() + ms; st.next = fn; }
+
+// ---- 入る・席に つく・出る --------------------------------------------------
+const ibaOutside = () => ({ pos: IBA_SITE.door.clone().addScaledVector(IBA_SITE.front, 1.6), yaw: IBA_SITE.yaw + Math.PI }); // 出ると 入口の 前（お店に 背中を 向ける）
+function openIba(from) {
+  const pl0 = ibaNow();
+  const fromInfo = pl0 ? pl0.from : from || (state.where === 'home' ? { home: true } : state.where === 'walk' ? { pos: rig.position.clone(), yaw: rig.rotation.y + look.yaw } : {});
+  leaveForPlay(); buildIba(); IBA.g.visible = true;
+  state.where = 'play'; state.play = { kind: 'iba', at: null, from: fromInfo, t0: performance.now() };
+  ibaStand(); toast('みんなの 居場所へ ようこそ');
+}
+function ibaStand() {
+  const pl = ibaNow(); if (!pl) return; pl.at = null;
+  rig.position.copy(IBA.g.localToWorld(IBA.entry.clone())); rig.rotation.y = 0; look.yaw = 0; look.pitch = 0.12;
+  renderHud();
+}
+function ibaSit(key) {
+  const pl = ibaNow(); if (!pl) return; const st = IBA.st[key]; pl.at = key;
+  const seat = new THREE.Vector3(st.x, renderer.xr.isPresenting ? 0 : -0.35, IBA_Z + IBA_SEAT[key]);
+  rig.position.copy(IBA.g.localToWorld(seat)); rig.position.y = seat.y; rig.rotation.y = 0; look.yaw = 0; look.pitch = key === 'keiba' ? 0.2 : 0.5;
+  ({ shogi: shogiEnter, go: igoEnter, mahjong: mjEnter, keiba: keibaEnter })[key](st);
+  renderHud();
+}
+function leaveIba(pl) {
+  IBA.g.visible = false; Object.values(IBA.st).forEach((st) => { st.next = null; });
+  if (pl.from.home && home.group) goHome(); else if (pl.from.pos) startWalk(pl.from.pos, pl.from.yaw); else goPlaza();
+}
+function stepIba(pl, dt, now) {
+  Object.values(IBA.st).forEach((st) => { if (st.next && now >= st.wait) { const f = st.next; st.next = null; f(); } });
+  stepKeiba(IBA.st.keiba, dt, now);
+}
+function renderIbaHud(el) {
+  const pl = state.play; const st = pl.at && IBA.st[pl.at];
+  const others = Object.keys(IBA_GAMES).filter((k) => k !== pl.at).map((k) => '<button type="button" data-iba-go="' + k + '">' + IBA_GAMES[k] + '</button>').join('');
+  const last = ibaData().log.slice(-3).reverse().map((r) => '<li>' + esc(IBA_GAMES[r.game] + '：' + r.result) + '</li>').join('');
+  el.innerHTML = '<span class="tag">みんなの 居場所</span><h2>' + (st ? IBA_GAMES[pl.at] : 'あそびを えらぶ') + '</h2>' +
+    (st ? '<div class="feedback" id="iba-msg">' + st.msg.map((m) => esc(m.text || m)).join('<br>') + '</div>' +
+      '<div class="row">' + st.btnDefs.map((d, i) => '<button type="button"' + (d.on ? ' class="primary"' : '') + ' data-iba-btn="' + i + '">' + esc(d.label) + '</button>').join('') + '</div>'
+      : '<div>将棋・囲碁・麻雀・競馬が できます。台の 札を えらぶ（VR では ゆびさして トリガー）と 席に つきます。ひとりでも あそべます（相手は コンピューター）。</div>' +
+        (last ? '<label class="field">さいきんの きろく</label><ul style="margin:0;padding-left:1.2em;color:var(--ink-soft)">' + last + '</ul>' : '')) +
+    '<div class="row">' + others + (st ? '<button type="button" id="iba-stand">席を 立つ</button>' : '') + '<button type="button" id="iba-out">外に 出る</button></div>';
+  el.querySelectorAll('[data-iba-go]').forEach((b) => { b.onclick = () => ibaSit(b.dataset.ibaGo); });
+  el.querySelectorAll('[data-iba-btn]').forEach((b) => { b.onclick = () => { const d = st.btnDefs[Number(b.dataset.ibaBtn)]; if (d) { playSfx('pop'); d.act(); } }; });
+  if ($('iba-stand')) $('iba-stand').onclick = ibaStand;
+  $('iba-out').onclick = endPlay;
+}
+
+// ===========================================================================
+// 将棋：あなたが 先手（手前）。コンピューターは 2 手先まで 読む（駒の とりあい と 詰み）
+//   ルール：成り（入れば えらぶ・行き所の ない 駒は かならず 成る）・持ち駒を 打つ・二歩・打ち歩詰め・王手放置 なし
+// ===========================================================================
+const SG_CH = { OU: '玉', HI: '飛', KA: '角', KI: '金', GI: '銀', KE: '桂', KY: '香', FU: '歩' };
+const SG_PRO = { HI: '龍', KA: '馬', GI: '全', KE: '圭', KY: '杏', FU: 'と' };
+const SG_NAME = { OU: '玉', HI: '飛車', KA: '角', KI: '金', GI: '銀', KE: '桂馬', KY: '香車', FU: '歩' };
+const SG_VAL = { OU: 0, HI: 10, KA: 8, KI: 6, GI: 5, KE: 4, KY: 3, FU: 1 };
+const SG_PVAL = { HI: 13, KA: 11, GI: 6, KE: 6, KY: 6, FU: 6 };
+const SG_HANDS = ['HI', 'KA', 'KI', 'GI', 'KE', 'KY', 'FU'];
+const SG_KI = [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [0, 1]];
+const SG_STEP = { OU: [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]], KI: SG_KI, GI: [[-1, -1], [0, -1], [1, -1], [-1, 1], [1, 1]], KE: [[-1, -2], [1, -2]], FU: [[0, -1]] };
+const SG_SLIDE = { HI: [[0, -1], [0, 1], [-1, 0], [1, 0]], KA: [[-1, -1], [1, -1], [-1, 1], [1, 1]], KY: [[0, -1]] };
+const SG_CELL = 0.06; const SG_TOP = IBA_TOP + 0.05;
+function sgDirs(p) {
+  if (p.pr) { if (p.t === 'HI') return [SG_SLIDE.KA, SG_SLIDE.HI]; if (p.t === 'KA') return [SG_SLIDE.HI, SG_SLIDE.KA]; return [SG_KI, []]; }
+  return [SG_STEP[p.t] || [], SG_SLIDE[p.t] || []];
+}
+const sgVal = (p) => (p.pr ? SG_PVAL[p.t] : SG_VAL[p.t]);
+function sgInit() {
+  const b = Array(81).fill(null); const put = (x, y, t, s) => { b[y * 9 + x] = { t, s, pr: false }; };
+  ['KY', 'KE', 'GI', 'KI', 'OU', 'KI', 'GI', 'KE', 'KY'].forEach((t, x) => { put(x, 8, t, 0); put(x, 0, t, 1); });
+  for (let x = 0; x < 9; x++) { put(x, 6, 'FU', 0); put(x, 2, 'FU', 1); }
+  put(1, 7, 'KA', 0); put(7, 7, 'HI', 0); put(7, 1, 'KA', 1); put(1, 1, 'HI', 1);
+  return { b, hand: [{}, {}], turn: 0, moves: 0, last: null };
+}
+const sgZone = (s, y) => (s === 0 ? y <= 2 : y >= 6);
+function sgGen(S, s, noDrops) { // 王手放置を 見ない 手（pseudo）
+  const out = []; const b = S.b; const dir = s ? -1 : 1;
+  for (let i = 0; i < 81; i++) {
+    const p = b[i]; if (!p || p.s !== s) continue; const x = i % 9; const y = (i / 9) | 0; const [st, sl] = sgDirs(p);
+    const add = (tx, ty) => {
+      const to = ty * 9 + tx; const canPro = !p.pr && p.t !== 'OU' && p.t !== 'KI' && (sgZone(s, y) || sgZone(s, ty));
+      const last = s === 0 ? ty : 8 - ty; const must = ((p.t === 'FU' || p.t === 'KY') && last === 0) || (p.t === 'KE' && last <= 1);
+      if (canPro) out.push({ f: i, to, pr: true }); if (!(canPro && must)) out.push({ f: i, to, pr: false });
+    };
+    st.forEach(([dx, dy]) => { const tx = x + dx; const ty = y + dy * dir; if (tx < 0 || tx > 8 || ty < 0 || ty > 8) return; const q = b[ty * 9 + tx]; if (!q || q.s !== s) add(tx, ty); });
+    sl.forEach(([dx, dy]) => { let tx = x + dx; let ty = y + dy * dir; while (tx >= 0 && tx <= 8 && ty >= 0 && ty <= 8) { const q = b[ty * 9 + tx]; if (q && q.s === s) break; add(tx, ty); if (q) break; tx += dx; ty += dy * dir; } });
+  }
+  if (noDrops) return out;
+  const pawnFile = Array(9).fill(false); b.forEach((p, i) => { if (p && p.s === s && p.t === 'FU' && !p.pr) pawnFile[i % 9] = true; });
+  SG_HANDS.forEach((t) => {
+    if (!S.hand[s][t]) return;
+    for (let i = 0; i < 81; i++) {
+      if (b[i]) continue; const x = i % 9; const y = (i / 9) | 0; const last = s === 0 ? y : 8 - y;
+      if ((t === 'FU' || t === 'KY') && last === 0) continue; if (t === 'KE' && last <= 1) continue; if (t === 'FU' && pawnFile[x]) continue;
+      out.push({ d: t, to: i });
+    }
+  });
+  return out;
+}
+function sgPlay(S, m) {
+  const b = S.b.slice(); const hand = [Object.assign({}, S.hand[0]), Object.assign({}, S.hand[1])]; const s = S.turn; let cap = null;
+  if (m.d) { hand[s][m.d]--; b[m.to] = { t: m.d, s, pr: false }; } else {
+    const p = b[m.f]; cap = b[m.to]; if (cap) hand[s][cap.t] = (hand[s][cap.t] || 0) + 1;
+    b[m.f] = null; b[m.to] = m.pr ? { t: p.t, s, pr: true } : p;
+  }
+  return { b, hand, turn: 1 - s, moves: S.moves + 1, last: m, cap };
+}
+const sgKing = (S, s) => S.b.findIndex((p) => p && p.s === s && p.t === 'OU');
+const sgAttacked = (S, sq, by) => sq >= 0 && sgGen(S, by, true).some((m) => m.to === sq);
+const sgSafe = (S, m) => { const N = sgPlay(S, m); return !sgAttacked(N, sgKing(N, S.turn), 1 - S.turn); };
+const sgHasMove = (S) => sgGen(S, S.turn).some((m) => sgSafe(S, m));
+function sgLegal(S) {
+  return sgGen(S, S.turn).filter((m) => {
+    const N = sgPlay(S, m); if (sgAttacked(N, sgKing(N, S.turn), 1 - S.turn)) return false;
+    if (m.d === 'FU' && sgAttacked(N, sgKing(N, N.turn), S.turn) && !sgHasMove(N)) return false; // 打ち歩詰め
+    return true;
+  });
+}
+function sgEval(S, s) {
+  let v = 0; S.b.forEach((p) => { if (p) v += (p.s === s ? 1 : -1) * sgVal(p); });
+  SG_HANDS.forEach((t) => { v += ((S.hand[s][t] || 0) - (S.hand[1 - s][t] || 0)) * SG_VAL[t] * 1.05; });
+  return v;
+}
+function sgThink(S) { // コンピューター（後手）の 手
+  const s = S.turn; const moves = sgLegal(S); let best = null; let bs = -1e9;
+  moves.forEach((m) => {
+    const N = sgPlay(S, m); let sc = sgEval(N, s);
+    let worst = 0; // 相手が つぎに とれる いちばん 大きい 駒
+    sgGen(N, 1 - s, true).forEach((r) => {
+      const q = N.b[r.to]; if (!q) return;
+      if (N.b[r.f].t === 'OU' && sgAttacked(sgPlay(N, r), r.to, s)) return; // 玉で とると とられる
+      worst = Math.max(worst, sgVal(q) * 2 + (r.pr ? 2 : 0));
+    });
+    sc -= worst * 0.85;
+    if (sgAttacked(N, sgKing(N, 1 - s), s)) { if (!sgHasMove(N)) sc += 10000; else sc += 0.4; }
+    if (m.d) sc -= 0.3; // 持ち駒は すこし とっておく
+    sc += Math.random() * 0.7;
+    if (sc > bs) { bs = sc; best = m; }
+  });
+  return best;
+}
+// 駒（五角形）。文字は 上の 面。先手は 先が 奥（-z）、後手は 先が 手前
+const SG_PIECE_GEO = (() => {
+  const sh = new THREE.Shape(); const w = 0.024; const h = 0.027;
+  sh.moveTo(-w * 0.86, -h); sh.lineTo(w * 0.86, -h); sh.lineTo(w, h * 0.45); sh.lineTo(0, h); sh.lineTo(-w, h * 0.45); sh.closePath();
+  const geo = new THREE.ExtrudeGeometry(sh, { depth: 0.011, bevelEnabled: false }); geo.rotateX(-Math.PI / 2); return geo;
+})();
+const SG_FACE_GEO = new THREE.PlaneGeometry(0.036, 0.036).rotateX(-Math.PI / 2);
+const sgMats = {};
+function sgFaceMat(ch, red) {
+  const k = ch + (red ? 'r' : ''); if (sgMats[k]) return sgMats[k];
+  const c = makeCanvas(128, 128); const ctx = c.getContext('2d'); ctx.fillStyle = red ? '#c0392b' : '#1f1a14'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = '700 104px "Zen Maru Gothic", serif'; ctx.fillText(ch, 64, 70);
+  return (sgMats[k] = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true }));
+}
+const SG_WOOD = mat('#e9c98b', { roughness: 0.6 });
+const SG_COUNT = {}; const SG_HIT_GEO = new THREE.BoxGeometry(0.05, 0.03, 0.06);
+const SG_HIT_OFF = new THREE.MeshBasicMaterial({ color: '#ffd23f', transparent: true, opacity: 0, depthWrite: false }); const SG_HIT_ON = new THREE.MeshBasicMaterial({ color: '#ffd23f', transparent: true, opacity: 0.5, depthWrite: false });
+function sgPieceMesh(p) {
+  const g = new THREE.Group(); g.add(new THREE.Mesh(SG_PIECE_GEO, SG_WOOD));
+  const f = new THREE.Mesh(SG_FACE_GEO, sgFaceMat(p.pr ? SG_PRO[p.t] : p.t === 'OU' && p.s === 1 ? '王' : SG_CH[p.t], p.pr)); f.position.y = 0.0115; g.add(f);
+  if (p.s === 1) g.rotation.y = Math.PI;
+  return g;
+}
+const sgSq = (i) => new THREE.Vector3(((i % 9) - 4) * SG_CELL, SG_TOP, (((i / 9) | 0) - 4) * SG_CELL);
+function buildShogi(st) {
+  ibaTable(st, 1.2, 0.9);
+  part(st.g, box(9 * SG_CELL + 0.04, 0.05, 9 * SG_CELL + 0.04), '#e3b878', 0, IBA_TOP + 0.025, 0, { roughness: 0.55 });
+  const grid = new Board(9 * SG_CELL, 9 * SG_CELL, 1400); grid.draw((ctx, W, H) => { ctx.strokeStyle = '#3a2a1a'; ctx.lineWidth = 3; for (let k = 0; k <= 9; k++) { ctx.beginPath(); ctx.moveTo(k * W / 9, 0); ctx.lineTo(k * W / 9, H); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0, k * H / 9); ctx.lineTo(W, k * H / 9); ctx.stroke(); }
+    ctx.fillStyle = '#3a2a1a'; [[3, 3], [6, 3], [3, 6], [6, 6]].forEach(([x, y]) => { ctx.beginPath(); ctx.arc(x * W / 9, y * H / 9, 7, 0, TAU); ctx.fill(); }); });
+  grid.mesh.rotation.x = -Math.PI / 2; grid.mesh.position.y = SG_TOP + 0.001; st.g.add(grid.mesh);
+  [[0.43, 0.14, 0], [-0.43, -0.14, Math.PI]].forEach(([x, z, ry]) => { const k = part(st.g, box(0.2, 0.04, 0.26), '#c9a06a', x, IBA_TOP + 0.02, z); k.rotation.y = ry; }); // 駒台
+  st.pieces = new THREE.Group(); st.g.add(st.pieces);
+  st.cells = []; for (let i = 0; i < 81; i++) {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(SG_CELL * 0.96, SG_CELL * 0.96), new THREE.MeshBasicMaterial({ color: '#ffd23f', transparent: true, opacity: 0, depthWrite: false }));
+    m.rotation.x = -Math.PI / 2; m.position.copy(sgSq(i)); m.position.y += 0.014; st.g.add(m); st.cells.push(ibaClick(m, () => shogiTap(st, i)));
+  }
+  ibaOpponent(st, '#7a8fb0', 'たけしさん（コンピューター）', new THREE.Vector3(0, 0, -0.85), 0);
+  st.S = null;
+}
+function shogiEnter(st) { if (!st.S) shogiNew(st); else shogiShow(st); }
+function shogiNew(st) { st.S = sgInit(); st.hist = []; st.sel = null; st.promo = null; st.over = null; st.next = null; st.legal = sgLegal(st.S); shogiShow(st, 'あなたは 先手（手前）です。動かす 駒を えらんでください'); }
+function shogiShow(st, note) {
+  const S = st.S; st.pieces.clear(); st.clicks = st.cells.slice();
+  S.b.forEach((p, i) => { if (!p) return; const m = sgPieceMesh(p); m.position.copy(sgSq(i)); st.pieces.add(m); });
+  [0, 1].forEach((s) => { // 持ち駒（駒台）
+    let k = 0; SG_HANDS.forEach((t) => {
+      const n = S.hand[s][t] || 0; if (!n) return; const p = { t, s, pr: false }; const m = sgPieceMesh(p);
+      const lx = (k % 2 ? 0.045 : -0.045); const lz = -0.09 + Math.floor(k / 2) * 0.065; k++;
+      m.position.set(s === 0 ? 0.43 + lx : -0.43 - lx, IBA_TOP + 0.04, s === 0 ? 0.14 + lz : -0.14 - lz); st.pieces.add(m);
+      if (n > 1) { const t2 = (SG_COUNT[n] = SG_COUNT[n] || labelSprite('×' + n, { h: 0.022 })).clone(); t2.position.set(m.position.x + 0.03, m.position.y + 0.03, m.position.z); st.pieces.add(t2); }
+      if (s === 0) { const hit = new THREE.Mesh(SG_HIT_GEO, st.sel && st.sel.d === t ? SG_HIT_ON : SG_HIT_OFF);
+        hit.position.copy(m.position); hit.position.y += 0.01; st.pieces.add(hit); st.clicks.push(ibaClick(hit, () => shogiTapHand(st, t))); }
+    });
+  });
+  const dests = st.sel ? st.legal.filter((m) => (st.sel.d ? m.d === st.sel.d : m.f === st.sel.f)).map((m) => m.to) : [];
+  st.cells.forEach((c, i) => {
+    const sel = st.sel && st.sel.f === i; const dest = dests.includes(i); const last = S.last && (S.last.to === i || S.last.f === i);
+    c.material.color.set(sel ? '#ffd23f' : dest ? '#4fd17a' : '#ff8a3d'); c.material.opacity = sel ? 0.55 : dest ? 0.45 : last ? 0.28 : 0;
+  });
+  const inCheck = !st.over && sgAttacked(S, sgKing(S, S.turn), 1 - S.turn);
+  const msg = st.over ? [{ text: st.over, color: '#c0392b' }, 'もう 1 局 できます'] :
+    st.promo ? ['成りますか？', SG_NAME[S.b[st.promo.f].t] + 'を 成ると ' + SG_PRO[S.b[st.promo.f].t] + ' に なります'] :
+    S.turn === 0 ? [inCheck ? { text: '王手です！ 玉を 守って ください', color: '#c0392b' } : 'あなたの 番です', note || (st.sel ? '緑の ます に 動かせます' : '動かす 駒か 持ち駒を えらぶ'), (S.moves + 1) + ' 手め'] :
+    ['たけしさんが 考えています…', (S.moves + 1) + ' 手め'];
+  const defs = st.promo ? [{ label: '成る', act: () => shogiMove(st, st.promo.yes) }, { label: '成らない', act: () => shogiMove(st, st.promo.no) }]
+    : [{ label: '待った', act: () => shogiUndo(st) }, { label: st.over ? 'もう 1 局' : 'はじめから', act: () => shogiNew(st) }].concat(st.over ? [] : [{ label: '投了', color: '#55626d', act: () => shogiEnd(st, 'まけ（投了）', 'あなたの 投了です。おつかれさまでした') }]);
+  ibaUpdate(st, msg, defs);
+}
+function shogiTap(st, i) {
+  const S = st.S; if (st.over || S.turn !== 0 || st.promo || st.next) return;
+  if (st.sel) {
+    const ms = st.legal.filter((m) => m.to === i && (st.sel.d ? m.d === st.sel.d : m.f === st.sel.f));
+    if (ms.length === 2) { st.promo = { f: st.sel.f, yes: ms.find((m) => m.pr), no: ms.find((m) => !m.pr) }; shogiShow(st); return; }
+    if (ms.length === 1) { shogiMove(st, ms[0]); return; }
+  }
+  const p = S.b[i]; st.sel = p && p.s === 0 ? { f: i } : null; if (st.sel) playSfx('wood');
+  shogiShow(st, st.sel && !st.legal.some((m) => m.f === i) ? 'その 駒は いま 動かせません' : '');
+}
+function shogiTapHand(st, t) { if (st.over || st.S.turn !== 0 || st.promo) return; st.sel = st.sel && st.sel.d === t ? null : { d: t }; playSfx('wood'); shogiShow(st, st.sel ? SG_NAME[t] + 'を 打つ ます を えらぶ' : ''); }
+function shogiMove(st, m) {
+  st.hist.push(st.S); st.S = sgPlay(st.S, m); st.sel = null; st.promo = null; playSfx('wood');
+  if (!sgHasMove(st.S)) { shogiEnd(st, 'かち', '詰みです。あなたの 勝ち！'); return; }
+  shogiShow(st);
+  ibaWait(st, 450, () => {
+    const c = sgThink(st.S); if (!c) { shogiEnd(st, 'かち', 'あなたの 勝ち！'); return; }
+    st.S = sgPlay(st.S, c); playSfx('wood'); st.legal = sgLegal(st.S);
+    if (!st.legal.length) { shogiEnd(st, 'まけ', '詰みました。たけしさんの 勝ち'); return; }
+    shogiShow(st);
+  });
+}
+function shogiUndo(st) {
+  if (st.next || !st.hist.length) return; st.over = null; st.promo = null; st.sel = null;
+  st.S = st.hist.pop(); while (st.S.turn !== 0 && st.hist.length) st.S = st.hist.pop();
+  st.legal = sgLegal(st.S); shogiShow(st, '1 手 もどしました');
+}
+function shogiEnd(st, result, text) { st.over = text; st.next = null; ibaLog('shogi', result + '（' + st.S.moves + ' 手）'); toast(text); shogiShow(st); }
+
+// ===========================================================================
+// 囲碁：9 路盤。あなたが 黒（先番）、コンピューターが 白（コミ 6.5）。
+//   ルール：石を かこんで とる・自殺手と コウは 打てない・2 人 つづけて パスで おわり（地＋石の 数で くらべる）
+// ===========================================================================
+const IGO_N = 9; const IGO_CELL = 0.056; const IGO_TOP = IBA_TOP + 0.09;
+const IGO_NB = Array.from({ length: 81 }, (_, i) => { const x = i % 9; const y = (i / 9) | 0; const o = []; if (x > 0) o.push(i - 1); if (x < 8) o.push(i + 1); if (y > 0) o.push(i - 9); if (y < 8) o.push(i + 9); return o; });
+function igoGroup(b, i) {
+  const c = b[i]; const seen = new Set([i]); const st = [i]; const libs = new Set();
+  while (st.length) { const j = st.pop(); IGO_NB[j].forEach((k) => { if (!b[k]) libs.add(k); else if (b[k] === c && !seen.has(k)) { seen.add(k); st.push(k); } }); }
+  return { stones: [...seen], libs };
+}
+function igoTry(G, i, c) { // 打てれば { b, cap }、打てなければ null
+  if (G.b[i]) return null; const b = G.b.slice(); b[i] = c; let cap = 0;
+  IGO_NB[i].forEach((k) => { if (b[k] === 3 - c) { const g = igoGroup(b, k); if (!g.libs.size) { g.stones.forEach((j) => { b[j] = 0; }); cap += g.stones.length; } } });
+  if (!igoGroup(b, i).libs.size) return null; // 自殺手
+  if (G.prev && b.join('') === G.prev) return null; // コウ（すぐ とりかえせない）
+  return { b, cap };
+}
+function igoPlay(G, i) {
+  const r = igoTry(G, i, G.turn); if (!r) return false;
+  G.hist.push({ b: G.b, prev: G.prev, cap: Object.assign({}, G.cap), turn: G.turn, last: G.last, passes: G.passes, moves: G.moves });
+  G.prev = G.b.join(''); G.b = r.b; G.cap[G.turn] += r.cap; G.last = i; G.passes = 0; G.turn = 3 - G.turn; G.moves++; G.lastCap = r.cap; return true;
+}
+function igoPass(G) { G.hist.push({ b: G.b, prev: G.prev, cap: Object.assign({}, G.cap), turn: G.turn, last: G.last, passes: G.passes, moves: G.moves }); G.prev = null; G.passes++; G.last = -1; G.turn = 3 - G.turn; G.moves++; }
+function igoScore(b) { // 地（かこんだ 空き）＋ 石
+  const s = { 1: 0, 2: 0, own: Array(81).fill(0) }; const seen = new Set();
+  b.forEach((c, i) => { if (c) { s[c]++; s.own[i] = c; } });
+  for (let i = 0; i < 81; i++) {
+    if (b[i] || seen.has(i)) continue; const area = [i]; const st = [i]; seen.add(i); const touch = new Set();
+    while (st.length) { const j = st.pop(); IGO_NB[j].forEach((k) => { if (b[k]) touch.add(b[k]); else if (!seen.has(k)) { seen.add(k); area.push(k); st.push(k); } }); }
+    if (touch.size === 1) { const c = [...touch][0]; s[c] += area.length; area.forEach((k) => { s.own[k] = c; }); }
+  }
+  return s;
+}
+function igoInfluence(b, i, c) { // c から 見た まわりの 石の ちから（＋なら 自分の 地に なりそう）
+  const x = i % 9; const y = (i / 9) | 0; let v = 0;
+  b.forEach((s, j) => { if (!s) return; const d = Math.abs(j % 9 - x) + Math.abs(((j / 9) | 0) - y); if (d > 0 && d <= 3) v += (s === c ? 1 : -1) / d; });
+  return v;
+}
+function igoThink(G) { // 白の 手（-1 は パス）
+  const c = G.turn; const o = 3 - c; let best = -1; let bs = -1e9;
+  for (let i = 0; i < 81; i++) {
+    const r = igoTry(G, i, c); if (!r) continue; const nb = IGO_NB[i];
+    if (!r.cap && nb.every((k) => G.b[k] === c)) continue; // 自分の 目は つぶさない
+    let sc = r.cap * 10; const mg = igoGroup(r.b, i);
+    if (mg.libs.size === 1 && !r.cap) sc -= 9 * mg.stones.length; else sc += Math.min(mg.libs.size, 4) * 0.5;
+    nb.forEach((k) => {
+      if (G.b[k] === c) { const g0 = igoGroup(G.b, k); if (g0.libs.size === 1 && mg.libs.size >= 2) sc += 7 * g0.stones.length; }
+      if (r.b[k] === o) { const g = igoGroup(r.b, k); if (g.libs.size === 1) sc += 3 * g.stones.length; else if (g.libs.size === 2) sc += 0.7; }
+    });
+    const x = i % 9; const y = (i / 9) | 0; const d = Math.min(x, y, 8 - x, 8 - y);
+    if (G.moves < 10) sc += [-2, 0.2, 2.2, 1.6, 1.4][d]; else if (d === 0) sc -= 0.7;
+    const inf = igoInfluence(G.b, i, c);
+    if (!r.cap && inf > 1.6) sc -= 3; // もう 自分の 地
+    else if (!r.cap && inf < -1.8) sc -= 1.5; // 相手の 地の 中は 生きにくい
+    else if (G.moves > 2) sc += 1.2 - Math.abs(inf) * 0.4; // さかいめ
+    sc += Math.random() * 1.1;
+    if (sc > bs) { bs = sc; best = i; }
+  }
+  if (best < 0 || bs < (G.passes ? 1.8 : 0.4)) return -1;
+  return best;
+}
+const igoSq = (i) => new THREE.Vector3(((i % 9) - 4) * IGO_CELL, IGO_TOP, (((i / 9) | 0) - 4) * IGO_CELL);
+const IGO_STONE = new THREE.SphereGeometry(0.025, 18, 10);
+const IGO_MAT = { 1: mat('#1d1f22', { roughness: 0.35 }), 2: mat('#f4f2ec', { roughness: 0.4 }) };
+const IGO_TERR = new THREE.BoxGeometry(0.016, 0.004, 0.016);
+function buildIgo(st) {
+  ibaTable(st, 1.0, 0.86);
+  part(st.g, box(0.56, 0.09, 0.56), '#e3b878', 0, IBA_TOP + 0.045, 0, { roughness: 0.55 });
+  const grid = new Board(0.5, 0.5, 1400); grid.draw((ctx, W, H) => { const s = W * (IGO_CELL / 0.5); const o = W / 2 - 4 * s; ctx.strokeStyle = '#3a2a1a'; ctx.lineWidth = 3;
+    for (let k = 0; k < 9; k++) { ctx.beginPath(); ctx.moveTo(o + k * s, o); ctx.lineTo(o + k * s, o + 8 * s); ctx.stroke(); ctx.beginPath(); ctx.moveTo(o, o + k * s); ctx.lineTo(o + 8 * s, o + k * s); ctx.stroke(); }
+    ctx.fillStyle = '#3a2a1a'; [[2, 2], [6, 2], [4, 4], [2, 6], [6, 6]].forEach(([x, y]) => { ctx.beginPath(); ctx.arc(o + x * s, o + y * s, 8, 0, TAU); ctx.fill(); }); });
+  grid.mesh.rotation.x = -Math.PI / 2; grid.mesh.position.y = IGO_TOP + 0.001; st.g.add(grid.mesh);
+  [[0.38, 0.18, 1], [-0.38, -0.18, 2]].forEach(([x, z, c]) => { part(st.g, cyl(0.07, 0.065, 0.08, 20), '#7a5230', x, IBA_TOP + 0.04, z); const s = new THREE.Mesh(IGO_STONE, IGO_MAT[c]); s.scale.y = 0.45; s.position.set(x, IBA_TOP + 0.085, z); st.g.add(s); }); // 碁笥
+  st.stones = new THREE.Group(); st.g.add(st.stones);
+  st.cells = []; for (let i = 0; i < 81; i++) {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(IGO_CELL * 0.95, IGO_CELL * 0.95), new THREE.MeshBasicMaterial({ color: '#4fd17a', transparent: true, opacity: 0, depthWrite: false }));
+    m.rotation.x = -Math.PI / 2; m.position.copy(igoSq(i)); m.position.y += 0.016; st.g.add(m); st.cells.push(ibaClick(m, () => igoTap(st, i)));
+  }
+  st.mark = part(st.g, new THREE.TorusGeometry(0.011, 0.003, 6, 20), '#e0452f', 0, 0, 0, { emissive: '#e0452f', emissiveIntensity: 0.6 }); st.mark.rotation.x = Math.PI / 2;
+  ibaOpponent(st, '#c8a2c8', 'よしこさん（コンピューター）', new THREE.Vector3(0, 0, -0.8), 0);
+  st.G = null;
+}
+function igoEnter(st) { if (!st.G) igoNew(st); else igoShow(st); }
+function igoNew(st) { st.G = { b: Array(81).fill(0), turn: 1, prev: null, passes: 0, cap: { 1: 0, 2: 0 }, last: -1, moves: 0, hist: [] }; st.over = null; st.next = null; igoShow(st, 'あなたは 黒（先番）です。石を 置く 交点を えらんでください'); }
+function igoShow(st, note) {
+  const G = st.G; st.stones.clear(); st.clicks = st.cells.slice();
+  G.b.forEach((c, i) => { if (!c) return; const s = new THREE.Mesh(IGO_STONE, IGO_MAT[c]); s.scale.y = 0.45; s.position.copy(igoSq(i)); s.position.y += 0.011; st.stones.add(s); });
+  st.mark.visible = G.last >= 0; if (G.last >= 0) { st.mark.position.copy(igoSq(G.last)); st.mark.position.y += 0.024; }
+  if (st.over) { const sc = igoScore(G.b); sc.own.forEach((c, i) => { if (c && !G.b[i]) { const t = new THREE.Mesh(IGO_TERR, IGO_MAT[c]); t.position.copy(igoSq(i)); t.position.y += 0.004; st.stones.add(t); } }); } // 地の 目じるし
+  const msg = st.over ? [{ text: st.over.head, color: '#c0392b' }, st.over.detail, 'もう 1 局 できます'] :
+    G.turn === 1 ? ['あなた（黒）の 番です', note || '置ける 交点を えらぶ。おわる ときは パス', 'あげはま：黒 ' + G.cap[1] + '・白 ' + G.cap[2] + '　' + (G.moves + 1) + ' 手め']
+      : ['よしこさん（白）が 考えています…', 'あげはま：黒 ' + G.cap[1] + '・白 ' + G.cap[2]];
+  const defs = st.over ? [{ label: 'もう 1 局', act: () => igoNew(st) }] : [{ label: 'パス', act: () => igoUserPass(st) }, { label: '待った', act: () => igoUndo(st) }, { label: 'はじめから', act: () => igoNew(st) }, { label: '投了', color: '#55626d', act: () => igoEnd(st, { head: 'あなたの 投了です', detail: 'おつかれさまでした' }, 'まけ（投了）') }];
+  ibaUpdate(st, msg, defs);
+}
+function igoTap(st, i) {
+  const G = st.G; if (st.over || G.turn !== 1 || st.next) return;
+  if (G.b[i]) { igoShow(st, 'そこには もう 石が あります'); return; }
+  if (!igoPlay(G, i)) { igoShow(st, igoTry(Object.assign({}, G, { prev: null }), i, 1) ? 'コウです。1 手 ほかに 打ってから とりかえせます' : 'そこは 自殺手に なるので 打てません'); return; }
+  playSfx('ceramic'); igoShow(st, G.lastCap ? G.lastCap + ' こ とりました' : ''); igoCpu(st);
+}
+function igoUserPass(st) { const G = st.G; if (st.over || G.turn !== 1 || st.next) return; igoPass(G); if (G.passes >= 2) { igoFinish(st); return; } igoShow(st); igoCpu(st); }
+function igoCpu(st) {
+  ibaWait(st, 500, () => {
+    const G = st.G; const i = igoThink(G);
+    if (i < 0) { igoPass(G); if (G.passes >= 2) { igoFinish(st); return; } igoShow(st, 'よしこさんは パスしました。あなたも パスすると おわりです'); return; }
+    igoPlay(G, i); playSfx('ceramic'); igoShow(st, G.lastCap ? G.lastCap + ' こ とられました' : '');
+  });
+}
+function igoUndo(st) {
+  const G = st.G; if (st.next || !G.hist.length) return; st.over = null;
+  let h = G.hist.pop(); while (h.turn !== 1 && G.hist.length) h = G.hist.pop();
+  Object.assign(G, h); igoShow(st, '1 手 もどしました');
+}
+function igoFinish(st) {
+  const s = igoScore(st.G.b); const w = s[2] + 6.5; const win = s[1] > w;
+  igoEnd(st, { head: win ? 'あなた（黒）の 勝ち！' : 'よしこさん（白）の 勝ち', detail: '黒 ' + s[1] + '・白 ' + s[2] + ' ＋ コミ 6.5 ＝ ' + w + '（地と 石の 数）' }, (win ? 'かち' : 'まけ') + '（黒 ' + s[1] + '・白 ' + w + '）');
+}
+function igoEnd(st, over, result) { st.over = over; st.next = null; ibaLog('go', result); toast(over.head); igoShow(st); }
+
+// ===========================================================================
+// 麻雀：あなたと コンピューター 3 人で 東風戦（4 局）。
+//   かんたん ルール：鳴き（ポン・チー・カン）と リーチは なし。役が なくても 4 面子 1 雀頭か 七対子で あがれる。
+//   点数は 翻（役の 数）から きめる（1 翻 1000 点〜）。牌を えらぶと 少し 上がり、もう 一度 えらぶと すてる
+// ===========================================================================
+const MJ_NUM = ['一', '二', '三', '四', '五', '六', '七', '八', '九'];
+const MJ_HONOR = ['東', '南', '西', '北', '白', '發', '中'];
+const MJ_SEATS = ['あなた', 'はなさん', 'ゆうさん', 'げんさん']; // 0：自分、1：右（下家）、2：向かい、3：左
+const MJ_SEAT_COLOR = ['', '#f2a65a', '#8fbf6a', '#7a9fd6'];
+const mjName = (t) => (t < 9 ? MJ_NUM[t] + '萬' : t < 18 ? (t - 8) + '筒' : t < 27 ? (t - 17) + '索' : MJ_HONOR[t - 27]);
+const MJ_TW = 0.034; const MJ_TH = 0.046; const MJ_TD = 0.024;
+const MJ_DOTS = { 1: [[0.5, 0.5]], 2: [[0.5, 0.27], [0.5, 0.73]], 3: [[0.25, 0.2], [0.5, 0.5], [0.75, 0.8]], 4: [[0.3, 0.27], [0.7, 0.27], [0.3, 0.73], [0.7, 0.73]], 5: [[0.28, 0.22], [0.72, 0.22], [0.5, 0.5], [0.28, 0.78], [0.72, 0.78]],
+  6: [[0.3, 0.2], [0.7, 0.2], [0.3, 0.5], [0.7, 0.5], [0.3, 0.8], [0.7, 0.8]], 7: [[0.22, 0.14], [0.5, 0.24], [0.78, 0.34], [0.3, 0.6], [0.7, 0.6], [0.3, 0.85], [0.7, 0.85]],
+  8: [[0.3, 0.13], [0.7, 0.13], [0.3, 0.38], [0.7, 0.38], [0.3, 0.62], [0.7, 0.62], [0.3, 0.87], [0.7, 0.87]], 9: [0.2, 0.5, 0.8].flatMap((y) => [0.22, 0.5, 0.78].map((x) => [x, y])) };
+const mjMats = {};
+function mjFaceMat(t) {
+  if (mjMats[t]) return mjMats[t];
+  const W = 96; const H = 128; const c = makeCanvas(W, H); const ctx = c.getContext('2d');
+  ctx.fillStyle = '#fbf7ea'; ctx.fillRect(0, 0, W, H); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  if (t < 9) { ctx.fillStyle = '#1f1a14'; ctx.font = '700 46px "Zen Maru Gothic", serif'; ctx.fillText(MJ_NUM[t], W / 2, 38); ctx.fillStyle = '#c0392b'; ctx.font = '700 46px "Zen Maru Gothic", serif'; ctx.fillText('萬', W / 2, 92); }
+  else if (t < 27) {
+    const n = t < 18 ? t - 8 : t - 17; const pin = t < 18;
+    MJ_DOTS[n].forEach(([x, y], k) => {
+      const cx = 8 + x * (W - 16); const cy = 8 + y * (H - 16);
+      if (pin) { const r = n === 1 ? 30 : n <= 3 ? 15 : n <= 6 ? 12 : 10; const col = n === 1 || (n === 5 && k === 2) || (n === 9 && k % 3 === 1) ? '#c0392b' : k % 2 ? '#2f6fc4' : '#2f8a5a';
+        ctx.fillStyle = col; ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU); ctx.fill(); ctx.fillStyle = '#fbf7ea'; ctx.beginPath(); ctx.arc(cx, cy, r * 0.55, 0, TAU); ctx.fill(); ctx.fillStyle = col; ctx.beginPath(); ctx.arc(cx, cy, r * 0.25, 0, TAU); ctx.fill(); }
+      else { const h = n === 1 ? 80 : n <= 4 ? 34 : n <= 6 ? 30 : 24; const w = n === 1 ? 18 : 10; ctx.fillStyle = n === 1 || (n === 5 && k === 2) || (n === 7 && k === 0) ? '#c0392b' : '#2f8a5a';
+        roundRect(ctx, cx - w / 2, cy - h / 2, w, h, w / 2); ctx.fill(); ctx.fillStyle = '#fbf7ea'; ctx.fillRect(cx - w / 2, cy - 1.5, w, 3); }
+    });
+  } else if (t === 31) { ctx.strokeStyle = '#2f6fc4'; ctx.lineWidth = 6; ctx.strokeRect(20, 24, W - 40, H - 48); }
+  else { ctx.fillStyle = t === 32 ? '#2f8a5a' : t === 33 ? '#c0392b' : '#1f1a14'; ctx.font = '700 70px "Zen Maru Gothic", serif'; ctx.fillText(MJ_HONOR[t - 27], W / 2, H / 2 + 4); }
+  const side = cmat('#f3ecd8'); const back = cmat('#2f8a5a');
+  return (mjMats[t] = [side, side, side, side, new THREE.MeshStandardMaterial({ map: new THREE.CanvasTexture(c), roughness: 0.5 }), back]);
+}
+const MJ_TILE_GEO = new THREE.BoxGeometry(MJ_TW, MJ_TH, MJ_TD);
+const MJ_BACK_MATS = (() => { const s = cmat('#f3ecd8'); const b = cmat('#2f8a5a'); return [b, b, b, b, s, b]; })(); // 伏せた 牌・ほかの 人の 手牌（こちらから 見えるのは うら）
+function mjTile(t, hidden) { return new THREE.Mesh(MJ_TILE_GEO, hidden ? MJ_BACK_MATS : mjFaceMat(t)); }
+// 4 面子 1 雀頭・七対子（c は 34 種の まい数）
+function mjShanten(c) {
+  let best = 8;
+  const rec = (i, m, t, p) => {
+    while (i < 34 && !c[i]) i++;
+    if (i >= 34) { const s = 8 - 2 * m - Math.min(t, 4 - m) - p; if (s < best) best = s; return; }
+    if (c[i] >= 3) { c[i] -= 3; rec(i, m + 1, t, p); c[i] += 3; }
+    const sq = i < 27 && i % 9 <= 6;
+    if (sq && c[i + 1] && c[i + 2]) { c[i]--; c[i + 1]--; c[i + 2]--; rec(i, m + 1, t, p); c[i]++; c[i + 1]++; c[i + 2]++; }
+    if (!p && c[i] >= 2) { c[i] -= 2; rec(i, m, t, 1); c[i] += 2; }
+    if (c[i] >= 2) { c[i] -= 2; rec(i, m, t + 1, p); c[i] += 2; }
+    if (i < 27 && i % 9 <= 7 && c[i + 1]) { c[i]--; c[i + 1]--; rec(i, m, t + 1, p); c[i]++; c[i + 1]++; }
+    if (sq && c[i + 2]) { c[i]--; c[i + 2]--; rec(i, m, t + 1, p); c[i]++; c[i + 2]++; }
+    const k = c[i]; c[i] = 0; rec(i + 1, m, t, p); c[i] = k;
+  };
+  rec(0, 0, 0, 0);
+  let pairs = 0; let kinds = 0; c.forEach((n) => { if (n) kinds++; if (n >= 2) pairs++; });
+  return Math.min(best, 6 - pairs + Math.max(0, 7 - kinds));
+}
+const mjCounts = (hand, extra) => { const c = Array(34).fill(0); hand.forEach((id) => { c[id >> 2]++; }); if (extra !== undefined) c[extra >> 2]++; return c; };
+const mjComplete = (hand, extra) => mjShanten(mjCounts(hand, extra)) === -1;
+function mjDecomp(c) { // あがりの 形を ぜんぶ（{ pair, melds:[[kind, t]] }）
+  const out = [];
+  const rec = (i, melds, pair) => {
+    while (i < 34 && !c[i]) i++;
+    if (i >= 34) { if (pair >= 0 && melds.length === 4) out.push({ pair, melds: melds.slice() }); return; }
+    if (pair < 0 && c[i] >= 2) { c[i] -= 2; rec(i, melds, i); c[i] += 2; }
+    if (c[i] >= 3) { c[i] -= 3; melds.push(['pon', i]); rec(i, melds, pair); melds.pop(); c[i] += 3; }
+    if (i < 27 && i % 9 <= 6 && c[i + 1] && c[i + 2]) { c[i]--; c[i + 1]--; c[i + 2]--; melds.push(['chi', i]); rec(i, melds, pair); melds.pop(); c[i]++; c[i + 1]++; c[i + 2]++; }
+  };
+  rec(0, [], -1); return out;
+}
+function mjYaku(c, tsumo, seatWind) { // [役の 名前, 翻] の リスト
+  const tiles = []; c.forEach((n, t) => { for (let k = 0; k < n; k++) tiles.push(t); });
+  const common = []; if (tsumo) common.push(['門前清自摸和', 1]);
+  if (tiles.every((t) => t < 27 && t % 9 > 0 && t % 9 < 8)) common.push(['断么九', 1]);
+  const suits = new Set(tiles.filter((t) => t < 27).map((t) => Math.floor(t / 9))); const honors = tiles.some((t) => t >= 27);
+  if (suits.size === 1) common.push(honors ? ['混一色', 3] : ['清一色', 6]);
+  let best = null; const score = (l) => l.reduce((a, y) => a + y[1], 0);
+  mjDecomp(c.slice()).forEach((d) => {
+    const l = common.slice();
+    d.melds.forEach(([k, t]) => { if (k !== 'pon') return; if (t === 31) l.push(['役牌 白', 1]); if (t === 32) l.push(['役牌 發', 1]); if (t === 33) l.push(['役牌 中', 1]); if (t === 27) l.push(['場風 東', 1]); if (t === 27 + seatWind) l.push(['自風 ' + MJ_HONOR[seatWind], 1]); });
+    if (d.melds.every(([k]) => k === 'pon')) l.push(['対々和', 2]);
+    if (d.melds.every(([k]) => k === 'chi') && d.pair < 31 && d.pair !== 27 && d.pair !== 27 + seatWind) l.push(['平和', 1]);
+    if (!best || score(l) > score(best)) best = l;
+  });
+  if (c.filter((n) => n === 2).length === 7) { const l = common.concat([['七対子', 2]]); if (!best || score(l) > score(best)) best = l; }
+  if (!best.length) best = [['あがり（役なし）', 1]];
+  return best;
+}
+const MJ_POINTS = [0, 1000, 2000, 3900, 7700, 8000, 12000, 12000, 16000, 16000, 16000, 24000];
+const mjPts = (han) => MJ_POINTS[Math.min(han, 11)] || 32000;
+function mjPickDiscard(hand) { // コンピューター：テンパイに 近く なる 牌を すてる（同じなら はなれた 牌から）
+  const c = mjCounts(hand); let best = null; let bs = 1e9;
+  [...new Set(hand.map((id) => id >> 2))].forEach((t) => {
+    c[t]--; const sh = mjShanten(c); c[t]++;
+    let keep = 0; if (t >= 27) keep = (c[t] - 1) * 3 + (t >= 31 ? 0.5 : 0); else for (let d = -2; d <= 2; d++) { const u = t + d; if (d && u >= 0 && Math.floor(u / 9) === Math.floor(t / 9) && u < 27) keep += c[u] * (Math.abs(d) === 1 ? 2 : 1); }
+    if (t < 27 && c[t] > 1) keep += 2; if (t < 27 && (t % 9 === 0 || t % 9 === 8)) keep -= 0.5;
+    const sc = sh * 100 + keep + Math.random() * 0.5;
+    if (sc < bs) { bs = sc; best = t; }
+  });
+  return hand.find((id) => id >> 2 === best);
+}
+function mjWaits(hand) { const out = []; for (let t = 0; t < 34; t++) { const c = mjCounts(hand); if (c[t] >= 4) continue; c[t]++; if (mjShanten(c) === -1) out.push(t); } return out; }
+function buildMahjong(st) {
+  ibaTable(st, 0.86, 0.86, '#2f6b4a');
+  part(st.g, box(0.86, 0.045, 0.03), '#6b4a2a', 0, IBA_TOP + 0.022, 0.43); part(st.g, box(0.86, 0.045, 0.03), '#6b4a2a', 0, IBA_TOP + 0.022, -0.43);
+  part(st.g, box(0.03, 0.045, 0.86), '#6b4a2a', 0.43, IBA_TOP + 0.022, 0); part(st.g, box(0.03, 0.045, 0.86), '#6b4a2a', -0.43, IBA_TOP + 0.022, 0);
+  st.seats = [0, 1, 2, 3].map((i) => { const s = new THREE.Group(); s.rotation.y = i * Math.PI / 2; st.g.add(s); return s; }); // 席ごとの 向き（その 人から 見た ならび）
+  [1, 2, 3].forEach((i) => { const p = ibaOpponent(st, MJ_SEAT_COLOR[i], MJ_SEATS[i], new THREE.Vector3(0, 0, 0.74).applyAxisAngle(new THREE.Vector3(0, 1, 0), i * Math.PI / 2), i * Math.PI / 2 + Math.PI); p.userData.seat = i; });
+  st.center = new Board(0.22, 0.22, 600); st.center.mesh.rotation.x = -Math.PI / 2; st.center.mesh.position.y = IBA_TOP + 0.003; st.g.add(st.center.mesh);
+  st.M = null;
+}
+function mjEnter(st) { if (!st.M) mjNewGame(st); else mjShow(st); }
+function mjNewGame(st) { st.M = { scores: [25000, 25000, 25000, 25000], kyoku: 0, dealer: 0 }; mjDeal(st); }
+function mjDeal(st) {
+  const M = st.M; const wall = shuffle(Array.from({ length: 136 }, (_, i) => i));
+  Object.assign(M, { wall, hands: [0, 1, 2, 3].map(() => wall.splice(0, 13)), river: [[], [], [], []], turn: M.dealer, drawn: null, sel: null, phase: 'play', ron: null, result: null, hint: null });
+  M.hands[0].sort((a, b) => a - b); st.next = null;
+  mjDraw(st, M.dealer);
+}
+const mjWind = (M, i) => (i - M.dealer + 4) % 4;
+function mjDraw(st, i) {
+  const M = st.M; M.turn = i;
+  if (M.wall.length <= 14) { mjRyukyoku(st); return; }
+  const t = M.wall.pop(); M.hands[i].push(t);
+  if (i === 0) { M.drawn = t; M.sel = null; mjShow(st); return; }
+  mjShow(st);
+  ibaWait(st, 650, () => {
+    if (mjComplete(M.hands[i])) { mjWin(st, i, true, null); return; }
+    mjDiscard(st, i, mjPickDiscard(M.hands[i]));
+  });
+}
+function mjDiscard(st, i, id) {
+  const M = st.M; const h = M.hands[i]; h.splice(h.indexOf(id), 1); M.river[i].push(id); playSfx('plastic');
+  if (i === 0) { h.sort((a, b) => a - b); M.drawn = null; M.sel = null; M.hint = null; }
+  mjAfterDiscard(st, i, id, 1);
+}
+function mjAfterDiscard(st, from, id, k0) { // 下家から 順に ロンを 見る
+  const M = st.M;
+  for (let k = k0; k < 4; k++) {
+    const j = (from + k) % 4;
+    if (!mjComplete(M.hands[j], id)) continue;
+    if (j === 0) { M.ron = { from, id, k }; M.phase = 'ron'; mjShow(st); return; }
+    mjWin(st, j, false, { from, id }); return;
+  }
+  mjShow(st);
+  ibaWait(st, (from + 1) % 4 === 0 ? 350 : 450, () => mjDraw(st, (from + 1) % 4));
+}
+function mjTap(st, id) {
+  const M = st.M; if (M.phase !== 'play' || M.turn !== 0 || M.drawn === null || st.next || !M.hands[0].includes(id)) return;
+  if (M.sel === id) { mjDiscard(st, 0, id); return; }
+  M.sel = id; playSfx('plastic'); mjShow(st);
+}
+function mjWin(st, i, tsumo, ron) {
+  const M = st.M; const hand = M.hands[i].slice(); if (ron) hand.push(ron.id);
+  const yaku = mjYaku(mjCounts(hand), tsumo, mjWind(M, i)); const han = yaku.reduce((a, y) => a + y[1], 0); const pts = mjPts(han);
+  if (tsumo) { const each = Math.ceil(pts / 3 / 100) * 100; [0, 1, 2, 3].forEach((j) => { if (j !== i) { M.scores[j] -= each; M.scores[i] += each; } }); }
+  else { M.scores[ron.from] -= pts; M.scores[i] += pts; }
+  M.phase = 'end'; M.result = { win: i, tsumo, from: ron ? ron.from : null, yaku, han, pts, hand };
+  playSfx(i === 0 ? 'coin' : 'pop');
+  if (i === 0) ibaLog('mahjong', (tsumo ? 'ツモ' : 'ロン') + ' ' + han + '翻 ' + pts + '点');
+  toast(i === 0 ? 'あがり！ ' + han + '翻 ' + pts + '点' : MJ_SEATS[i] + 'の ' + (tsumo ? 'ツモ' : 'ロン') + 'です');
+  mjShow(st);
+}
+function mjRyukyoku(st) { const M = st.M; M.phase = 'end'; M.result = { draw: true, tenpai: M.hands.map((h) => mjShanten(mjCounts(h)) === 0) }; toast('流局です'); mjShow(st); }
+function mjNextKyoku(st) {
+  const M = st.M; const r = M.result; const renchan = r && (r.draw ? r.tenpai[M.dealer] : r.win === M.dealer);
+  if (!renchan) { M.dealer = (M.dealer + 1) % 4; M.kyoku++; }
+  if (M.kyoku >= 4 || M.scores.some((s) => s < 0)) { mjGameOver(st); return; }
+  mjDeal(st);
+}
+function mjGameOver(st) {
+  const M = st.M; M.phase = 'over'; const rank = [0, 1, 2, 3].sort((a, b) => M.scores[b] - M.scores[a]).indexOf(0) + 1;
+  ibaLog('mahjong', '東風戦 ' + rank + '位（' + M.scores[0] + '点）'); toast('東風戦 おわり。あなたは ' + rank + '位です'); mjShow(st);
+}
+function mjRon(st, yes) {
+  const M = st.M; if (M.phase !== 'ron') return; const r = M.ron; M.ron = null; M.phase = 'play';
+  if (yes) { mjWin(st, 0, false, { from: r.from, id: r.id }); return; }
+  mjAfterDiscard(st, r.from, r.id, r.k + 1);
+}
+function mjShow(st) {
+  const M = st.M; st.seats.forEach((s) => s.clear()); st.clicks = [];
+  const reveal = M.phase === 'end' || M.phase === 'over';
+  // 手牌（自分は 表を こちらに 立てる。ほかの 人は うらが 見える。おわったら みんな 表に たおす）
+  [0, 1, 2, 3].forEach((i) => {
+    const seat = st.seats[i]; const h = M.hands[i].slice(); if (i !== 0 || reveal) h.sort((a, b) => a - b);
+    let list = h; if (i === 0 && M.drawn !== null && !reveal) { list = h.filter((id) => id !== M.drawn); list.push(M.drawn); }
+    const n = list.length; const gapAt = i === 0 && M.drawn !== null && !reveal ? n - 1 : -1;
+    list.forEach((id, k) => {
+      const m = mjTile(id >> 2, i !== 0 && !reveal); const x = (k - (n - 1) / 2) * (MJ_TW + 0.002) + (gapAt >= 0 && k === gapAt ? 0.014 : 0) - (gapAt >= 0 ? 0.007 : 0);
+      if (reveal) { m.rotation.x = -Math.PI / 2; m.position.set(x, IBA_TOP + MJ_TD / 2, 0.33); }
+      else { m.rotation.x = i === 0 ? -0.32 : 0; m.position.set(x, IBA_TOP + MJ_TH / 2 + (i === 0 && M.sel === id ? 0.014 : 0), 0.34); }
+      if (i !== 0 && !reveal) m.rotation.y = 0; // うらは 外がわ（その 人の 方を 向く）
+      seat.add(m);
+      if (i === 0 && !reveal) st.clicks.push(ibaClick(m, () => mjTap(st, id)));
+    });
+    if (reveal && M.result && M.result.win === i && !M.result.tsumo) { const m = mjTile(M.result.hand[M.result.hand.length - 1] >> 2); m.rotation.x = -Math.PI / 2; m.position.set((n / 2 + 0.8) * (MJ_TW + 0.002), IBA_TOP + MJ_TD / 2, 0.33); seat.add(m); }
+    M.river[i].forEach((id, k) => { // すて牌（6 まいで 1 行）
+      const m = mjTile(id >> 2); m.rotation.x = -Math.PI / 2; m.position.set((k % 6 - 2.5) * (MJ_TW + 0.002), IBA_TOP + MJ_TD / 2, 0.135 + Math.floor(k / 6) * (MJ_TH + 0.003));
+      seat.add(m);
+    });
+  });
+  // まん中の 札：局・のこり・それぞれの 点
+  st.center.draw((ctx, W, H) => {
+    ctx.fillStyle = '#1f3d2e'; ctx.fillRect(0, 0, W, H); ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = '700 ' + Math.round(H * 0.13) + 'px ' + FONT_BODY; ctx.fillText('東' + (Math.min(M.kyoku, 3) + 1) + '局', W / 2, H * 0.4); ctx.font = '400 ' + Math.round(H * 0.09) + 'px ' + FONT_BODY; ctx.fillText('のこり ' + Math.max(0, M.wall.length - 14), W / 2, H * 0.58);
+    ctx.font = '700 ' + Math.round(H * 0.075) + 'px ' + FONT_BODY;
+    [0, 1, 2, 3].forEach((i) => { ctx.save(); ctx.translate(W / 2, H / 2); ctx.rotate(-i * Math.PI / 2); ctx.fillStyle = M.turn === i && !reveal ? '#ffd23f' : '#ffffff'; ctx.fillText(MJ_HONOR[mjWind(M, i)] + ' ' + M.scores[i], 0, H * 0.4); ctx.restore(); });
+  });
+  // パネル
+  const msg = []; let defs = [];
+  if (M.phase === 'over') {
+    const order = [0, 1, 2, 3].sort((a, b) => M.scores[b] - M.scores[a]);
+    msg.push({ text: '東風戦 おわり：あなたは ' + (order.indexOf(0) + 1) + '位', color: '#c0392b' }, order.map((i, k) => (k + 1) + '位 ' + MJ_SEATS[i] + ' ' + M.scores[i]).join('　'));
+    defs = [{ label: 'もう 1 回', act: () => mjNewGame(st) }];
+  } else if (M.phase === 'end') {
+    const r = M.result;
+    if (r.draw) msg.push('流局（山が なくなりました）', 'テンパイ：' + (r.tenpai.map((t, i) => (t ? MJ_SEATS[i] : '')).filter(Boolean).join('・') || 'なし'));
+    else { msg.push({ text: MJ_SEATS[r.win] + 'の ' + (r.tsumo ? 'ツモ' : 'ロン') + '　' + r.han + '翻 ' + r.pts + '点', color: r.win === 0 ? '#2f7d4f' : '#c0392b' }, r.yaku.map((y) => y[0] + ' ' + y[1] + '翻').join('・') + (r.tsumo ? '' : '（' + MJ_SEATS[r.from] + 'から）')); }
+    msg.push('点数：' + [0, 1, 2, 3].map((i) => MJ_SEATS[i] + ' ' + M.scores[i]).join('　'));
+    defs = [{ label: 'つぎの 局へ', act: () => mjNextKyoku(st) }, { label: 'はじめから', act: () => mjNewGame(st) }];
+  } else if (M.phase === 'ron') {
+    msg.push({ text: MJ_SEATS[M.ron.from] + 'の ' + mjName(M.ron.id >> 2) + 'で ロン できます！', color: '#2f7d4f' }, 'ロンすると あがりです');
+    defs = [{ label: 'ロン', act: () => mjRon(st, true), on: true }, { label: '見送る', act: () => mjRon(st, false) }];
+  } else if (M.turn === 0 && M.drawn !== null) {
+    const win = mjComplete(M.hands[0]);
+    const after = M.sel !== null ? M.hands[0].filter((x) => x !== M.sel) : null; const sh = after ? mjShanten(mjCounts(after)) : null;
+    msg.push(win ? { text: 'あがりの 形です！ ツモ できます', color: '#2f7d4f' } : 'あなたの 番：すてる 牌を えらぶ',
+      M.sel !== null ? mjName(M.sel >> 2) + '：もう 一度 えらぶと すてます' + (sh === 0 ? '（すてると テンパイ：待ち ' + mjWaits(after).map(mjName).join('・') + '）' : sh > 0 ? '（すてると あと ' + sh + ' まいで テンパイ）' : '') : '牌を えらぶと 少し 上がります。右はしが 引いた 牌',
+      M.hint !== null ? 'ヒント：' + mjName(M.hint >> 2) + 'を すてると よさそう' : '');
+    defs = (win ? [{ label: 'ツモ', act: () => mjWin(st, 0, true, null), on: true }] : []).concat(M.sel !== null ? [{ label: 'すてる', act: () => mjDiscard(st, 0, M.sel) }] : [])
+      .concat([{ label: 'ヒント', act: () => { M.hint = mjPickDiscard(M.hands[0]); M.sel = M.hint; mjShow(st); } }, { label: 'はじめから', color: '#55626d', act: () => mjNewGame(st) }]);
+  } else {
+    const sh = mjShanten(mjCounts(M.hands[0]));
+    msg.push(MJ_SEATS[M.turn] + 'の 番です…', sh === 0 ? 'あなたは テンパイ（待ち ' + mjWaits(M.hands[0]).map(mjName).join('・') + '）' : 'あと ' + sh + ' まいで テンパイ');
+    defs = [{ label: 'はじめから', color: '#55626d', act: () => mjNewGame(st) }];
+  }
+  ibaUpdate(st, msg.filter((m) => m), defs);
+}
+
+// ===========================================================================
+// 競馬（メダル競馬）：台の 上の 小さな コースを 6 頭が 1 周半 走る。
+//   馬と かけかた（単勝＝1 着を あてる・複勝＝2 着までに 入る）と メダルの 数を えらんで スタート。
+//   メダルは あそび用（お金・バッジとは べつ）。なくなったら 受付で 50 まい もらえる
+// ===========================================================================
+const KB_HORSES = [['シマカゼ', '#d0392b'], ['ウミネコ', '#2f6fc4'], ['ヤマビコ', '#e3b23c'], ['ハマナス', '#4f9a45'], ['ホシゾラ', '#6b4f9e'], ['カモメ', '#f2f2f2']];
+const KB = { L: 1.0, R: 0.3, top: IBA_TOP + 0.06, z: -0.12, lane: 0.026 };
+const KB_P = 2 * KB.L + 2 * Math.PI * KB.R;
+const KB_DIST = KB_P + KB.L * 0.7; // スタート（手前の 直線の 左）→ 1 周 → ゴール（手前の 直線の 右より）
+function kbPoint(d, off, out) { // 中心線で d（手前の 直線の 左はしから 左回り）。off は 外がわへの ずれ
+  const { L, R } = KB; d = ((d % KB_P) + KB_P) % KB_P; const r = R + off;
+  if (d < L) return out.set(-L / 2 + d, KB.top, KB.z + r);
+  d -= L; if (d < Math.PI * R) { const a = d / R; return out.set(L / 2 + r * Math.sin(a), KB.top, KB.z + r * Math.cos(a)); }
+  d -= Math.PI * R; if (d < L) return out.set(L / 2 - d, KB.top, KB.z - r);
+  d -= L; const a = d / R; return out.set(-L / 2 - r * Math.sin(a), KB.top, KB.z - r * Math.cos(a));
+}
+function kbHorse(color, n) { // 小さな 馬と 騎手（頭が +z）
+  const g = new THREE.Group(); const B = '#7a4a2a';
+  part(g, ball(0.5, 12, 10), B, 0, 0.05, 0).scale.set(0.035, 0.032, 0.075);
+  const neck = part(g, cyl(0.011, 0.015, 0.05, 8), B, 0, 0.07, 0.04); neck.rotation.x = 0.7;
+  part(g, box(0.018, 0.018, 0.04), B, 0, 0.088, 0.065);
+  const legs = [[-0.012, 0.03], [0.012, 0.03], [-0.012, -0.03], [0.012, -0.03]].map(([x, z]) => { const L = new THREE.Group(); L.position.set(x, 0.04, z); g.add(L); part(L, cyl(0.004, 0.004, 0.04, 6), B, 0, -0.02, 0); return L; });
+  const tail = part(g, cyl(0.003, 0.006, 0.035, 6), '#3a2a1a', 0, 0.06, -0.075); tail.rotation.x = -0.8;
+  part(g, box(0.026, 0.03, 0.022), color, 0, 0.095, 0.005); part(g, ball(0.011, 10, 8), color, 0, 0.118, 0.008); // 騎手（勝負服）
+  part(g, box(0.042, 0.02, 0.03), '#ffffff', 0, 0.06, -0.012); // ゼッケン
+  const tag = labelSprite(String(n), { h: 0.03, bg: color, fg: color === '#f2f2f2' || color === '#e3b23c' ? '#1f2a33' : '#ffffff' }); tag.position.set(0, 0.17, 0); g.add(tag);
+  g.scale.setScalar(1.3);
+  g.userData.legs = legs; return g;
+}
+function buildKeiba(st) {
+  ibaTable(st, 2.0, 1.1, '#6b4a2a');
+  const { L, R } = KB; const outer = R + 0.1; const inner = R - 0.1;
+  const stadium = (r) => { const s = []; for (let k = 0; k <= 24; k++) { const a = -Math.PI / 2 + (k / 24) * Math.PI; s.push(new THREE.Vector2(L / 2 + r * Math.cos(a), r * Math.sin(a))); } for (let k = 0; k <= 24; k++) { const a = Math.PI / 2 + (k / 24) * Math.PI; s.push(new THREE.Vector2(-L / 2 + r * Math.cos(a), r * Math.sin(a))); } return s; };
+  const ring = new THREE.Shape(stadium(outer)); ring.holes.push(new THREE.Path(stadium(inner).reverse()));
+  const track = new THREE.Mesh(new THREE.ShapeGeometry(ring), mat('#7fb35a', { roughness: 0.95 })); track.rotation.x = -Math.PI / 2; track.position.set(0, KB.top - 0.01, KB.z); st.g.add(track); // 芝の コース
+  const infield = new THREE.Mesh(new THREE.ShapeGeometry(new THREE.Shape(stadium(inner))), mat('#a8d08a')); infield.rotation.x = -Math.PI / 2; infield.position.set(0, KB.top - 0.012, KB.z); st.g.add(infield);
+  part(st.g, box(1.9, 0.05, 1.0), '#5f8f45', 0, IBA_TOP + 0.02, 0); // 台の 上の 地面
+  [outer, inner].forEach((r) => { const pts = stadium(r).map((v) => new THREE.Vector3(v.x, KB.top + 0.012, KB.z - v.y)); st.g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts.concat([pts[0]])), new THREE.LineBasicMaterial({ color: '#ffffff' }))); }); // 白い さく
+  const fx = -L / 2 + KB.L * 0.7; part(st.g, box(0.01, 0.002, 0.2), '#ffffff', fx, KB.top + 0.002, KB.z + R); // ゴール板
+  const goal = textPlate('ゴール', 0.12, 0.04, '#c0392b', '#ffffff'); goal.position.set(fx, KB.top + 0.12, KB.z + R + 0.12); st.g.add(goal); part(st.g, cyl(0.003, 0.003, 0.1, 6), '#ffffff', fx, KB.top + 0.05, KB.z + R + 0.12);
+  part(st.g, box(0.5, 0.12, 0.08), '#d9dde0', 0, KB.top + 0.06, KB.z - R - 0.2); part(st.g, box(0.52, 0.02, 0.1), '#c0533a', 0, KB.top + 0.13, KB.z - R - 0.2); // スタンド
+  st.horses = KB_HORSES.map(([, c], k) => { const h = kbHorse(c, k + 1); st.g.add(h); return h; });
+  keibaNew(st); // 馬を ゲートに ならべて おく
+}
+function keibaEnter(st) { keibaShow(st); }
+function keibaNew(st) {
+  const prev = st.K; const str = KB_HORSES.map(() => 0.93 + Math.random() * 0.14);
+  const w = str.map((s) => Math.exp((s - 1) * 28)); const sum = w.reduce((a, b) => a + b, 0);
+  const odds = w.map((x) => Math.min(50, Math.max(1.2, Math.round((0.8 * sum / x) * 10) / 10))); const place = odds.map((o) => Math.max(1.1, Math.round(o / 2.6 * 10) / 10));
+  st.K = { phase: 'bet', pick: prev ? prev.pick : 0, amt: prev ? prev.amt : 5, type: prev ? prev.type : 'win', str, odds, place, d: str.map(() => 0), v: str.map(() => 0), kick: str.map(() => 0.96 + Math.random() * 0.1), target: str.map(() => 0), retarget: 0, finish: [], race: 0, call: 0 };
+  kbPlace(st); keibaShow(st);
+}
+const kbTmp = new THREE.Vector3(); const kbTmp2 = new THREE.Vector3();
+function kbPlace(st) { const K = st.K; st.horses.forEach((h, k) => { const off = -0.065 + k * KB.lane; kbPoint(K.d[k], off, h.position); kbPoint(K.d[k] + 0.02, off, kbTmp2); h.rotation.y = Math.atan2(kbTmp2.x - h.position.x, kbTmp2.z - h.position.z); }); }
+function keibaShow(st) {
+  const K = st.K; const md = ibaData().medals; const H = KB_HORSES;
+  st.extraPaint = (ctx, W, Hh) => { // 出馬表（オッズ）か 順位
+    const y0 = Hh * 0.47; const rh = Hh * 0.075; ctx.font = '700 ' + Math.round(rh * 0.78) + 'px ' + FONT_BODY; ctx.textBaseline = 'middle';
+    const rows = K.phase === 'bet' ? H.map((_, k) => k) : K.d.map((_, k) => k).sort((a, b) => (K.finish.indexOf(a) + 1 || 99) - (K.finish.indexOf(b) + 1 || 99) || K.d[b] - K.d[a]);
+    rows.forEach((k, r) => {
+      const y = y0 + r * rh; ctx.fillStyle = K.pick === k ? 'rgba(224,102,47,0.18)' : r % 2 ? 'rgba(0,0,0,0.04)' : 'rgba(0,0,0,0)'; ctx.fillRect(W * 0.03, y - rh / 2, W * 0.94, rh);
+      ctx.fillStyle = H[k][1]; ctx.fillRect(W * 0.05, y - rh * 0.38, rh * 0.76, rh * 0.76); ctx.fillStyle = H[k][1] === '#f2f2f2' || H[k][1] === '#e3b23c' ? '#1f2a33' : '#ffffff'; ctx.textAlign = 'center'; ctx.fillText(String(k + 1), W * 0.05 + rh * 0.38, y);
+      ctx.textAlign = 'left'; ctx.fillStyle = '#1f2a33';
+      ctx.fillText((K.phase === 'bet' ? '' : (r + 1) + '位 ') + H[k][0], W * 0.12, y);
+      ctx.textAlign = 'right'; ctx.fillText(K.phase === 'bet' ? '単勝 ' + K.odds[k].toFixed(1) + '倍　複勝 ' + K.place[k].toFixed(1) + '倍' : K.finish.includes(k) ? 'ゴール' : Math.round(Math.min(1, K.d[k] / KB_DIST) * 100) + '%', W * 0.95, y);
+    });
+  };
+  const bet = (K.type === 'win' ? '単勝' : '複勝') + ' ' + (K.pick + 1) + '番 ' + H[K.pick][0] + '・' + K.amt + 'まい';
+  let msg; let defs;
+  if (K.phase === 'bet') {
+    msg = ['馬と かけかたを えらんで スタート', 'メダル ' + md + 'まい　｜　' + bet];
+    defs = H.map((h, k) => ({ label: (k + 1) + ' ' + h[0], act: () => { K.pick = k; keibaShow(st); }, on: K.pick === k, row: k < 3 ? 0 : 1, w: 0.27 }))
+      .concat([{ label: '単勝', act: () => { K.type = 'win'; keibaShow(st); }, on: K.type === 'win', row: 2, w: 0.16 }, { label: '複勝', act: () => { K.type = 'place'; keibaShow(st); }, on: K.type === 'place', row: 2, w: 0.16 }])
+      .concat([1, 5, 10].map((a) => ({ label: a + 'まい', act: () => { K.amt = a; keibaShow(st); }, on: K.amt === a, row: 2, w: 0.15 })))
+      .concat(md < 1 ? [{ label: 'メダルを もらう（50）', act: () => { ibaData().medals += 50; if (profile) saveProfile(); toast('メダルを 50 まい もらいました'); keibaShow(st); }, row: 3, w: 0.5 }] : [{ label: 'スタート', act: () => keibaStart(st), row: 3, w: 0.4, color: '#c0392b' }]);
+  } else if (K.phase === 'run') {
+    msg = [K.callText || 'スタート！', bet]; defs = [];
+  } else {
+    msg = [{ text: K.resultText, color: K.won ? '#2f7d4f' : '#c0392b' }, '1着 ' + (K.finish[0] + 1) + '番 ' + H[K.finish[0]][0] + '・2着 ' + (K.finish[1] + 1) + '番 ' + H[K.finish[1]][0], 'メダル ' + md + 'まい'];
+    defs = [{ label: 'つぎの レース', act: () => keibaNew(st), w: 0.4 }];
+  }
+  ibaUpdate(st, msg, defs);
+}
+function keibaStart(st) {
+  const K = st.K; const d = ibaData(); if (K.phase !== 'bet') return;
+  if (d.medals < K.amt) { toast('メダルが たりません'); return; }
+  d.medals -= K.amt; if (profile) saveProfile();
+  K.phase = 'run'; K.t0 = performance.now(); K.callText = 'スタート！'; K.call = 0; playSfx('horn'); keibaShow(st);
+}
+const KB_CALLS = [[0.25, '第 1 コーナーから むこう正面へ'], [0.5, '3 コーナーを まわって…'], [0.72, '4 コーナー！ 最後の 直線！'], [0.9, 'ゴール 前、まだ わからない！']];
+function stepKeiba(st, dt, now) {
+  const K = st && st.K; if (!K || K.phase !== 'run') return;
+  const vb = KB_DIST / 16; // 16 秒くらいで ゴール
+  if (now > K.retarget) { K.retarget = now + 400; K.target = K.str.map((s, k) => vb * s * (1 + (Math.random() - 0.5) * 0.22) * (K.d[k] > KB_DIST * 0.7 ? K.kick[k] : 1)); }
+  K.d.forEach((d, k) => {
+    if (K.finish.includes(k) && d > KB_DIST + 0.25) return;
+    K.v[k] += (K.target[k] - K.v[k]) * Math.min(1, dt * 2.5); K.d[k] += K.v[k] * dt;
+    if (K.d[k] >= KB_DIST && !K.finish.includes(k)) K.finish.push(k);
+    st.horses[k].userData.legs.forEach((L, j) => { L.rotation.x = Math.sin(now / 55 + j * 1.6 + k) * 0.7; });
+  });
+  kbPlace(st);
+  const lead = Math.max(...K.d) / KB_DIST; const c = KB_CALLS[K.call];
+  if (c && lead > c[0]) { K.call++; K.callText = c[1]; keibaShow(st); }
+  if (now - (K.paintAt || 0) > 200) { K.paintAt = now; ibaPaint(st); }
+  if (K.finish.length >= KB_HORSES.length) keibaDone(st);
+}
+function keibaDone(st) {
+  const K = st.K; const d = ibaData(); K.phase = 'done';
+  const hit = K.type === 'win' ? K.finish[0] === K.pick : K.finish.slice(0, 2).includes(K.pick);
+  const pay = hit ? Math.floor(K.amt * (K.type === 'win' ? K.odds[K.pick] : K.place[K.pick])) : 0;
+  d.medals += pay; K.won = hit;
+  K.resultText = hit ? 'あたり！ メダル ' + pay + 'まい' : 'はずれ…（' + (K.pick + 1) + '番は ' + (K.finish.indexOf(K.pick) + 1) + '着）';
+  ibaLog('keiba', (K.type === 'win' ? '単勝' : '複勝') + ' ' + (K.pick + 1) + '番 ' + (hit ? 'あたり +' + pay : 'はずれ -' + K.amt) + '（のこり ' + d.medals + 'まい）');
+  playSfx(hit ? 'coin' : 'pop'); toast(K.resultText); keibaShow(st);
+}
 // 歩いている とき、近くで できる こと
 function nearbyActions() {
   if (state.where !== 'walk') return [];
@@ -9110,11 +9969,12 @@ function nearbyActions() {
   const y = booths.find((b) => b.job.id === 'yatai'); if (y && Math.hypot(y.door.x - p.x, y.door.z - p.z) < 6) out.push(['buy', '屋台で 買う']);
   const cr = booths.find((b) => b.job.id === 'care'); if (cr && Math.hypot(cr.door.x - p.x, cr.door.z - p.z) < 7) out.push(['rehab', 'リハビリステーションへ']); // 介護施設の 前から 行ける
   if (profile && Math.hypot(FURN.door.x - p.x, FURN.door.z - p.z) < 6) out.push(['furn', '家具屋に 入る']);
+  if (Math.hypot(IBA_SITE.door.x - p.x, IBA_SITE.door.z - p.z) < 6) out.push(['iba', 'みんなの 居場所に 入る']);
   const cf = booths.find((b) => b.job.id === 'cafe'); if (profile && cf && Math.hypot(cf.door.x - p.x, cf.door.z - p.z) < 6) { out.push(['cafe', 'カフェで のんびり']); out.push(['terrace', 'テラス席で のんびり']); }
   if (profile && PLAZA.c && Math.hypot(PLAZA.c.x - p.x, PLAZA.c.z - p.z) < 7) out.push(['plaza', 'テラスで のんびり']);
   return out;
 }
-const PLAY_ACTS = { rehab: () => openRehab(), ski: startSki, climb: startClimb, swim: startSwim, sun: startSun, buy: () => openYataiShop(), furn: () => goFurniture(), cafe: () => openCafeOrder('in'), terrace: () => openCafeOrder('out'), plaza: () => openCafeOrder('plaza') };
+const PLAY_ACTS = { iba: () => openIba(ibaOutside()), rehab: () => openRehab(), ski: startSki, climb: startClimb, swim: startSwim, sun: startSun, buy: () => openYataiShop(), furn: () => goFurniture(), cafe: () => openCafeOrder('in'), terrace: () => openCafeOrder('out'), plaza: () => openCafeOrder('plaza') };
 let lastNearby = '';
 function checkNearby() { const k = nearbyActions().map((a) => a[0]).join(',') + (state.skating ? '|s' : ''); if (k !== lastNearby) { lastNearby = k; renderHud(); } }
 // 屋台で 買う（お客さんとして）
@@ -9463,6 +10323,7 @@ $('btn-season').addEventListener('click', () => setSeason(season === 'winter' ? 
 $('btn-home').addEventListener('click', () => goHome());
 $('btn-settings').addEventListener('click', openSettings);
 window.hopeTown = {
+  IBA, IBA_SITE, openIba, ibaSit, ibaStand, ibaClickables, ibaData, sgLegal, sgPlay, sgThink, igoThink, igoScore, mjShanten, mjComplete, mjYaku, mjCounts, keibaStart, shogiTap, igoTap, mjTap, mjRon,
   state, goBooth, pickVariant, startSession, openRehab, startRehab, rehabPress, rehabSwipeThrow, rehabVolleyPress, REHAB, get rehabOpt() { return rehabOpt; }, set rehabOpt(v) { rehabOpt = v; }, select: onSelectItem, playSfx, sfxKind, SFX, nextTargetKey, setSeason, startWalk, exitToWalk, walkKeys, rig, look, walkable, booths, goHome, exitHome, goPlaza,
   get profile() { return profile; }, quitWork, openJobList, openCafeOrder, sitCafe, endPlay, CAFE_ORDER, doLeisure, LEISURE, home, HOME_LEVELS, upgradeHome, askUpgrade, homeLv, FURN, goFurniture, furnShop, pickFurn, exitFurniture, cheatCover() { const r = state.round; if (r && r.cover) { r.cover.surf.clearAll(); coverProgress(r, 1, performance.now()); } }, seasonal, LAKE, toWorld, nearbyActions, openShop, openBadgeBook, openSettings, openAreaPicker,
   // テスト用：オープニングを とばして 家を 用意する
