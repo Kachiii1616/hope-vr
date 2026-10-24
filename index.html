@@ -9503,11 +9503,12 @@ function renderIbaHud(el) {
       : '<div>' + (casino ? 'バカラ・ポーカーが できます。台の 札を えらぶ（VR では ゆびさして トリガー）と 席に つきます。手前の アーチから スロット・ルーレット・ブラックジャックの フロアへ もどれます。かけるのは あそび用の メダル（いま ' + ibaData().medals + 'まい。競馬と 共通）で、お金は つかいません。'
         : '将棋・囲碁・麻雀が できます。台の 札を えらぶ（VR では ゆびさして トリガー）と 席に つきます。ひとりでも あそべます（相手は コンピューター）。競馬・カジノは となりの あそびの島で（フェリー乗り場から 連絡船。右の かべの ポスターから のりばへ 行けます）。') + '</div>' +
         (last ? '<label class="field">さいきんの きろく</label><ul style="margin:0;padding-left:1.2em;color:var(--ink-soft)">' + last + '</ul>' : '')) +
-    '<div class="row">' + others + (casino ? Object.keys(CAS_GAMES).map((k) => '<button type="button" data-cas-go="' + k + '">' + CAS_GAMES[k] + '</button>').join('') : '<button type="button" id="iba-keiba">連絡船のりばへ（あそびの島）</button>') + (st ? '<button type="button" id="iba-stand">席を 立つ</button>' : '') + '<button type="button" id="iba-out">外に 出る</button></div>';
+    '<div class="row">' + others + (casino ? Object.keys(CAS_GAMES).map((k) => '<button type="button" data-cas-go="' + k + '">' + CAS_GAMES[k] + '</button>').join('') : '<button type="button" id="iba-keiba">連絡船のりばへ（あそびの島）</button>') + (casino ? '<button type="button" id="iba-rules">ルール説明書</button>' : '') + (st ? '<button type="button" id="iba-stand">席を 立つ</button>' : '') + '<button type="button" id="iba-out">外に 出る</button></div>';
   el.querySelectorAll('[data-iba-go]').forEach((b) => { b.onclick = () => ibaSit(b.dataset.ibaGo); });
   el.querySelectorAll('[data-iba-btn]').forEach((b) => { b.onclick = () => { const d = st.btnDefs[Number(b.dataset.ibaBtn)]; if (d) { playSfx('pop'); d.act(); } }; });
   el.querySelectorAll('[data-cas-go]').forEach((b) => { b.onclick = () => casSit(b.dataset.casGo); }); // 手前の アミューズメント フロアへ
   if ($('iba-keiba')) $('iba-keiba').onclick = goBoatPier;
+  if ($('iba-rules')) $('iba-rules').onclick = () => openAmuseRules(pl.at);
   if ($('iba-stand')) $('iba-stand').onclick = ibaStand;
   $('iba-out').onclick = endPlay;
 }
@@ -11407,6 +11408,36 @@ function leaveCasino(pl) {
   const o = casOutside(); if (pl.from.pos) startWalk(pl.from.pos, pl.from.yaw); else startWalk(o.pos, o.yaw);
 }
 function stepCasino(pl, dt, now) { stepSlot(CAS.st.slot, now); stepRoulette(CAS.st.roulette, now); stepBj(CAS.st.bj, now); }
+// ルール説明書（HOPE アミューズメントの 5 つの あそび）。いま すわって いる 台の ところを ひらいて 出す
+const amuseRules = () => ({ // SL_PAY などは この あとで 決まるので、ひらく ときに つくる
+  slot: ['スロット', ['BET（1 か 3 まい）を えらんで、レバーか スピン ボタンで まわす。STOP ボタンで リールを 1 つずつ 止める',
+    '3 つ そろうと かけた まい数の 7＝' + SL_PAY[0] + '倍・BAR＝' + SL_PAY[1] + '倍・ベル＝' + SL_PAY[2] + '倍・スイカ＝' + SL_PAY[3] + '倍・チェリー＝' + SL_PAY[4] + '倍',
+    'チェリーは そろわなくても OK：左から 2 つ ならぶと 2 倍、左はしに 1 つで 1 倍（かけた 分が もどる）']],
+  roulette: ['ルーレット', ['0〜36 の 37 こ（ヨーロッパ式）。かける ところと まい数（1・5・10）を えらんで まわす',
+    '赤・黒・奇数・偶数・1〜18・19〜36 → あたると 2 倍（0 は どれにも 入らない）',
+    '1〜12・13〜24・25〜36 → 3 倍。数字 1 つ → 36 倍']],
+  bj: ['ブラックジャック', ['カードの 合計を 21 に 近づける。2〜10 は そのまま、J・Q・K は 10、A は 1 か 11（つごうの よい ほう）',
+    'ヒット＝もう 1 まい ひく、スタンド＝ここで とめる。21 を こえたら バースト（まけ）',
+    'ディーラーは 17 に なるまで ひく。勝つと 2 倍、引き分けは かけた 分が もどる',
+    'はじめの 2 まいで 21（ブラックジャック）なら 2.5 倍']],
+  baccarat: ['バカラ', ['プレイヤーと バンカー、どちらの 合計が 9 に 近いかを 当てる。カードは 自動で 配られる',
+    '数え方：A＝1、2〜9 は そのまま、10・J・Q・K は 0。合計の 1 の位だけ 見る（例：7＋8＝15 → 5）',
+    '3 まいめを ひくか どうかは 本物の ルールどおりに 決まる（えらぶ ことは ない）',
+    'プレイヤー＝2 倍、バンカー＝2 倍（6 で 勝つと 1.5 倍）、タイ（引き分け）＝9 倍。タイの ときは プレイヤー・バンカーに かけた 分は もどる']],
+  poker: ['ポーカー（テキサス ホールデム）', ['あなたと コンピューター 2 人。手札 2 まいと まん中の 5 まいを あわせて、いちばん 強い 5 まいの 役で 勝負',
+    '強い 順：' + PK_HAND.slice().reverse().join('＞'),
+    'はじめに ブラインド（1 と 2）。かけは はじめ・フロップが 2 まい、ターン・リバーが 4 まいずつ。1 回の 町で ベット＋レイズ 1 回まで',
+    'フォールド＝おりる、チェック／コール＝合わせる、ベット／レイズ＝ふやす。さいごまで のこって 役が いちばん 強い 人が ポットを もらう',
+    '1 回 あそぶには メダルが ' + PK_NEED + 'まい いる']]
+});
+function openAmuseRules(focus) {
+  if (renderer.xr.isPresenting) { toast('ルール説明書は VR を おりると 画面で 読めます'); return; }
+  modal.dataset.closable = '1';
+  openModal('<h2>ルール説明書</h2><p>HOPE アミューズメントの あそびかた。かけるのは あそび用の メダル（いま ' + ibaData().medals + 'まい。競馬と 共通）で、お金は つかいません。「○倍」は かけた 分も ふくめて もどって くる まい数です。たりなく なったら カジノ フロアの 交換所や 台の ボタンで もらえます。</p>' +
+    Object.entries(amuseRules()).map(([k, [name, lines]]) => '<details' + (k === focus || !focus && k === 'slot' ? ' open' : '') + ' style="margin-top:8px"><summary style="font-weight:700;cursor:pointer">' + esc(name) + '</summary><ul style="margin:6px 0 0;padding-left:1.2em">' + lines.map((t) => '<li>' + esc(t) + '</li>').join('') + '</ul></details>').join('') +
+    '<div class="row"><button type="button" class="primary" id="rules-close">とじる</button></div>',
+  (card) => { card.querySelector('#rules-close').onclick = closeModal; });
+}
 function renderCasinoHud(el) {
   const pl = state.play; const st = pl.at && CAS.st[pl.at];
   const others = Object.keys(CAS_GAMES).filter((k) => k !== pl.at).map((k) => '<button type="button" data-cas-go="' + k + '">' + CAS_GAMES[k] + '</button>').join('') + ['baccarat', 'poker'].map((k) => '<button type="button" data-iba-go="' + k + '">' + IBA_GAMES[k] + '（奥）</button>').join('');
@@ -11414,10 +11445,11 @@ function renderCasinoHud(el) {
     (st ? '<div class="feedback">' + st.msg.map((m) => esc(m.text || m)).join('<br>') + '</div>' +
       '<div class="row">' + st.btnDefs.map((d, i) => '<button type="button"' + (d.on ? ' class="primary"' : '') + ' data-cas-btn="' + i + '">' + esc(d.label) + '</button>').join('') + '</div>'
       : '<div>スロット・ルーレット・ブラックジャックが できます。奥の アーチの むこうは カジノ フロア（バカラ・ポーカー）です。台の 札を えらぶ（VR では ゆびさして トリガー）と 席に つきます。メダルは あそび用です（いま ' + ibaData().medals + 'まい）。</div>') +
-    '<div class="row">' + others + (st ? '<button type="button" id="cas-stand">席を 立つ</button>' : '') + '<button type="button" id="cas-out">外に 出る</button></div>';
+    '<div class="row">' + others + '<button type="button" id="cas-rules">ルール説明書</button>' + (st ? '<button type="button" id="cas-stand">席を 立つ</button>' : '') + '<button type="button" id="cas-out">外に 出る</button></div>';
   el.querySelectorAll('[data-cas-go]').forEach((b) => { b.onclick = () => casSit(b.dataset.casGo); });
   el.querySelectorAll('[data-iba-go]').forEach((b) => { b.onclick = () => ibaSit(b.dataset.ibaGo); });
   el.querySelectorAll('[data-cas-btn]').forEach((b) => { b.onclick = () => { const d = st.btnDefs[Number(b.dataset.casBtn)]; if (d) { playSfx('pop'); d.act(); } }; });
+  $('cas-rules').onclick = () => openAmuseRules(pl.at);
   if ($('cas-stand')) $('cas-stand').onclick = casStand;
   $('cas-out').onclick = endPlay;
 }
