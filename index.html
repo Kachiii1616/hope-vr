@@ -8393,8 +8393,43 @@ function chipWork(job) {
   const vs = variantsNow(job); if (!vs) return job.work;
   return vs.length > 1 ? SEASON_NAME[season] + '：' + vs.map((v) => v.short || v.work).join('・') : vs[0].work;
 }
+// あそびの島に いる ときは 下の チップを 島の 行き先に かえる（Work Island の お店は 連絡船で もどってから）
+const ISLE_CHIP_COLOR = { keiba: '#c0533a', paddock: '#6b8e23', amuse: '#b8860b', casino: '#8b1e2d', ferris: '#2d6fa3', back: '#e0662f' };
+let chipMode = 'main'; let chipCheckAt = 0;
+function isleChipMode() {
+  const pl = state.where === 'play' ? state.play : null;
+  if (pl && (pl.kind === 'boat' || (pl.kind === 'iba' && pl.room === 'iba'))) return false; // 船の 上・居場所の 部屋は Work Island あつかい
+  return isleNow();
+}
+function isleChipNow() {
+  const kc = kcNow(); if (kc) return kc.at === 'paddock' ? 'paddock' : 'keiba';
+  if (casNow()) return 'amuse';
+  const ib = ibaNow(); if (ib && ib.room === 'casino') return 'casino';
+  return null;
+}
+function isleChipGo(id) {
+  if (id === isleChipNow()) return;
+  if (state.phase === 'work' || state.phase === 'between') { toast('作業が おわってから 行けます'); return; }
+  if (kcNow() && (id === 'keiba' || id === 'paddock')) { playSfx('pop'); if (id === 'keiba') kcWindow(); else kcPaddock(); renderHud(); return; }
+  if (state.where === 'play' && state.play) endPlay(); // いまの 場所を 出てから 行く
+  isleGo(id);
+}
 function renderChips() {
   chipsEl.innerHTML = '';
+  chipMode = isleChipMode() ? 'isle' : 'main';
+  if (chipMode === 'isle') {
+    ISLE_DEST.filter((d) => d[0] !== 'walk').forEach(([id, name, note]) => {
+      const el = document.createElement('button');
+      el.type = 'button'; el.className = 'chip'; el.dataset.isle = id;
+      el.innerHTML = '<i style="background:' + ISLE_CHIP_COLOR[id] + '"></i>' + esc(name) + '<span>' + esc(note) + '</span>';
+      el.setAttribute('aria-current', String(isleChipNow() === id));
+      el.addEventListener('click', () => isleChipGo(id));
+      chipsEl.appendChild(el);
+    });
+    chipsEl.setAttribute('aria-label', 'あそびの島の 行き先を えらぶ');
+    return;
+  }
+  chipsEl.setAttribute('aria-label', '職業をえらぶ');
   const plazaChip = document.createElement('button');
   plazaChip.type = 'button'; plazaChip.className = 'chip'; plazaChip.innerHTML = '<i style="background:#e0662f"></i>島ぜんたい';
   plazaChip.setAttribute('aria-current', String(state.where === 'plaza'));
@@ -8417,9 +8452,17 @@ function renderHud() {
   $('place').textContent = state.where === 'plaza' ? '島ぜんたい' : state.where === 'walk' ? '島を 歩いています' : state.where === 'home' ? profile.name + 'さんの ' + homeName() + '（' + home.site.name + '）' : state.where === 'opening' ? 'フェリーで 入港中' : state.where === 'play' ? (state.play.room === 'casino' ? 'カジノ' : PLAY_NAME[state.play.kind]) : state.where === 'furn' ? '家具屋（お店の 中）' : state.booth.job.area + '　' + state.booth.job.name + '・' + state.booth.job.work;
   $('pad').hidden = !(state.where === 'walk' || state.where === 'furn' || (state.where === 'play' && state.play && !['sun', 'cafe', 'terrace', 'plaza', 'rehab', 'iba', 'keiba', 'casino', 'boat'].includes(state.play.kind)) || (state.where === 'booth' && state.phase === 'work' && state.round && (state.round.cover || state.round.slide)));
   $('btn-walk').textContent = state.where === 'walk' ? '見わたす' : '島を歩く';
-  chipsEl.querySelectorAll('.chip').forEach((el, i) => el.setAttribute('aria-current', String(i === 0 ? state.where === 'plaza' : state.booth === booths[i - 1])));
+  if ((isleChipMode() ? 'isle' : 'main') !== chipMode) { renderChips(); shownChip = -1; chipsEl.scrollLeft = 0; requestAnimationFrame(updateChipNav); }
+  let cur;
+  if (chipMode === 'isle') {
+    const now = isleChipNow(); const kids = [...chipsEl.children];
+    kids.forEach((el) => el.setAttribute('aria-current', String(el.dataset.isle === now)));
+    cur = kids.findIndex((el) => el.dataset.isle === now);
+  } else {
+    chipsEl.querySelectorAll('.chip').forEach((el, i) => el.setAttribute('aria-current', String(i === 0 ? state.where === 'plaza' : state.booth === booths[i - 1])));
+    cur = state.where === 'plaza' ? 0 : booths.indexOf(state.booth) + 1;
+  }
   // いまの 場所の チップが 画面の外なら 見える ところまで 送る
-  const cur = state.where === 'plaza' ? 0 : booths.indexOf(state.booth) + 1;
   if (cur !== shownChip) {
     shownChip = cur;
     const el = chipsEl.children[cur];
@@ -11182,7 +11225,7 @@ function isleGo(id) { const d = ISLE_DEST.find((x) => x[0] === id); if (!d) retu
 function isleMenu(arrived) {
   if (renderer.xr.isPresenting) { if (arrived) toast('桟橋の 看板で 行き先を えらべます'); return; } // VR では 画面の カードが 見えないので 看板で
   modal.dataset.closable = '1';
-  openModal('<h2>' + (arrived ? 'あそびの島に 着きました' : 'あそびの島') + '</h2><p>どこへ 行きますか？ あとから 桟橋の 看板や 左下の カードでも えらべます。</p>' +
+  openModal('<h2>' + (arrived ? 'あそびの島に 着きました' : 'あそびの島') + '</h2><p>どこへ 行きますか？ あとから 桟橋の 看板や 画面の 下の 行き先でも えらべます。</p>' +
     '<div class="pick-list">' + ISLE_DEST.map(([id, name, note]) => '<button type="button" data-isle="' + id + '"><span><b>' + esc(name) + '</b><small>' + esc(note) + '</small></span></button>').join('') + '</div>',
   (card) => { card.querySelectorAll('[data-isle]').forEach((btn) => { btn.onclick = () => isleGo(btn.dataset.isle); }); });
 }
@@ -11897,6 +11940,7 @@ renderer.setAnimationLoop((now) => {
   walkStep(dt);
   stepFurn(dt);
   stepBoats(now); // 連絡船・観覧車（乗って いる 人より 先に 動かす）
+  if (!tween && now - chipCheckAt > 400) { chipCheckAt = now; if ((isleChipMode() ? 'isle' : 'main') !== chipMode) renderHud(); } // 島を 行き来 したら 下の チップを かえる（移動の とちゅうは まつ）
   stepPlay(dt, now);
   stepCover(dt, now);
   stepSlide(dt);
