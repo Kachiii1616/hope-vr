@@ -141,6 +141,11 @@ button.primary { background: var(--accent); color: var(--accent-ink); border-col
 }
 .modal-card h2 { font-family: var(--font-display); font-size: 22px; margin: 0 0 6px; text-wrap: balance; }
 .modal-card p { margin: 4px 0 10px; color: var(--ink-soft); }
+.modal-card .assess-big { font-size: 20px; color: var(--ink); }
+.modal-card .assess-big b { font-size: 30px; }
+.assess-table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 6px 0 10px; }
+.assess-table th, .assess-table td { border-bottom: 1px solid var(--line); padding: 4px 6px; text-align: right; }
+.assess-table th:first-child, .assess-table td:first-child { text-align: left; }
 .modal-card label.field { display: block; font-weight: 700; margin: 14px 0 6px; }
 .modal-card input[type="text"] { width: 100%; box-sizing: border-box; font: inherit; font-size: 18px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--ink); }
 .choices { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -1656,6 +1661,7 @@ JOBS.forEach((job, i) => {
   const btns = {
     without: makeButton('はじめる：配慮なし', '#55626d', 0.78, 0.16),
     with: makeButton('はじめる：配慮あり', job.color, 0.78, 0.16),
+    assess: makeButton('アセスメント（達成度）', '#2f6f8f', 0.78, 0.16),
     hint: makeButton('ヒント', '#e0a23a', 0.36, 0.14),
     quit: makeButton('作業を やめる', '#b93a32', 0.56, 0.14),
     back: makeButton('島ぜんたいへ', '#3d4a54', 0.56, 0.14),
@@ -1668,7 +1674,7 @@ JOBS.forEach((job, i) => {
   //（モニターの 左右。店員から 見て 左が はじめる・ヒント、右が もどる）
   const bx = 0.84 * 2.4 * PANEL_SCALE / 2 + 0.06;
   btns.with.position.set(-bx - 0.32, PANEL_Y + 0.17, 0.01); btns.without.position.set(-bx - 0.32, PANEL_Y - 0.03, 0.01);
-  btns.hint.position.set(-bx - 0.32, PANEL_Y - 0.03, 0.01); btns.again.position.set(bx + 0.32, PANEL_Y + 0.17, 0.01); btns.back.position.set(bx + 0.32, PANEL_Y - 0.03, 0.01); btns.exit.position.set(bx + 0.32, PANEL_Y - 0.23, 0.01); btns.quit.position.set(-bx - 0.32, PANEL_Y - 0.23, 0.01);
+  btns.hint.position.set(-bx - 0.32, PANEL_Y - 0.03, 0.01); btns.again.position.set(bx + 0.32, PANEL_Y + 0.17, 0.01); btns.back.position.set(bx + 0.32, PANEL_Y - 0.03, 0.01); btns.exit.position.set(bx + 0.32, PANEL_Y - 0.23, 0.01); btns.quit.position.set(-bx - 0.32, PANEL_Y - 0.23, 0.01); btns.assess.position.set(-bx - 0.32, PANEL_Y - 0.23, 0.01);
   // しごとを えらぶ ボタン：5 つ 以上（冬の 作業所）は 3 つずつ 2 列に
   const vk = Object.keys(btns).filter((k) => /^v\d$/.test(k)); const twoCol = vk.length > 4;
   vk.forEach((k, n) => { const col = twoCol ? 1 - Math.floor(n / 3) : 0; /* 1〜3 が 左の 列（掲示板の 番号と 同じ ならび） */ const row = twoCol ? n % 3 : n; btns[k].position.set(-bx - 0.32 - col * 0.72, PANEL_Y + 0.17 - row * 0.2, 0.01); });
@@ -3830,6 +3836,7 @@ const state = {
   booth: null,           // booths[i]
   phase: 'choose',       // 'choose' | 'pick' | 'work' | 'between'（おわったら 'choose' に もどる）
   withSupport: false,
+  assess: false,         // アセスメント：手順ごとに 見て 達成度（%）を 出す（配慮なしと 同じ 条件）
   session: null,         // { started, completed, inspected, defects, promptCount, questionCount, roundIndex }
   round: null,           // { def, slots:[{spec, key, mesh, ring, done}], pos, lastActionAt, hintShown, mistakeThisRound }
   feedback: { text: '', kind: '' },
@@ -4201,7 +4208,7 @@ function showChoose() {
     });
     return;
   }
-  setButtons(['without', 'with', 'back']);
+  setButtons(['without', 'with', 'assess', 'back']);
   board.draw((ctx, W, H) => {
     paintBoardBase(ctx, W, H, job);
     ctx.fillStyle = '#1f2a33'; ctx.font = '700 64px ' + FONT_DISPLAY; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
@@ -4211,7 +4218,7 @@ function showChoose() {
     ctx.fillStyle = '#55626d'; ctx.font = '400 32px ' + FONT_BODY;
     const last = lastResultFor(job);
     if (last) { ctx.fillStyle = '#7a4a12'; ctx.font = '700 32px ' + FONT_BODY; }
-    ctx.fillText(last ? '前回：できた ' + last.completed + ' こ・ミス ' + last.defects + ' 回・ヒント ' + last.questionCount + ' 回・' + fmtDuration(last.durationSec) + (last.rw ? '・' + MEDAL[last.rw.medal] : '')
+    ctx.fillText(last ? '前回：できた ' + last.completed + ' こ・ミス ' + last.defects + ' 回・ヒント ' + last.questionCount + ' 回・' + fmtDuration(last.durationSec) + (last.assess !== null && last.assess !== undefined ? '・達成度 ' + last.assess + '%' : '') + (last.rw ? '・' + MEDAL[last.rw.medal] : '')
       : '1 回の体験は ' + (job.rounds || ROUNDS_PER_SESSION) + ' こ。下の ボタンで はじめます。', 48, H - 112);
     ctx.fillStyle = '#7a4a12'; ctx.font = '400 28px ' + FONT_BODY;
     ctx.fillText('配慮ありは 銀バッジまで（金バッジは 配慮なしで ミス 0・ヒント 0）', 48, H - 66);
@@ -4228,10 +4235,11 @@ function paintBoardBase(ctx, W, H, job) {
   ctx.fillText(job.name + '　' + job.work, 40, 48);
 }
 
-function startSession(withSupport) {
+function startSession(withSupport, assess) {
   if (!isOpen(state.booth.job)) return;
-  state.withSupport = withSupport;
-  state.session = { started: performance.now(), completed: 0, inspected: 0, defects: 0, promptCount: 0, questionCount: 0, roundIndex: 0, target: state.booth.job.rounds || ROUNDS_PER_SESSION };
+  state.withSupport = withSupport; state.assess = !withSupport && !!assess;
+  state.session = { started: performance.now(), completed: 0, inspected: 0, defects: 0, promptCount: 0, questionCount: 0, roundIndex: 0, target: state.booth.job.rounds || ROUNDS_PER_SESSION,
+    steps: [], mark: { d: 0, h: 0 } };
   setButtons(['hint', 'quit', 'back']);
   state.booth.fieldArrived = false; // 畑へは ゆっくり 歩いて いく（2 回めからは すぐ となり）
   nextRound();
@@ -7770,7 +7778,7 @@ function drawWorkBoard() {
     if (state.feedback.text) ctx.fillText(state.feedback.text, 48, Math.max(y, H - 150));
     ctx.font = '400 32px ' + FONT_BODY; ctx.fillStyle = '#55626d';
     const goal = state.withSupport ? ' / ' + s.target : '';
-    ctx.fillText((state.withSupport ? '配慮あり' : '配慮なし') + '　できた ' + s.completed + goal + '　ミス ' + s.defects, 48, H - 70);
+    ctx.fillText((state.withSupport ? '配慮あり' : state.assess ? 'アセスメント' : '配慮なし') + '　できた ' + s.completed + goal + '　ミス ' + s.defects, 48, H - 70);
   });
 }
 
@@ -7791,6 +7799,7 @@ function onSelectItem(slotIndex) {
   const target = nextTargetKey();
   const ok = r.def.ordered ? slot.key === target : remainingKeys().includes(slot.key);
   if (ok) {
+    assessStep(stepLabel(slot.key));
     slot.done = true; if (r.def.ordered) r.pos++;
     slot.ring.visible = false; r.hintShown = false;
     const wk = wearKind(slot);
@@ -7811,6 +7820,7 @@ function onSelectItem(slotIndex) {
 
 function finishRound() {
   const s = state.session;
+  assessRoundEnd();
   s.completed++; s.inspected++; s.roundIndex++;
   state.feedback = { text: 'できました！', kind: 'ok' };
   drawWorkBoard(); renderHud();
@@ -7822,6 +7832,48 @@ function finishRound() {
     if (!state.session || state.session !== s) return;
     if (s.roundIndex >= s.target) showResult(); else nextRound();
   }, wait);
+}
+
+// ---- アセスメント：正しく えらべた 手順を 1 つずつ 見る。
+//   前の 手順から この 手順までに ミスが あれば ×（0 点）、ミスは ないが ヒントを 使えば △（0.5 点）、どちらも なければ ○（1 点）。
+//   達成度 = 点数の 合計 ÷ 手順の 数（%）。手順を えらばない 作業（モップなど）は 1 回 = 1 手順で 見る
+const ASSESS_SCORE = { ok: 1, hint: 0.5, miss: 0 };
+const ASSESS_MARK = { ok: '○', hint: '△', miss: '×' };
+function assessStep(label) {
+  const s = state.session; if (!s || !s.steps) return;
+  const d = s.defects - s.mark.d; const h = s.questionCount + s.promptCount - s.mark.h;
+  s.steps.push({ round: s.roundIndex, label, result: d ? 'miss' : h ? 'hint' : 'ok', misses: d, hints: h });
+  s.mark = { d: s.defects, h: s.questionCount + s.promptCount };
+}
+// 回の おわり：手順が 1 つも 残って いなければ 回ぜんたいを 1 手順に。最後の 手順の あとの ミス・ヒントは その 手順に 足す
+function assessRoundEnd() {
+  const s = state.session; if (!s || !s.steps) return;
+  const mine = s.steps.filter((t) => t.round === s.roundIndex);
+  if (!mine.length) { assessStep(state.round ? state.round.def.shortTitle || state.booth.job.work : state.booth.job.work); return; }
+  const d = s.defects - s.mark.d; const h = s.questionCount + s.promptCount - s.mark.h; if (!d && !h) return;
+  const last = mine[mine.length - 1]; last.misses += d; last.hints += h;
+  last.result = last.misses ? 'miss' : last.hints ? 'hint' : 'ok';
+  s.mark = { d: s.defects, h: s.questionCount + s.promptCount };
+}
+// 手順ごとに まとめる（はじめて 出た 順）
+function assessSummary(steps) {
+  const by = new Map();
+  steps.forEach((t) => { const g = by.get(t.label) || { label: t.label, n: 0, ok: 0, hint: 0, miss: 0, score: 0 }; g.n++; g[t.result]++; g.score += ASSESS_SCORE[t.result]; by.set(t.label, g); });
+  const total = steps.reduce((a, t) => a + ASSESS_SCORE[t.result], 0);
+  const rows = [...by.values()].map((g) => Object.assign(g, { percent: Math.round((g.score / g.n) * 100) }));
+  return { percent: steps.length ? Math.round((total / steps.length) * 100) : 0, total: steps.length, ok: steps.filter((t) => t.result === 'ok').length, hint: steps.filter((t) => t.result === 'hint').length, miss: steps.filter((t) => t.result === 'miss').length, rows };
+}
+function assessLevel(p) { return p >= 90 ? 'ひとりで できる' : p >= 70 ? 'ほぼ できる（一部 確認が 必要）' : p >= 40 ? '支援が あれば できる' : '手順の 練習が 必要'; }
+function openAssessResult(job, a, durationSec) {
+  const weak = a.rows.filter((g) => g.percent < 100).sort((x, y) => x.percent - y.percent).slice(0, 3);
+  openModal('<h2>アセスメント結果</h2><p>' + esc(job.name + '（' + job.work + '）') + '・' + fmtDuration(durationSec) + '</p>' +
+    '<p class="assess-big"><b>達成度 ' + a.percent + '%</b>　' + esc(assessLevel(a.percent)) + '</p>' +
+    '<p>手順 ' + a.total + ' こ：○ ひとりで ' + a.ok + '・△ ヒントで ' + a.hint + '・× ミスあり ' + a.miss + '<br><small>○＝1 点、△＝0.5 点、×＝0 点。点数の 合計 ÷ 手順の 数</small></p>' +
+    '<table class="assess-table"><tr><th>手順</th><th>回数</th><th>○</th><th>△</th><th>×</th><th>できた 割合</th></tr>' +
+    a.rows.map((g) => '<tr><td>' + esc(g.label) + '</td><td>' + g.n + '</td><td>' + g.ok + '</td><td>' + g.hint + '</td><td>' + g.miss + '</td><td>' + g.percent + '%</td></tr>').join('') + '</table>' +
+    (weak.length ? '<p>つまずきやすい 手順：' + weak.map((g) => esc(g.label) + '（' + g.percent + '%）').join('・') + '</p>' : '<p>すべての 手順を ひとりで できました。</p>') +
+    '<div class="row"><button type="button" class="primary" id="as-close">とじる</button></div>',
+  () => { $('as-close').onclick = closeModal; });
 }
 
 function showResult() {
@@ -7840,7 +7892,7 @@ function showResult() {
     at: new Date().toISOString(),
     jobId: b.job.id, taskName: b.job.name + '（' + b.job.work + '）', category: b.job.category,
     phase: {
-      label: state.withSupport ? 'VR 体験（配慮あり）' : 'VR 体験（配慮なし）',
+      label: state.withSupport ? 'VR 体験（配慮あり）' : state.assess ? 'VR 体験（アセスメント）' : 'VR 体験（配慮なし）',
       withSupport: state.withSupport,
       supports: state.withSupport ? SUPPORTS_WITH : SUPPORTS_WITHOUT,
       durationSec, completed: s.completed, inspected: s.inspected, defects: s.defects,
@@ -7848,6 +7900,8 @@ function showResult() {
       observation: '',
     },
   };
+  const assess = state.assess ? assessSummary(s.steps) : null;
+  if (assess) entry.assessment = { percent: assess.percent, total: assess.total, ok: assess.ok, hint: assess.hint, miss: assess.miss, steps: assess.rows.map(({ label, n, ok, hint, miss, percent }) => ({ label, n, ok, hint, miss, percent })) };
   logEntries.unshift(entry); saveLog(); renderLog();
   const rw = rewardFor(b.job, s, state.withSupport); state.lastReward = rw;
   cloudPost({ action: 'addLog', name: profile ? profile.name : '', entry: Object.assign({}, entry, { medal: rw ? rw.medal : '', pay: rw ? rw.pay : 0 }) });
@@ -7857,11 +7911,12 @@ function showResult() {
   }
   // おわったら その しごとの スタート画面へ もどる（結果は スタート画面と トーストで 見せる）
   state.session = null; state.round = null; state.feedback = { text: '', kind: '' };
-  state.lastResult = { job: b.job, work: b.job.work, completed: s.completed, defects: s.defects, questionCount: s.questionCount, promptCount: s.promptCount, durationSec, rw };
+  state.lastResult = { job: b.job, work: b.job.work, completed: s.completed, defects: s.defects, questionCount: s.questionCount, promptCount: s.promptCount, durationSec, rw, assess: assess ? assess.percent : null };
   if (!wasField) moveRig(b.group.localToWorld(new THREE.Vector3(0, 0, STAFF_Z)), b.yaw + Math.PI, 0.12, 600); // 店員の 立ち位置に もどる
   showChoose(); renderHud();
-  toast('おつかれさまでした！ できた ' + s.completed + ' こ・ミス ' + s.defects + ' 回' + (rw ? '・バッジ：' + MEDAL[rw.medal] : ''));
+  toast('おつかれさまでした！ できた ' + s.completed + ' こ・ミス ' + s.defects + ' 回' + (assess ? '・達成度 ' + assess.percent + '%' : '') + (rw ? '・バッジ：' + MEDAL[rw.medal] : ''));
   speak('おつかれさまでした。');
+  if (assess) openAssessResult(b.job, assess, durationSec);
 }
 
 function fmtDuration(sec) { const m = Math.floor(sec / 60); const s = sec % 60; return (m ? m + '分' : '') + s + '秒'; }
@@ -8202,6 +8257,7 @@ function handleRay(ray) {
   if (obj.userData.slotIndex !== undefined) { onSelectItem(obj.userData.slotIndex); return; }
   const b = state.booth; if (!b) return;
   if (obj === b.btns.without) startSession(false);
+  else if (obj === b.btns.assess) startSession(false, true);
   else if (obj === b.btns.with) startSession(true);
   else if (obj === b.btns.again) showChoose();
   else if (obj === b.btns.hint) useHint(false);
@@ -8585,12 +8641,12 @@ function renderHud() {
   }
   if (state.phase === 'choose') {
     const lr = lastResultFor(job);
-    const lastHtml = lr ? '<div class="feedback ok">前回：できた ' + lr.completed + ' こ・ミス ' + lr.defects + ' 回・ヒント ' + lr.questionCount + ' 回・' + fmtDuration(lr.durationSec) +
+    const lastHtml = lr ? '<div class="feedback ok">前回：できた ' + lr.completed + ' こ・ミス ' + lr.defects + ' 回・ヒント ' + lr.questionCount + ' 回・' + fmtDuration(lr.durationSec) + (lr.assess !== null && lr.assess !== undefined ? '・達成度 ' + lr.assess + '%' : '') +
       (lr.rw ? '　バッジ：' + MEDAL[lr.rw.medal] + (lr.rw.up ? '（新しく もらいました）' : '') + (lr.rw.pay ? '　おきゅうりょう ' + yen(lr.rw.pay) : '') : '') + '</div>' : '';
     el.innerHTML = '<span class="tag">' + esc(job.name) + '</span><h2>' + esc(job.work) + '</h2><div>' + esc(job.intro) + '</div>' +
-      '<div class="row"><button type="button" id="h-without">はじめる：配慮なし</button><button type="button" class="primary" id="h-with">はじめる：配慮あり</button>' + exitBtn + '</div>' +
-      '<div class="meta"><span>配慮ありは 銀バッジまで。金バッジは 配慮なしで ミス 0・ヒント 0。</span></div>' + lastHtml;
-    $('h-without').onclick = () => startSession(false); $('h-with').onclick = () => startSession(true);
+      '<div class="row"><button type="button" id="h-without">はじめる：配慮なし</button><button type="button" class="primary" id="h-with">はじめる：配慮あり</button><button type="button" id="h-assess">アセスメント（達成度）</button>' + exitBtn + '</div>' +
+      '<div class="meta"><span>配慮ありは 銀バッジまで。金バッジは 配慮なしで ミス 0・ヒント 0。アセスメントは 配慮なしと 同じ 条件で、手順ごとに 見て 達成度（%）を 出します。</span></div>' + lastHtml;
+    $('h-without').onclick = () => startSession(false); $('h-with').onclick = () => startSession(true); $('h-assess').onclick = () => startSession(false, true);
     if ($('h-exit')) $('h-exit').onclick = exitToWalk;
     const fun = { ski: season === 'winter' && ['自分も スキーを する', startSki], rink: season === 'winter' && ['自分も すべる', () => { const c = LAKE.blk; startWalk(new THREE.Vector3(c.x, 0, c.z), 0); }],
       hut: season === 'summer' && ['山に のぼる', startClimb], yatai: ['お客さんとして 買う', openYataiShop] }[job.id];
@@ -8609,7 +8665,7 @@ function renderHud() {
   if (r.slide) steps += '<div>◀ ▶ で 通路を 歩けます（かごも いっしょ。VR は 左スティック）</div>';
   const stat = r.status || (r.fishing && r.fishing.status); if (stat) steps += '<div>' + esc(stat()) + '</div>';
   const worn = wornGroup.children.map((c) => WEAR_NAME[c.userData.wear]); if (worn.length) steps += '<div>身に つけている：' + esc(worn.join('・')) + '</div>';
-  el.innerHTML = '<span class="tag">' + esc(job.name) + '・' + (state.withSupport ? '配慮あり' : '配慮なし') + '</span>' +
+  el.innerHTML = '<span class="tag">' + esc(job.name) + '・' + (state.withSupport ? '配慮あり' : state.assess ? 'アセスメント' : '配慮なし') + '</span>' +
     '<h2>' + esc(state.withSupport ? r.def.title : r.def.shortTitle) + '</h2>' +
     (r.def.carryText ? '<div>' + esc(r.def.carryText) + '</div>' : '') + steps +
     '<div class="feedback ' + state.feedback.kind + '">' + esc(state.feedback.text) + '</div>' +
@@ -12332,8 +12388,8 @@ function saveLog() { try { localStorage.setItem('hope-vr-draft-log', JSON.string
 function renderLog() {
   const t = $('log-table');
   if (!logEntries.length) { t.innerHTML = '<tr><td>まだ ありません。お店で 体験すると ここに 残ります。</td></tr>'; return; }
-  t.innerHTML = '<tr><th>しごと</th><th>場面</th><th>できた</th><th>ミス</th><th>ヒント/ガイド</th><th>時間</th></tr>' +
-    logEntries.map((e) => '<tr><td>' + esc(e.taskName) + '</td><td>' + (e.phase.withSupport ? '配慮あり' : '配慮なし') + '</td><td>' + e.phase.completed + '</td><td>' + e.phase.defects + '</td><td>' + e.phase.questionCount + ' / ' + e.phase.promptCount + '</td><td>' + fmtDuration(e.phase.durationSec) + '</td></tr>').join('');
+  t.innerHTML = '<tr><th>しごと</th><th>場面</th><th>できた</th><th>ミス</th><th>ヒント/ガイド</th><th>時間</th><th>達成度</th></tr>' +
+    logEntries.map((e) => '<tr><td>' + esc(e.taskName) + '</td><td>' + (e.phase.withSupport ? '配慮あり' : e.assessment ? 'アセスメント' : '配慮なし') + '</td><td>' + e.phase.completed + '</td><td>' + e.phase.defects + '</td><td>' + e.phase.questionCount + ' / ' + e.phase.promptCount + '</td><td>' + fmtDuration(e.phase.durationSec) + '</td><td>' + (e.assessment ? e.assessment.percent + '%' : '') + '</td></tr>').join('');
 }
 function toggleLog(force) { const el = $('log'); el.hidden = force === undefined ? !el.hidden : !force; if (!el.hidden) renderLog(); }
 $('btn-log').addEventListener('click', () => toggleLog());

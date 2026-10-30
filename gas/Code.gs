@@ -14,7 +14,7 @@ const SHEET_PROFILES = 'profiles';
 const SHEET_LOGS = 'logs';
 const PROFILE_HEADERS = ['id', 'name', 'gender', 'mode', 'home', 'money', 'badges', 'owned', 'snacks', 'updatedAt', 'profile_json'];
 const LOG_HEADERS = ['savedAt', 'id', 'name', 'at', 'jobId', 'taskName', 'category', 'label', 'withSupport', 'supports',
-  'durationSec', 'completed', 'inspected', 'defects', 'promptCount', 'questionCount', 'medal', 'pay'];
+  'durationSec', 'completed', 'inspected', 'defects', 'promptCount', 'questionCount', 'medal', 'pay', 'assessPercent', 'assessSteps'];
 const ID_RE = /^[0-9A-Za-z_\-ぁ-んァ-ヶー一-龠]{1,32}$/;
 
 function doGet(e) {
@@ -78,6 +78,7 @@ function addLog_(id, name, entry) {
     new Date(), id, name, entry.at || '', entry.jobId || '', entry.taskName || '', entry.category || '', ph.label || '',
     !!ph.withSupport, (ph.supports || []).join('・'), ph.durationSec || 0, ph.completed || 0, ph.inspected || 0,
     ph.defects || 0, ph.promptCount || 0, ph.questionCount || 0, entry.medal || '', entry.pay || 0,
+    entry.assessment ? entry.assessment.percent : '', entry.assessment ? JSON.stringify(entry.assessment.steps) : '',
   ]);
   return { ok: true };
 }
@@ -97,6 +98,8 @@ function sheet_(name, headers) {
     sh = ss.insertSheet(name);
     sh.appendRow(headers);
     sh.setFrozenRows(1);
+  } else if (sh.getLastColumn() < headers.length) {
+    sh.getRange(1, 1, 1, headers.length).setValues([headers]); // 列が ふえたら 見出しを 足す
   }
   return sh;
 }
