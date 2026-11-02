@@ -5255,11 +5255,13 @@ function startCafe(b, def) {
           b.group.add(b.panel); b.panel.position.set(0, 0, PANEL_Z); b.panel.rotation.y = Math.PI; b.panel.scale.setScalar(1); b.panelOut = false;
           for (let i = anims.length - 1; i >= 0; i--) if (anims[i].obj === ch) anims.splice(i, 1);
           ch.position.set(0, 0.9, COUNTER_Z - 0.28);
-          moveRig(b.group.localToWorld(new THREE.Vector3(0, 0, STAFF_Z)), b.yaw + Math.PI, 0.12, 900);
-          state.feedback = { text: 'できあがり！ ふりかえって わたそう', kind: 'ok' }; drawWorkBoard();
+          const vr = renderer.xr.isPresenting; r.cupReady = true; // VR：ここから カップを 手で 持って わたせる（vrCupGrab）
+          moveRig(b.group.localToWorld(new THREE.Vector3(0, 0, vr ? CAFE_HAND.stand : STAFF_Z)), b.yaw + Math.PI, 0.12, 900); // VR は 台に 手が 届く ところまで 前へ
+          state.feedback = { text: vr ? 'できあがり！ カップを トリガーで 持って、お客さまの 前で はなして わたそう' : 'できあがり！ ふりかえって わたそう', kind: 'ok' }; drawWorkBoard();
         }, k === 'コーヒーマシン' ? 1500 : 800);
       }
     } };
+  r.cup = cup.holder;
   state.round = r;
   moveRig(b.group.localToWorld(new THREE.Vector3(0, 0, CAFE.standZ)), b.yaw, 0.1, state.session.roundIndex ? 900 : undefined); // 奥の 台を 向く
   state.feedback = { text: '', kind: '' };
@@ -7821,6 +7823,9 @@ function onSelectItem(slotIndex, opt) {
   const r = state.round; if (!r || state.phase !== 'work') return;
   const slot = r.slots[slotIndex]; if (!slot || slot.done) return;
   if (binocView) return; // 双眼鏡を のぞいて いる あいだは えらばない（おろしてから）
+  if (renderer.xr.isPresenting && r.def.layout === 'cafe' && slot.key === 'お客さま' && r.cupReady && !(opt && opt.hand)) { // VR：カップを 手で 持って わたす
+    state.feedback = { text: 'カップを トリガーで 持って、お客さまの 前で はなして わたそう', kind: 'ok' }; drawWorkBoard(); renderHud(); return;
+  }
   r.lastActionAt = performance.now();
   playSfx(sfxKind(slot)); // さわった 物の 音（正しくても まちがいでも）
   // まだ えらべない とき（釣りで あたりの 前 など）は ミスに しないで 声かけだけ
@@ -7966,6 +7971,10 @@ function useHint(auto) {
     cv.mark.position.set(t.x, (cv.walk ? cv.markY : cv.topY + 0.01), t.z); cv.mark.visible = true; r.hintShown = true; r.lastActionAt = performance.now();
     state.feedback = { text: cv.hintText || 'ヒント：まだ ふいていない ところが 光っています', kind: 'ok' }; speak(cv.hintSay || 'まだ ふいていない ところが あります。');
     drawWorkBoard(); renderHud(); return;
+  }
+  if (vrCup && vrCup.r === r) { // VR で カップを 持って いる：わたす 場所を 教える
+    if (auto) state.session.promptCount++; else state.session.questionCount++;
+    r.hintShown = true; r.lastActionAt = performance.now(); state.feedback = { text: 'ヒント：光る 輪の 上で はなす', kind: 'ok' }; speak('お客さまの 前の、光る ところで、トリガーを はなします。'); drawWorkBoard(); renderHud(); return;
   }
   if (vrTray && vrTray.r === r) { // VR で おぜんを 持って いる：名札の 席を 光らせる
     const key = nextTargetKey(); const sl = r.slots.find((x) => x.key === key && !x.done); if (!sl) return;
@@ -8449,14 +8458,57 @@ function stepVrCare(dt) {
   const w = W.localToWorld(p); rig.position.x = w.x; rig.position.z = w.z;
 }
 
+// ---- カフェの さいごを VR で：できあがった カップを トリガーで 持ち、台の 向こうの お客さまの 前で はなして わたす。
+//   カップは まっすぐ 立てた まま 手の 下に 持つ。台の まんなかより お客さまがわ（光る 輪）で はなすと わたせる。
+//   それより 手前で はなしても 落とさず 持った まま。お客さまを ゆびさすだけでは わたさない（onSelectItem）。
+const CAFE_HAND = { stand: 1.5, z: COUNTER_Z, ring: [0, 0.905, COUNTER_Z + 0.25] }; // VR の 立ち位置・わたせる さかい（z）・輪
+let vrCup = null; // { r, ctrl }
+const vrCafeOn = () => { const r = state.round; return renderer.xr.isPresenting && !!r && r.def.layout === 'cafe' && !!r.cupReady && state.phase === 'work' && state.where === 'booth'; };
+const vrCupOver = (p) => Math.abs(p.x) < 0.7 && p.z > CAFE_HAND.z && p.z < COUNTER_Z + 0.6 && p.y > 0.85 && p.y < 1.7;
+function vrCupGrab(c) {
+  if (!vrCafeOn()) return false;
+  if (vrCup) { vrCup.ctrl = c; return true; }
+  const r = state.round; const ray = vrCtrlRay(c); if (vrmHit(ray)) return false;
+  const hand = new THREE.Vector3().setFromMatrixPosition(c.matrixWorld);
+  let hit = r.cup.getWorldPosition(new THREE.Vector3()).distanceTo(hand) < 0.35; // 手の 近く
+  if (!hit) { const ms = []; r.cup.traverse((m) => { if (m.isMesh) ms.push(m); }); hit = ray.intersectObjects(ms, false).length > 0; } // ゆびさした
+  if (!hit) return false;
+  for (let i = anims.length - 1; i >= 0; i--) if (anims[i].obj === r.cup) anims.splice(i, 1);
+  vrCup = { r, ctrl: c }; playSfx('pop'); r.lastActionAt = performance.now();
+  state.feedback = { text: 'お客さまの 前（光る ところ）で はなして わたそう', kind: 'ok' }; drawWorkBoard(); renderHud();
+  return true;
+}
+function vrCupRelease(c) {
+  const h = vrCup; if (!h || h.ctrl !== c) return;
+  const r = h.r; if (r !== state.round || state.phase !== 'work') { vrCup = null; return; }
+  if (!vrCupOver(r.cup.position)) { state.feedback = { text: 'もう 少し 前、お客さまの 前で はなすと わたせます', kind: 'ng' }; drawWorkBoard(); renderHud(); return; } // 持った まま
+  vrCup = null; if (r.cupRing) r.cupRing.visible = false;
+  const i = r.slots.findIndex((sl) => sl.key === 'お客さま');
+  onSelectItem(i, { hand: true });
+}
+function stepVrCup() {
+  const h = vrCup;
+  if (h && (h.r !== state.round || state.phase !== 'work' || !renderer.xr.isPresenting)) {
+    vrCup = null; if (h.r.cupRing) h.r.cupRing.visible = false;
+    if (h.r === state.round && state.phase === 'work') h.r.cup.position.set(0, 0.9, COUNTER_Z - 0.28); // VR を 出た：台に もどす（画面で つづけられる）
+    return;
+  }
+  if (!h) return;
+  const r = h.r; const W = state.booth.workArea;
+  const hp = W.worldToLocal(new THREE.Vector3().setFromMatrixPosition(h.ctrl.matrixWorld));
+  r.cup.position.set(hp.x, hp.y - 0.12, hp.z); r.cup.rotation.set(0, 0, 0); // 手の 下に まっすぐ
+  if (!r.cupRing) { r.cupRing = makeGlowRing(); r.cupRing.scale.setScalar(1.6); r.cupRing.position.set(...CAFE_HAND.ring); W.add(r.cupRing); }
+  r.cupRing.visible = true; r.cupRing.material.opacity = vrCupOver(r.cup.position) ? 0.95 : 0.4; // 持って いる あいだ わたす 場所を 見せる。上に 来たら こく
+}
+
 // VR コントローラー
 const tempMatrix = new THREE.Matrix4();
 for (let i = 0; i < 2; i++) {
   const c = renderer.xr.getController(i);
   const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, -4)]), new THREE.LineBasicMaterial({ color: '#ffd23f' }));
   c.add(line);
-  c.addEventListener('selectstart', () => { const r = state.round; if (r && r.cover && r.cover.kind === 'wipe') r.cover.ctrl = c; c.userData.pickUsed = vrPickGrab(c) || vrTrayGrab(c); });
-  c.addEventListener('selectend', () => { const r = state.round; if (r && r.cover && r.cover.ctrl === c) r.cover.ctrl = null; vrPickRelease(c); vrTrayRelease(c); });
+  c.addEventListener('selectstart', () => { const r = state.round; if (r && r.cover && r.cover.kind === 'wipe') r.cover.ctrl = c; c.userData.pickUsed = vrPickGrab(c) || vrTrayGrab(c) || vrCupGrab(c); });
+  c.addEventListener('selectend', () => { const r = state.round; if (r && r.cover && r.cover.ctrl === c) r.cover.ctrl = null; vrPickRelease(c); vrTrayRelease(c); vrCupRelease(c); });
   c.addEventListener('select', () => {
     if (c.userData.pickUsed) { c.userData.pickUsed = false; return; } // 品物を にぎる・はなす 操作だった（はなした ときに もう 一度 えらばない）
     tempMatrix.identity().extractRotation(c.matrixWorld);
@@ -12878,6 +12930,7 @@ renderer.setAnimationLoop((now) => {
   stepVrMenu(dt, now);
   stepVrPick();
   stepVrCare(dt);
+  stepVrCup();
   if (now - (drawMinimap.last || 0) > 100) { drawMinimap.last = now; drawMinimap(); } // 地図は 1 秒に 10 回で じゅうぶん
   kcRenderScreen(now); // 競馬場の 大型ビジョン
   renderer.render(scene, camera);
