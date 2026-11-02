@@ -8300,7 +8300,7 @@ vrBtn.addEventListener('click', async () => {
     renderer.xr.setReferenceSpaceType('local-floor');
     await renderer.xr.setSession(s);
     camera.position.set(0, 0, 0);
-    setTimeout(() => toast('B か Y ボタンで メニュー（作業一覧・行き先・設定）が 出ます'), 800);
+    setTimeout(() => toast('B か Y ボタンで メニュー（作業一覧・MAP・設定）が 出ます'), 800);
     s.addEventListener('end', () => { xrSession = null; vrBtn.textContent = 'VR で入る'; camera.position.set(0, 1.6, 0); });
   } catch (e) { toast('VR を開けませんでした。ヘッドセットのブラウザで開いてください。'); }
 });
@@ -12427,7 +12427,7 @@ const vrMenu = (() => {
   mesh.renderOrder = 9990; mesh.visible = false; mesh.frustumCulled = false; rig.add(mesh);
   return { c, ctx: c.getContext('2d'), tex, mesh, tab: 'now', scroll: 0, maxScroll: 0, regions: [], hover: -1, dirty: true, drawnAt: 0, wasModal: false, btnPrev: {} };
 })();
-const VRM_TABS = [['now', 'いま'], ['go', '行き先'], ['menu', 'メニュー']];
+const VRM_TABS = [['now', 'いま'], ['go', 'MAP'], ['menu', 'メニュー']];
 const vrmVisible = (el) => !el.closest('[hidden]') && getComputedStyle(el).display !== 'none' && getComputedStyle(el).visibility !== 'hidden';
 const vrmText = (s) => String(s || '').replace(/\s+/g, ' ').trim();
 // 画面の 一部（DOM）を、板に 描く 部品の 列に する
@@ -12462,7 +12462,7 @@ function vrmCollect(root, out) {
 function vrmItems() {
   const modalOpen = !modal.hidden;
   if (modalOpen) return vrmCollect(modalCard, []);
-  if (vrMenu.tab === 'go') return vrmCollect(chipsEl, [{ t: 'head', text: '行き先を えらぶ' }]);
+  if (vrMenu.tab === 'go') return vrmCollect(chipsEl, [{ t: 'head', text: 'MAP（行き先を えらぶ）' }]);
   if (vrMenu.tab === 'menu') return vrmCollect(document.querySelector('header.hud.top'), [{ t: 'head', text: 'メニュー' }]);
   const out = [];
   if (!$('log').hidden) vrmCollect($('log'), out);
