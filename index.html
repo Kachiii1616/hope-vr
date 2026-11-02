@@ -6670,7 +6670,7 @@ function startPicking(b, def) {
   }
   state.round = { def, slots, pos: 0, lastActionAt: performance.now(), hintShown: false, mistakeThisRound: false, paintSlip, inBox: 0, crate,
     ngText: (slot) => (slot.key === 'お客さま' ? 'さきに ' + slipDef.title + 'の ' + (slipDef.what || '持ち物') + 'を そろえよう' : def.handTo ? slipDef.title + 'を たしかめよう' : null) };
-  state.feedback = { text: '', kind: '' };
+  state.feedback = renderer.xr.isPresenting ? { text: '品物を トリガーで にぎって、箱の 上で はなします', kind: 'ok' } : { text: '', kind: '' };
   drawWorkBoard();
   renderHud();
   if (state.withSupport) speak(def.title + '。');
@@ -7474,12 +7474,12 @@ function wipeFurniture(W, f) {
 }
 // モップ：自分が 立てる ところ・家具に ぶつかるか・ヘッドの 位置（家具や かべの 手前で 止める）
 const mopFree = (x, z) => x > ROOM.x0 + 0.3 && x < ROOM.x1 - 0.3 && z > ROOM.z0 + 0.2 && z < ROOM.z1 - 0.35;
-const mopHits = (things, x, z) => things.some((o) => x > o.x - o.w / 2 - 0.4 && x < o.x + o.w / 2 + 0.4 && z > o.z - o.d / 2 - 0.4 && z < o.z + o.d / 2 + 0.4); // ヘッドを 家具の 手前に 置ける 間を とる
-function mopHead(things, px, pz, dx, dz) {
+const mopHits = (things, x, z) => things.some((o) => x > o.x - o.w / 2 - 0.3 && x < o.x + o.w / 2 + 0.3 && z > o.z - o.d / 2 - 0.3 && z < o.z + o.d / 2 + 0.3); // 体が 家具に ぶつかる はんい（ヘッドを 家具の 手前に 置ける 間）
+function mopHead(things, px, pz, dx, dz, maxReach) {
   const HR = 0.2; // ヘッドの 大きさ（半分）
   const bad = (x, z) => x < ROOM.x0 + HR || x > ROOM.x1 - HR || z < ROOM.z0 + 0.1 || z > ROOM.z1 - 0.1
     || things.some((o) => x > o.x - o.w / 2 - HR && x < o.x + o.w / 2 + HR && z > o.z - o.d / 2 - HR && z < o.z + o.d / 2 + HR);
-  let reach = 0.85;
+  let reach = maxReach || 0.85;
   while (reach > 0.15 && bad(px + dx * reach, pz + dz * reach)) reach -= 0.05;
   const x = px + dx * reach; const z = pz + dz * reach;
   return { x, z, blocked: bad(x, z) };
@@ -7498,14 +7498,14 @@ const CLEAN_LAYOUTS = {
       for (let k = 0; k < 40; k++) { c.fillStyle = 'rgba(95,70,45,0.55)'; c.beginPath(); c.ellipse(Math.random() * w, Math.random() * h, 8 + Math.random() * 26, 6 + Math.random() * 16, Math.random() * 3, 0, Math.PI * 2); c.fill(); }
     });
     things.forEach((o) => surf.exclude(o.x - o.w / 2, o.z - o.d / 2, o.x + o.w / 2, o.z + o.d / 2));
-    const hits = (x, z) => mopHits(things, x, z); const head = (px, pz, dx, dz) => mopHead(things, px, pz, dx, dz);
-    coverReach(surf, mopFree, hits, head, 0, STAFF_Z, 0.28); // モップの ヘッドが どこからも 届かない 床（家具と かべの すきま など）は 数えない
+    const hits = (x, z) => mopHits(things, x, z); const head = (px, pz, dx, dz, mr) => mopHead(things, px, pz, dx, dz, mr);
+    coverReach(surf, mopFree, hits, head, 0, STAFF_Z, 0.32); // モップの ヘッドが どこからも 届かない 床（家具と かべの すきま など）は 数えない
     // モップ（店員の 前の ゆかに ヘッド、手もとへ 柄）
     const mop = new THREE.Group(); W.add(mop);
     part(mop, box(0.5, 0.05, 0.14), '#3d6f85', 0, 0.03, 0);
     for (let k = 0; k < 10; k++) part(mop, box(0.035, 0.05, 0.12), '#e8eef2', -0.22 + k * 0.049, 0.01, 0);
     const handle = part(mop, cyl(0.016, 0.016, 1.2, 8), '#c9a46a', 0, 0.55, -0.3); handle.rotation.x = -0.55;
-    ctx.cover = { kind: 'mop', walk: true, surf, space: b.group, free: mopFree, hits, head, tool: mop, toolY: 0.1, r: 0.28, pos: { x: 0, z: STAFF_Z }, lastBump: 0, mark: hintMark(W, 0.28), markY: 0.11,
+    ctx.cover = { kind: 'mop', walk: true, surf, space: b.group, free: mopFree, hits, head, tool: mop, toolY: 0.1, r: 0.32, pos: { x: 0, z: STAFF_Z }, lastBump: 0, mark: hintMark(W, 0.32), markY: 0.11,
       back: () => moveRig(b.group.localToWorld(new THREE.Vector3(0, 0, STAFF_Z)), b.yaw + Math.PI, 0.55, 500) };
     // 店員の 立ち位置から はじめる
     moveRig(b.group.localToWorld(new THREE.Vector3(0, 0, STAFF_Z)), b.yaw + Math.PI, 0.55, 400);
@@ -7585,11 +7585,11 @@ const snowFree = (x, z) => (Math.abs(x) < SNOWY.side - 0.3 && z > SNOWY.fence + 
   || (Math.abs(x) < SNOWY.gate - 0.3 && z > SNOWY.fence - 0.4 && z < SNOWY.fence + 0.4)
   || (Math.abs(x) < SNOWY.side - 0.3 && z > SNOWY.walk[0] + 0.25 && z < SNOWY.fence - 0.3);
 // スコップの 先（柵・家・ものの 手前で 止める）
-function shovelHead(px, pz, dx, dz) {
+function shovelHead(px, pz, dx, dz, maxReach) {
   const S = SNOWY; const HR = 0.2;
   const bad = (x, z) => !((Math.abs(x) < S.side - HR && z > S.fence + 0.1 && z < S.porch) || (Math.abs(x) < S.gate - HR && z > S.fence - 0.25 && z < S.fence + 0.25) || (Math.abs(x) < S.side - HR && z > S.walk[0] + 0.05 && z < S.fence - 0.1))
     || S.things.some((o) => x > o.x - o.w / 2 - HR && x < o.x + o.w / 2 + HR && z > o.z - o.d / 2 - HR && z < o.z + o.d / 2 + HR);
-  let reach = 0.85;
+  let reach = maxReach || 0.85;
   while (reach > 0.15 && bad(px + dx * reach, pz + dz * reach)) reach -= 0.05;
   const x = px + dx * reach; const z = pz + dz * reach;
   return { x, z, blocked: bad(x, z) };
@@ -7673,8 +7673,9 @@ function coverLocalDir(g) { camera.getWorldDirection(coverTmp); const d = coverT
 function coverProgress(r, n, now) {
   if (n > 0) { r.lastActionAt = now; if (!r.cover.lastSfx || now - r.cover.lastSfx > 220) { r.cover.lastSfx = now; playSfx(r.cover.sfx || 'wipe'); } if (r.cover.mark.visible && !r.cover.surf.isDirty(r.cover.mark.position.x, r.cover.mark.position.z)) r.cover.mark.visible = false; if (r.cover.grow) r.cover.grow(r.cover.surf.ratio()); }
   const pct = Math.floor(r.cover.surf.ratio() * 100);
-  if (pct !== r.cover.pct) { r.cover.pct = pct; if (!r.cover.lastDraw || now - r.cover.lastDraw > 250 || r.cover.surf.ratio() >= 0.97) { r.cover.lastDraw = now; drawWorkBoard(); renderHud(); } }
-  if (r.cover.surf.ratio() >= 0.97 && !r.cover.done) {
+  if (pct !== r.cover.pct) { r.cover.pct = pct; if (!r.cover.lastDraw || now - r.cover.lastDraw > 250 || r.cover.surf.ratio() >= 0.95) { r.cover.lastDraw = now; drawWorkBoard(); renderHud(); } }
+  const goal = r.cover.walk ? 0.95 : 0.97; // 歩いて ふく もの（モップ・雪かき）は すみの 少しの のこりで 止まらないよう 95%
+  if (r.cover.surf.ratio() >= goal && !r.cover.done) {
     r.cover.done = true; r.cover.surf.clearAll(); r.cover.mark.visible = false;
     if (r.cover.back) r.cover.back();
     finishRound();
@@ -7713,16 +7714,44 @@ function stepCover(dt, now) {
   const free = cv.free; const hits = cv.hits;
   if (fwd || strafe) {
     const sp = 1.3 * dt; const dx = (dir.x * fwd - dir.z * strafe) * sp; const dz = (dir.z * fwd + dir.x * strafe) * sp;
-    const nx = cv.pos.x + dx; const nz = cv.pos.z + dz;
-    if (hits(nx, nz)) {
+    const nx = cv.pos.x + dx; const nz = cv.pos.z + dz; const ok = (x, z) => free(x, z) && !hits(x, z);
+    // 家具の 角や 横を かすめる ときは、家具ぞいに すべって 進む（まっすぐ ぶつかった ときだけ「ぶつかった」）
+    if (ok(nx, nz)) { cv.pos.x = nx; cv.pos.z = nz; } else if (Math.abs(dx) > 1e-4 && ok(nx, cv.pos.z)) cv.pos.x = nx; else if (Math.abs(dz) > 1e-4 && ok(cv.pos.x, nz)) cv.pos.z = nz;
+    else if (hits(nx, nz)) {
       if (now - cv.lastBump > 1200) { cv.lastBump = now; playSfx('bump'); state.session.defects++; r.mistakeThisRound = true; state.feedback = { text: 'ものに ぶつかりました。よけて 進もう', kind: 'ng' }; if (state.withSupport) speak('ぶつかりました。よけて 進もう。'); drawWorkBoard(); renderHud(); }
-    } else if (free(nx, nz)) { cv.pos.x = nx; cv.pos.z = nz; } else if (free(nx, cv.pos.z) && !hits(nx, cv.pos.z)) cv.pos.x = nx; else if (free(cv.pos.x, nz) && !hits(cv.pos.x, nz)) cv.pos.z = nz;
+    }
     const w = cv.space.localToWorld(new THREE.Vector3(cv.pos.x, 0, cv.pos.z)); rig.position.x = w.x; rig.position.z = w.z;
   }
-  // 道具の 先は 前の ゆかへ。家具や かべ・柵に 当たる ときは その 手前で 止める（すり抜けない）
-  const hd = cv.head(cv.pos.x, cv.pos.z, dir.x, dir.z);
-  cv.tool.position.set(hd.x, cv.toolY, hd.z); cv.tool.rotation.y = Math.atan2(dir.x, dir.z);
-  if (!hd.blocked) coverProgress(r, cv.surf.erase(hd.x, hd.z, cv.r), now);
+  // 道具の 先は ゆびさした ゆかへ（VR：コントローラー、ほか：画面の まんなか。下を 向くほど 手前）。
+  //   家具や かべ・柵に 当たる ときは その 手前で 止める（すり抜けない）
+  const aim = coverAim(cv);
+  const hd = cv.head(aim.ox, aim.oz, aim.dx, aim.dz, aim.reach);
+  cv.tool.position.set(hd.x, cv.toolY, hd.z); cv.tool.rotation.y = Math.atan2(aim.dx, aim.dz);
+  if (hd.blocked) { cv.lastHead = null; return; }
+  // 前の フレームの 位置から 今の 位置までを つないで ふく（すばやく まわしても すきまが 出ない）
+  let n = 0; const lh = cv.lastHead; const gap = lh ? Math.hypot(hd.x - lh.x, hd.z - lh.z) : 0;
+  if (lh && gap > cv.r * 0.5 && gap < 0.7) { const k = Math.ceil(gap / (cv.r * 0.5)); for (let i = 1; i < k; i++) n += cv.surf.erase(lh.x + (hd.x - lh.x) * i / k, lh.z + (hd.z - lh.z) * i / k, cv.r); }
+  n += cv.surf.erase(hd.x, hd.z, cv.r); cv.lastHead = { x: hd.x, z: hd.z };
+  coverProgress(r, n, now);
+}
+// モップ・スコップの 先を どこへ 向けるか：ゆびさした（見ている）ゆかの 点への 向きと きょり（0.35〜1.0 m）
+const aimPlane = new THREE.Plane(); const aimHit = new THREE.Vector3(); const aimRay = new THREE.Raycaster();
+function coverAim(cv) {
+  const sp = cv.space; sp.updateMatrixWorld(true);
+  const floorY = sp.localToWorld(new THREE.Vector3(0, cv.toolY, 0)).y; aimPlane.set(new THREE.Vector3(0, 1, 0), -floorY);
+  let ox = cv.pos.x; let oz = cv.pos.z;
+  if (renderer.xr.isPresenting) { const hp = sp.worldToLocal(camera.getWorldPosition(new THREE.Vector3())); if (Math.hypot(hp.x - ox, hp.z - oz) < 0.6) { ox = hp.x; oz = hp.z; } } // 体を 少し かたむけた ぶんも
+  let got = false;
+  if (renderer.xr.isPresenting) {
+    const ctl = [0, 1].map((i) => renderer.xr.getController(i)).filter((c) => c.visible); ctl.sort((a, b) => (b.userData.hand === 'right') - (a.userData.hand === 'right')); // 右手を 先に
+    for (const c of ctl) { tempMatrix.identity().extractRotation(c.matrixWorld); aimRay.ray.origin.setFromMatrixPosition(c.matrixWorld); aimRay.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix); if (aimRay.ray.intersectPlane(aimPlane, aimHit)) { got = true; break; } }
+  }
+  if (!got) { aimRay.ray.origin.copy(camera.getWorldPosition(new THREE.Vector3())); camera.getWorldDirection(aimRay.ray.direction); got = !!aimRay.ray.intersectPlane(aimPlane, aimHit); }
+  if (got) {
+    const p = sp.worldToLocal(aimHit.clone()); const dx = p.x - ox; const dz = p.z - oz; const d = Math.hypot(dx, dz);
+    if (d > 0.05) return { ox, oz, dx: dx / d, dz: dz / d, reach: Math.max(0.35, Math.min(1.0, d)) };
+  }
+  const dir = coverLocalDir(sp) || { x: 0, z: 1 }; return { ox, oz, dx: dir.x, dz: dir.z, reach: 0.85 };
 }
 
 
@@ -7787,7 +7816,7 @@ function drawWorkBoard() {
   });
 }
 
-function onSelectItem(slotIndex) {
+function onSelectItem(slotIndex, opt) {
   const r = state.round; if (!r || state.phase !== 'work') return;
   const slot = r.slots[slotIndex]; if (!slot || slot.done) return;
   if (binocView) return; // 双眼鏡を のぞいて いる あいだは えらばない（おろしてから）
@@ -7804,6 +7833,8 @@ function onSelectItem(slotIndex) {
   const target = nextTargetKey();
   const ok = r.def.ordered ? slot.key === target : remainingKeys().includes(slot.key);
   if (ok) {
+    // VR の ピッキング：正しい 品物を にぎった ところ。箱の 上で はなした ときに 「できた」に する（vrPickRelease）
+    if (opt && opt.grab) { slot.ring.visible = false; r.hintShown = false; state.feedback = { text: '箱の 上で トリガーを はなして 入れよう', kind: 'ok' }; if (state.withSupport) speak('箱の 上で はなして 入れよう。'); drawWorkBoard(); renderHud(); return 'grab'; }
     assessStep(stepLabel(slot.key));
     slot.done = true; if (r.def.ordered) r.pos++;
     slot.ring.visible = false; r.hintShown = false;
@@ -7934,6 +7965,10 @@ function useHint(auto) {
     cv.mark.position.set(t.x, (cv.walk ? cv.markY : cv.topY + 0.01), t.z); cv.mark.visible = true; r.hintShown = true; r.lastActionAt = performance.now();
     state.feedback = { text: cv.hintText || 'ヒント：まだ ふいていない ところが 光っています', kind: 'ok' }; speak(cv.hintSay || 'まだ ふいていない ところが あります。');
     drawWorkBoard(); renderHud(); return;
+  }
+  if (vrHeld && vrHeld.r === r) { // VR で 品物を 持って いる：箱へ 入れる ことを 教える
+    if (auto) state.session.promptCount++; else state.session.questionCount++;
+    r.hintShown = true; r.lastActionAt = performance.now(); state.feedback = { text: 'ヒント：持って いる 品物を 箱の 上で はなす', kind: 'ok' }; speak('箱の 上で、トリガーを はなします。'); drawWorkBoard(); renderHud(); return;
   }
   const key = nextTargetKey(); const slot = r.slots.find((s) => s.key === key && !s.done);
   if (!slot) return;
@@ -8273,15 +8308,73 @@ function handleRay(ray) {
   renderHud();
 }
 
+// ---- ピッキング（物流センター・山小屋・ボートの 受付）を VR で：品物を トリガーで にぎって 持ち、箱（かご）の 上で はなして 入れる。
+//   手を 品物に 近づけて にぎる か、品物を ゆびさして にぎる（品物が 手に 来る）。箱の 外で はなすと 品物は もとの 場所へ もどる（ミスには しない）。
+//   ちがう 品物を にぎったら、いままでと 同じく その 場で ミス（ちがう しなものを ひろう）。
+let vrHeld = null; // { r, slot, ctrl, pos, rot }
+const vrPickOn = () => { const r = state.round; return renderer.xr.isPresenting && !!r && r.def.layout === 'picking' && state.phase === 'work' && state.where === 'booth'; };
+function vrPickGrab(c) {
+  if (!vrPickOn()) return false;
+  if (vrHeld) return true; // もう 片方の 手で 持って いる
+  const r = state.round;
+  tempMatrix.identity().extractRotation(c.matrixWorld);
+  raycaster.camera = camera; raycaster.ray.origin.setFromMatrixPosition(c.matrixWorld); raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
+  if (vrmHit(raycaster)) return false; // メニュー板を ゆびさして いる
+  const cand = r.slots.map((sl, i) => ({ sl, i })).filter(({ sl }) => !sl.done && sl.key !== 'お客さま' && sl.item);
+  const hand = new THREE.Vector3().setFromMatrixPosition(c.matrixWorld); let best = null; let bd = 0.3;
+  cand.forEach((o) => { const d = o.sl.item.getWorldPosition(new THREE.Vector3()).distanceTo(hand); if (d < bd) { bd = d; best = o; } }); // 手の 近くの 品物
+  if (!best) { const ms = []; cand.forEach((o) => o.sl.mesh.traverse((m) => { if (m.isMesh) ms.push(m); })); const h = raycaster.intersectObjects(ms, false)[0]; if (h) best = cand.find((o) => o.i === h.object.userData.slotIndex) || null; } // ゆびさした 品物
+  if (!best) return false;
+  if (onSelectItem(best.i, { grab: true }) === 'grab') {
+    const it = best.sl.item; vrHeld = { r, slot: best.sl, ctrl: c, pos: it.position.clone(), rot: it.rotation.clone() };
+    c.attach(it); it.position.set(0, -0.02, -0.1); playSfx('pop');
+  }
+  return true;
+}
+function vrPickRelease(c) {
+  const h = vrHeld; if (!h || h.ctrl !== c) return;
+  vrHeld = null; const r = h.r; const slot = h.slot; const it = slot.item;
+  if (state.round !== r || state.phase !== 'work') { vrPickPutBack(h); return; }
+  const p = state.booth.workArea.worldToLocal(it.getWorldPosition(new THREE.Vector3())); const B = PICK_BOX;
+  const over = Math.abs(p.x - B.x) < B.w / 2 + 0.15 && Math.abs(p.z - B.z) < B.d / 2 + 0.15 && p.y > 0.8 && p.y < 1.7;
+  if (r.boxRing) r.boxRing.visible = false;
+  if (!over) { vrPickPutBack(h); state.feedback = { text: '箱の 上で はなすと 入ります', kind: 'ng' }; if (state.withSupport) speak('箱の 上で はなすと 入ります。'); drawWorkBoard(); renderHud(); return; }
+  // 箱の 中へ（ならべる 場所は いままでと 同じ）
+  const k = r.inBox++; r.crate.attach(it); it.rotation.set(0, Math.PI, 0); it.traverse((o) => { delete o.userData.slotIndex; });
+  anims.push({ kind: 'box', obj: it, from: it.position.clone(), to: new THREE.Vector3(B.x - 0.18 + (k % 3) * 0.18, 0.93, B.z + (k >= 3 ? 0.1 : -0.06)), t0: performance.now() });
+  playSfx(sfxKind(slot));
+  assessStep(stepLabel(slot.key));
+  slot.done = true; if (r.def.ordered) r.pos++; r.lastActionAt = performance.now(); r.paintSlip();
+  state.feedback = { text: 'OK！', kind: 'ok' };
+  if (remainingKeys().length === 0) { finishRound(); return; }
+  if (state.withSupport && r.def.ordered && !r.def.hideSteps) speak('つぎは、' + stepLabel(nextTargetKey()) + '。');
+  drawWorkBoard(); renderHud();
+}
+// 持って いた 品物を もとの 箱へ もどす
+function vrPickPutBack(h) {
+  const it = h.slot.item; h.slot.mesh.attach(it); it.rotation.copy(h.rot);
+  anims.push({ kind: 'box', obj: it, from: it.position.clone(), to: h.pos.clone(), t0: performance.now() });
+}
+// 毎フレーム：持った 品物が 箱の 上に 来たら 箱の ふちを 光らせる。作業が おわった・VR を 出た ときは もとへ もどす
+function stepVrPick() {
+  const h = vrHeld; if (!h) return;
+  if (h.r !== state.round || state.phase !== 'work' || !renderer.xr.isPresenting) { vrHeld = null; vrPickPutBack(h); if (h.r.boxRing) h.r.boxRing.visible = false; return; }
+  const r = h.r; const B = PICK_BOX;
+  if (!r.boxRing) { r.boxRing = makeGlowRing(); r.boxRing.scale.set(B.w / 0.3 * 1.1, B.d / 0.3 * 1.1, 1); /* 輪は ねかせて あるので 横（x）と おく行き（y） */ r.boxRing.position.set(B.x, 0.93 + B.h, B.z); r.crate.add(r.boxRing); }
+  const p = state.booth.workArea.worldToLocal(h.slot.item.getWorldPosition(new THREE.Vector3()));
+  r.boxRing.visible = Math.abs(p.x - B.x) < B.w / 2 + 0.15 && Math.abs(p.z - B.z) < B.d / 2 + 0.15 && p.y > 0.8 && p.y < 1.7;
+}
+
 // VR コントローラー
 const tempMatrix = new THREE.Matrix4();
 for (let i = 0; i < 2; i++) {
   const c = renderer.xr.getController(i);
   const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, -4)]), new THREE.LineBasicMaterial({ color: '#ffd23f' }));
   c.add(line);
-  c.addEventListener('selectstart', () => { const r = state.round; if (r && r.cover && r.cover.kind === 'wipe') r.cover.ctrl = c; });
-  c.addEventListener('selectend', () => { const r = state.round; if (r && r.cover && r.cover.ctrl === c) r.cover.ctrl = null; });
+  c.addEventListener('selectstart', () => { const r = state.round; if (r && r.cover && r.cover.kind === 'wipe') r.cover.ctrl = c; c.userData.pickUsed = vrPickGrab(c); });
+  c.addEventListener('selectend', () => { const r = state.round; if (r && r.cover && r.cover.ctrl === c) r.cover.ctrl = null; vrPickRelease(c); });
   c.addEventListener('select', () => {
+    if (c.userData.pickUsed) { c.userData.pickUsed = false; return; } // 品物を にぎる・はなす 操作だった（はなした ときに もう 一度 えらばない）
     tempMatrix.identity().extractRotation(c.matrixWorld);
     raycaster.camera = camera; // 札の ボタン（スプライト）を えらぶ ときに いる
     raycaster.ray.origin.setFromMatrixPosition(c.matrixWorld);
@@ -12604,7 +12697,7 @@ document.body.addEventListener('change', () => { vrMenu.dirty = true; });
 const vrmRay = new THREE.Raycaster(); const vrmMat = new THREE.Matrix4();
 function stepVrMenu(dt, now) {
   if (!renderer.xr.isPresenting) { if (vrMenu.mesh.visible) closeVrMenu(); vrMenu.wasModal = false; return; }
-  const s = renderer.xr.getSession();
+  const s = renderer.xr.getSession(); if (!s) return;
   // B・Y ボタン（gamepad の 5 番）で ひらく・とじる
   for (const src of s.inputSources) {
     const gp = src.gamepad; if (!gp) continue; const k = src.handedness || 'none';
@@ -12692,6 +12785,7 @@ renderer.setAnimationLoop((now) => {
   if (!reduceMotion) windRotors.forEach((r) => { r.rotation.z = -(now / 1000) * 1.4 - r.userData.phase; });
   stepAnims(now);
   stepVrMenu(dt, now);
+  stepVrPick();
   if (now - (drawMinimap.last || 0) > 100) { drawMinimap.last = now; drawMinimap(); } // 地図は 1 秒に 10 回で じゅうぶん
   kcRenderScreen(now); // 競馬場の 大型ビジョン
   renderer.render(scene, camera);
