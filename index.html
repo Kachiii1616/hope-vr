@@ -4017,7 +4017,7 @@ function moveInput(dt) {
       const gp = src.gamepad; if (!gp || gp.axes.length < 4) continue;
       const ax = gp.axes[2]; const ay = gp.axes[3];
       if (src.handedness === 'left') { if (Math.hypot(ax, ay) > 0.2) { fwd = -ay; strafe = ax; } } else if (src.handedness === 'right') {
-        if (Math.abs(ax) > 0.7 && snapReady) { snapTurn(ax > 0 ? -Math.PI / 6 : Math.PI / 6); snapReady = false; }
+        if (Math.abs(ax) > 0.7 && snapReady && !vrMenu.mesh.visible) { snapTurn(ax > 0 ? -Math.PI / 6 : Math.PI / 6); snapReady = false; } // メニュー板が 出て いる あいだは 右スティック 左右で タブを かえる（stepVrMenu）
         if (Math.abs(ax) < 0.3) snapReady = true;
       }
     }
@@ -5114,10 +5114,11 @@ function startCare(b, def) {
         anims.push({ kind: 'box', obj: h, from: h.position.clone(), to: new THREE.Vector3(...CARE.hand), t0: now });
         carrying = h;
       }
-    } };
+    },
+    carrying: () => carrying }; // VR で 手に 持って 運ぶ ときに 使う（vrTrayGrab）
   state.round = r;
   moveRig(b.group.localToWorld(new THREE.Vector3(CARE.stand[0], 0, CARE.stand[1])), b.yaw + Math.PI, CARE.pitch, s.roundIndex ? 700 : undefined); // 配膳車の 下の だんと 食卓が 見えるように 少し 下を 向く
-  state.feedback = { text: '', kind: '' };
+  state.feedback = renderer.xr.isPresenting ? { text: 'おぜんを トリガーで にぎって 持ち、左スティックで 歩いて 名札の 席で はなします', kind: 'ok' } : { text: '', kind: '' };
   drawWorkBoard(); renderHud();
   if (state.withSupport) speak(def.title + '。最初は、' + stepLabel(def.need[0]) + '。');
 }
@@ -7966,6 +7967,11 @@ function useHint(auto) {
     state.feedback = { text: cv.hintText || 'ヒント：まだ ふいていない ところが 光っています', kind: 'ok' }; speak(cv.hintSay || 'まだ ふいていない ところが あります。');
     drawWorkBoard(); renderHud(); return;
   }
+  if (vrTray && vrTray.r === r) { // VR で おぜんを 持って いる：名札の 席を 光らせる
+    const key = nextTargetKey(); const sl = r.slots.find((x) => x.key === key && !x.done); if (!sl) return;
+    if (auto) state.session.promptCount++; else state.session.questionCount++;
+    sl.ring.visible = true; r.hintShown = true; r.lastActionAt = performance.now(); state.feedback = { text: 'ヒント：' + key + 'の 席で はなす', kind: 'ok' }; speak(key + 'の 席で、トリガーを はなします。'); drawWorkBoard(); renderHud(); return;
+  }
   if (vrHeld && vrHeld.r === r) { // VR で 品物を 持って いる：箱へ 入れる ことを 教える
     if (auto) state.session.promptCount++; else state.session.questionCount++;
     r.hintShown = true; r.lastActionAt = performance.now(); state.feedback = { text: 'ヒント：持って いる 品物を 箱の 上で はなす', kind: 'ok' }; speak('箱の 上で、トリガーを はなします。'); drawWorkBoard(); renderHud(); return;
@@ -8365,14 +8371,92 @@ function stepVrPick() {
   r.boxRing.visible = Math.abs(p.x - B.x) < B.w / 2 + 0.15 && Math.abs(p.z - B.z) < B.d / 2 + 0.15 && p.y > 0.8 && p.y < 1.7;
 }
 
+// ---- 介護施設の 配膳を VR で：おぜんを トリガーで にぎって 持ち、左スティックで 歩いて、名札の 席の 前で はなして 置く。
+//   おぜんは 傾けずに 手の 下に 水平に 持つ。席の 近くで ない ところで はなしても 落とさず、手に 持った まま（もう 一度 にぎって はなす）。
+//   ちがう だんの おぜん・ちがう 人の 席は、いままでと 同じく その 場で ミス（順番・人の まちがい）。
+let vrTray = null; // { r, h（おぜんの holder）, ctrl, hover }
+const vrCareOn = () => { const r = state.round; return renderer.xr.isPresenting && !!r && r.def.layout === 'care' && state.phase === 'work' && state.where === 'booth'; };
+const vrCtrlRay = (c) => { tempMatrix.identity().extractRotation(c.matrixWorld); raycaster.camera = camera; raycaster.ray.origin.setFromMatrixPosition(c.matrixWorld); raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix); return raycaster; };
+function vrTrayGrab(c) {
+  if (!vrCareOn()) return false;
+  if (vrTray) { if (vrTray.ctrl !== c) vrTray.ctrl = c; return true; } // 持って いる おぜんは そのまま（にぎった 手に 持ちかえる）
+  const r = state.round; const ray = vrCtrlRay(c); if (vrmHit(ray)) return false;
+  const carry = r.carrying && r.carrying();
+  const cands = []; if (carry) cands.push({ h: carry });
+  r.slots.forEach((sl, i) => { if (!sl.done && sl.spec.shape !== 'resident') cands.push({ h: sl.holder, i }); });
+  const hand = new THREE.Vector3().setFromMatrixPosition(c.matrixWorld); let best = null; let bd = 0.35;
+  cands.forEach((o) => { const d = o.h.getWorldPosition(new THREE.Vector3()).distanceTo(hand); if (d < bd) { bd = d; best = o; } }); // 手の 近くの おぜん
+  if (!best) { const ms = []; cands.forEach((o) => o.h.traverse((m) => { if (m.isMesh && m.visible) { m.userData.trayOf = o; ms.push(m); } })); const h = ray.intersectObjects(ms, false)[0]; if (h) best = h.object.userData.trayOf; } // ゆびさした おぜん
+  if (!best) return false;
+  if (best.i === undefined) { vrTrayStart(r, best.h, c); return true; }
+  if (carry) { state.feedback = { text: 'さきに 手もとの おぜんを 運ぼう', kind: 'ng' }; drawWorkBoard(); renderHud(); return true; } // 2 つは 持てない
+  onSelectItem(best.i); // だんの 順番を 見る（ちがえば ミス）
+  const now = r.carrying && r.carrying();
+  if (now && now !== carry) { const k = anims.findIndex((a) => a.obj === now); if (k >= 0) anims.splice(k, 1); vrTrayStart(r, now, c); }
+  return true;
+}
+function vrTrayStart(r, h, c) {
+  vrTray = { r, h, ctrl: c, hover: null }; playSfx('pop');
+  state.feedback = { text: '名札の 人の 席まで 運んで、トリガーを はなして 置こう', kind: 'ok' }; drawWorkBoard(); renderHud();
+}
+// おぜんの 近くの 席（おぜんを 置く ところから 0.55 m いない・食卓の 高さ ふきん。奥の 席にも 食卓の 手前から 手が 届くように）
+function vrTraySeat(r, p) {
+  let best = null; let bd = 0.55;
+  if (p.y < CARE.table.y - 0.15 || p.y > CARE.table.y + 0.7) return null;
+  r.slots.forEach((sl, i) => { if (sl.spec.shape !== 'resident') return; const st = CARE.seats[state.session.careSeats.indexOf(sl.spec.label)]; const d = Math.hypot(st.tray[0] - p.x, st.tray[1] - p.z); if (d < bd) { bd = d; best = i; } });
+  return best;
+}
+function vrTrayHover(t, i) {
+  if (t.hover === i) return;
+  if (t.hover !== null && t.hoverOn) t.r.slots[t.hover].ring.visible = false;
+  t.hover = i; t.hoverOn = false;
+  if (i !== null && !t.r.slots[i].ring.visible) { t.r.slots[i].ring.visible = true; t.hoverOn = true; } // 席の 足もとの 輪を 光らせる（ヒントで 光って いる ときは そのまま）
+}
+function vrTrayRelease(c) {
+  const t = vrTray; if (!t || t.ctrl !== c) return;
+  const r = t.r; if (r !== state.round || state.phase !== 'work') { vrTray = null; return; }
+  const i = vrTraySeat(r, t.h.position);
+  if (i === null) { state.feedback = { text: '名札の 人の 席の 前で はなすと 置けます', kind: 'ng' }; drawWorkBoard(); renderHud(); return; } // 落とさず 持った まま
+  vrTrayHover(t, null); vrTray = null;
+  const ok0 = r.carrying();
+  onSelectItem(i); // 人を 見る（ちがえば ミス。おぜんは 手に もどる）
+  if (r.carrying() === ok0 && state.round === r && state.phase === 'work') vrTray = Object.assign(t, { hover: null }); // まちがい：持った まま
+}
+// 毎フレーム：持った おぜんを 手の 下へ（水平）。左スティックで 歩く。作業が おわった・VR を 出た ときは 手もとへ もどす
+const CARE_WALK = (x, z) => x > ROOM.x0 + 0.3 && x < ROOM.x1 - 0.3 && z > ROOM.z0 + 0.2 && z < ROOM.z1 - 0.3
+  && !(Math.abs(x - CARE.table.x) < CARE.table.w / 2 + 0.3 && Math.abs(z - CARE.table.z) < CARE.table.d / 2 + 0.3)
+  && !(Math.abs(x - CARE.cart.x) < CARE.cart.w / 2 + 0.25 && Math.abs(z - CARE.cart.z) < CARE.cart.d / 2 + 0.25)
+  && CARE.seats.every((st) => Math.hypot(st.at[0] - x, st.at[1] - z) > 0.5);
+function stepVrCare(dt) {
+  const t = vrTray;
+  if (t && (t.r !== state.round || state.phase !== 'work' || !renderer.xr.isPresenting)) {
+    vrTray = null; vrTrayHover(t, null);
+    if (t.r === state.round && state.phase === 'work') anims.push({ kind: 'box', obj: t.h, from: t.h.position.clone(), to: new THREE.Vector3(...CARE.hand), t0: performance.now() }); // VR を 出た：手もとへ（画面で つづけられる）
+  }
+  if (!vrCareOn()) return;
+  const W = state.booth.workArea;
+  if (vrTray) {
+    const hp = W.worldToLocal(new THREE.Vector3().setFromMatrixPosition(vrTray.ctrl.matrixWorld));
+    vrTray.h.position.set(hp.x, hp.y - 0.07, hp.z); vrTray.h.rotation.set(0, 0, 0);
+    vrTrayHover(vrTray, vrTraySeat(vrTray.r, vrTray.h.position));
+  }
+  // 左スティックで 歩く（食卓・配膳車・人は よける）
+  const xm = xrMove(); if (!xm || tween) return;
+  const dir = coverLocalDir(W); if (!dir) return;
+  const sp = 1.1 * dt; const dx = (dir.x * xm.fwd - dir.z * xm.strafe) * sp; const dz = (dir.z * xm.fwd + dir.x * xm.strafe) * sp;
+  const p = W.worldToLocal(rig.position.clone());
+  if (CARE_WALK(p.x + dx, p.z + dz)) { p.x += dx; p.z += dz; } else if (CARE_WALK(p.x + dx, p.z)) p.x += dx; else if (CARE_WALK(p.x, p.z + dz)) p.z += dz; else return;
+  const w = W.localToWorld(p); rig.position.x = w.x; rig.position.z = w.z;
+}
+
 // VR コントローラー
 const tempMatrix = new THREE.Matrix4();
 for (let i = 0; i < 2; i++) {
   const c = renderer.xr.getController(i);
   const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, -4)]), new THREE.LineBasicMaterial({ color: '#ffd23f' }));
   c.add(line);
-  c.addEventListener('selectstart', () => { const r = state.round; if (r && r.cover && r.cover.kind === 'wipe') r.cover.ctrl = c; c.userData.pickUsed = vrPickGrab(c); });
-  c.addEventListener('selectend', () => { const r = state.round; if (r && r.cover && r.cover.ctrl === c) r.cover.ctrl = null; vrPickRelease(c); });
+  c.addEventListener('selectstart', () => { const r = state.round; if (r && r.cover && r.cover.kind === 'wipe') r.cover.ctrl = c; c.userData.pickUsed = vrPickGrab(c) || vrTrayGrab(c); });
+  c.addEventListener('selectend', () => { const r = state.round; if (r && r.cover && r.cover.ctrl === c) r.cover.ctrl = null; vrPickRelease(c); vrTrayRelease(c); });
   c.addEventListener('select', () => {
     if (c.userData.pickUsed) { c.userData.pickUsed = false; return; } // 品物を にぎる・はなす 操作だった（はなした ときに もう 一度 えらばない）
     tempMatrix.identity().extractRotation(c.matrixWorld);
@@ -12651,8 +12735,8 @@ function drawVrMenu() {
   ctx.fillStyle = '#55626d'; ctx.font = '400 28px ' + FONT_BODY; ctx.textAlign = 'center';
   if (vrMenu.maxScroll > 0) {
     [['up', '▲ 上へ', pad], ['down', '▼ 下へ', W - pad - 260]].forEach(([d, t, bx]) => { btnBox(bx, H - VRM_FOOT + 12, 260, 80, { act: 'scroll', data: d, off: d === 'up' ? vrMenu.scroll <= 0 : vrMenu.scroll >= vrMenu.maxScroll }); ctx.fillStyle = '#1f2a33'; ctx.font = '700 36px ' + FONT_BODY; ctx.fillText(t, bx + 130, H - VRM_FOOT + 52); });
-    ctx.fillStyle = '#55626d'; ctx.font = '400 26px ' + FONT_BODY; ctx.fillText('右スティック 上下でも 送れます', W / 2, H - VRM_FOOT + 52);
-  } else ctx.fillText('B・Y ボタンで ひらく／とじる', W / 2, H - VRM_FOOT + 52);
+    ctx.fillStyle = '#55626d'; ctx.font = '400 26px ' + FONT_BODY; ctx.fillText('右スティック：上下で 送る・左右で タブ', W / 2, H - VRM_FOOT + 52);
+  } else ctx.fillText(modalOpen ? 'B・Y ボタンで ひらく／とじる' : '右スティック 左右で タブ・B・Y で とじる', W / 2, H - VRM_FOOT + 52);
   vrMenu.tex.needsUpdate = true;
 }
 // 目の 前（1.4 m 先・すこし 下）に 出す。体（rig）に つけるので、お店を 移っても ついて くる
@@ -12721,6 +12805,13 @@ function stepVrMenu(dt, now) {
   }
   for (const src of s.inputSources) {
     const gp = src.gamepad; if (!gp || src.handedness !== 'right' || gp.axes.length < 4) continue;
+    // 右スティック 左右：タブを となりへ（いま ⇄ MAP ⇄ メニュー）。カードの ときは タブが ないので うごかない
+    const ax = gp.axes[2];
+    if (Math.abs(ax) > 0.7 && vrMenu.tabReady !== false && modal.hidden) {
+      const i = VRM_TABS.findIndex(([k]) => k === vrMenu.tab); const j = Math.max(0, Math.min(VRM_TABS.length - 1, i + (ax > 0 ? 1 : -1)));
+      if (j !== i) { vrMenu.tab = VRM_TABS[j][0]; vrMenu.scroll = 0; vrMenu.dirty = true; playSfx('pop'); }
+      vrMenu.tabReady = false;
+    } else if (Math.abs(ax) < 0.3) vrMenu.tabReady = true;
     if (Math.abs(gp.axes[3]) > 0.3 && vrMenu.maxScroll > 0) { vrMenu.scroll = Math.max(0, Math.min(vrMenu.maxScroll, vrMenu.scroll + gp.axes[3] * 900 * dt)); vrMenu.dirty = true; }
   }
   if (hover !== vrMenu.hover) { vrMenu.hover = hover; vrMenu.dirty = true; }
@@ -12786,6 +12877,7 @@ renderer.setAnimationLoop((now) => {
   stepAnims(now);
   stepVrMenu(dt, now);
   stepVrPick();
+  stepVrCare(dt);
   if (now - (drawMinimap.last || 0) > 100) { drawMinimap.last = now; drawMinimap(); } // 地図は 1 秒に 10 回で じゅうぶん
   kcRenderScreen(now); // 競馬場の 大型ビジョン
   renderer.render(scene, camera);
