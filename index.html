@@ -8515,6 +8515,7 @@ for (let i = 0; i < 2; i++) {
     raycaster.camera = camera; // 札の ボタン（スプライト）を えらぶ ときに いる
     raycaster.ray.origin.setFromMatrixPosition(c.matrixWorld);
     raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
+    if (vrWatchRay(raycaster)) return; // 左手首の 腕時計
     if (vrMenuRay(raycaster)) return; // VR の メニュー板を ゆびさして いる とき
     handleRay(raycaster);
   });
@@ -8534,7 +8535,7 @@ vrBtn.addEventListener('click', async () => {
     renderer.xr.setReferenceSpaceType('local-floor');
     await renderer.xr.setSession(s);
     camera.position.set(0, 0, 0);
-    setTimeout(() => toast('B か Y ボタンで メニュー（作業一覧・MAP・設定）が 出ます'), 800);
+    setTimeout(() => toast('左手首の 腕時計に さわると メニュー・設定が 出ます（B か Y ボタンでも）'), 800);
     s.addEventListener('end', () => { xrSession = null; vrBtn.textContent = 'VR で入る'; camera.position.set(0, 1.6, 0); });
   } catch (e) { toast('VR を開けませんでした。ヘッドセットのブラウザで開いてください。'); }
 });
@@ -12652,7 +12653,7 @@ function toast(text) { const t = $('toast'); t.textContent = text; t.hidden = fa
 //   VR（没入モード）の あいだは 画面の ボタン（上の メニュー・下の チップ・まんなかの カード）が 見えない。
 //   その 中身を そのまま 読んで、目の 前の 板に 描く。板の ボタンを ゆびさして トリガーを ひくと、
 //   画面の 同じ ボタンを おした ことに なる（新しい ボタンを 足しても 板に 自動で 出る）。
-//   ひらく・とじる：B か Y ボタン。カードが 出た ときは 自動で ひらく。
+//   ひらく・とじる：B か Y ボタン・左手首の 腕時計（vrWatch）。カードが 出た ときは 自動で ひらく。
 // ===========================================================================
 const VRM_W = 1024; const VRM_H = 1280; const VRM_TOP = 118; const VRM_FOOT = 104;
 const vrMenu = (() => {
@@ -12888,6 +12889,99 @@ function vrToastShow(text) {
 }
 
 // ===========================================================================
+// VR の 腕時計（左の 手首）
+//   文字ばんを 2 つに 分けて、上が「メニュー」・下が「設定」。反対の 手の コントローラーの 先で さわると ひらく
+//   （ゆびさして トリガーでも よい）。文字ばんは 手首の まわりを まわって、いつも 顔の ほうを 向く。
+//   左手が ない（右手だけ つないで いる）ときは、つながって いる ほうの 手首に つける。
+// ===========================================================================
+const WATCH_S = 0.085; const WATCH_R = 0.036; const WATCH_Z = 0.1; // 文字ばんの 大きさ・手首の 太さ・にぎりから 手首までの きょり（m）
+const vrWatch = (() => {
+  const c = makeCanvas(512, 512); const tex = new THREE.CanvasTexture(c);
+  const pivot = new THREE.Group(); pivot.visible = false; // 手首の まん中。z 軸（うで）の まわりを まわる
+  const band = new THREE.Mesh(new THREE.TorusGeometry(WATCH_R - 0.004, 0.009, 8, 28), new THREE.MeshLambertMaterial({ color: '#2f6f8f' }));
+  pivot.add(band);
+  const holder = new THREE.Group(); holder.position.set(0, WATCH_R + 0.006, 0); // 文字ばんの 面：+Y（外がわ）を 向く・字の 右は 指の ほう
+  holder.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(0, 0, -1), new THREE.Vector3(-1, 0, 0), new THREE.Vector3(0, 1, 0)));
+  pivot.add(holder);
+  const rim = new THREE.Mesh(new THREE.CylinderGeometry(WATCH_S / 2 + 0.005, WATCH_S / 2 + 0.005, 0.01, 32), new THREE.MeshLambertMaterial({ color: '#d9a227' }));
+  rim.rotation.x = Math.PI / 2; rim.position.z = -0.006; holder.add(rim);
+  const face = new THREE.Mesh(new THREE.PlaneGeometry(WATCH_S, WATCH_S), new THREE.MeshBasicMaterial({ map: tex, transparent: true, fog: false }));
+  face.position.z = 0.0002; holder.add(face);
+  return { c, ctx: c.getContext('2d'), tex, pivot, face, grip: null, hover: null, armed: true, flip: false, minute: -1, drawn: '' };
+})();
+const WATCH_HALF = { menu: 'メニュー', settings: '設定' };
+function drawVrWatch() {
+  const { ctx } = vrWatch; const d = new Date(); const hm = d.getHours() + ':' + String(d.getMinutes()).padStart(2, '0');
+  const key = hm + '|' + vrWatch.hover; if (key === vrWatch.drawn) return; vrWatch.drawn = key;
+  ctx.clearRect(0, 0, 512, 512);
+  ctx.save(); ctx.beginPath(); ctx.arc(256, 256, 250, 0, Math.PI * 2); ctx.clip();
+  [['menu', 0, '#fff4d6', '#ffd56b'], ['settings', 256, '#e4f1f7', '#9fd3ea']].forEach(([k, y, bg, on]) => { ctx.fillStyle = vrWatch.hover === k ? on : bg; ctx.fillRect(0, y, 512, 256); });
+  ctx.restore();
+  ctx.strokeStyle = '#1f2a33'; ctx.lineWidth = 10; ctx.beginPath(); ctx.arc(256, 256, 248, 0, Math.PI * 2); ctx.stroke();
+  ctx.lineWidth = 8; ctx.beginPath(); ctx.moveTo(14, 256); ctx.lineTo(498, 256); ctx.stroke(); // まん中の 線（うでに そって）
+  ctx.fillStyle = '#1f2a33'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = '700 40px ' + FONT_BODY; ctx.fillText(hm, 256, 66);
+  ctx.font = '700 92px ' + FONT_BODY; ctx.fillText('メニュー', 256, 168); ctx.fillText('設定', 256, 360);
+  ctx.font = '700 32px ' + FONT_BODY; ctx.fillText('さわって ひらく', 256, 452);
+  vrWatch.tex.needsUpdate = true;
+}
+function vrWatchPress(k) {
+  playSfx('pop'); vrWatch.drawn = '';
+  const s = renderer.xr.getSession(); const other = vrWatch.grip && vrWatch.grip.userData.hand === 'left' ? 'right' : 'left';
+  if (s) for (const src of s.inputSources) { const h = src.gamepad && src.gamepad.hapticActuators && src.gamepad.hapticActuators[0]; if (h && src.handedness === other && h.pulse) try { h.pulse(0.5, 40); } catch (e) { /* ぶるっと しない 機種 */ } }
+  if (k === 'menu') { if (vrMenu.mesh.visible && vrMenu.tab === 'menu' && modal.hidden) closeVrMenu(); else openVrMenu('menu'); return; }
+  $('btn-settings').click(); openVrMenu('now'); // 設定の カードは メニュー板の「いま」に 出る
+}
+// 文字ばんの どこ（上＝メニュー・下＝設定）か。p は 文字ばんの 中の 位置
+const watchHalf = (p) => Math.hypot(p.x, p.y) <= WATCH_S / 2 ? (p.y >= 0 ? 'menu' : 'settings') : null;
+// ゆびさして トリガー：腕時計に あたって いれば おす
+function vrWatchRay(ray) {
+  if (!vrWatch.pivot.visible) return false;
+  const h = ray.intersectObject(vrWatch.face, false)[0]; if (!h) return false;
+  const k = watchHalf(vrWatch.face.worldToLocal(h.point.clone())); if (!k) return false;
+  vrWatchPress(k); vrWatch.armed = false; return true;
+}
+const watchTmp = new THREE.Vector3(); const watchTmp2 = new THREE.Vector3(); const watchQ = new THREE.Quaternion();
+for (let i = 0; i < 2; i++) {
+  const g = renderer.xr.getControllerGrip(i);
+  g.addEventListener('connected', (e) => { g.userData.hand = e.data && e.data.handedness; });
+  g.addEventListener('disconnected', () => { g.userData.hand = null; if (vrWatch.grip === g) { g.remove(vrWatch.pivot); vrWatch.grip = null; } });
+  rig.add(g);
+}
+function stepVrWatch() {
+  const xr = renderer.xr.isPresenting; vrWatch.pivot.visible = false; if (!xr) { vrWatch.hover = null; return; }
+  // つける 手：左手（なければ つながって いる 手）
+  const grips = [0, 1].map((i) => renderer.xr.getControllerGrip(i)).filter((g) => g.userData.hand === 'left' || g.userData.hand === 'right');
+  const g = grips.find((x) => x.userData.hand === 'left') || grips[0];
+  if (!g) return;
+  if (vrWatch.grip !== g) { g.add(vrWatch.pivot); vrWatch.pivot.position.set(0, 0, WATCH_Z); vrWatch.grip = g; }
+  if (!g.visible) return;
+  vrWatch.pivot.visible = true;
+  // 文字ばんを 顔の ほうへ（手首の まわりを まわす）
+  camera.getWorldPosition(watchTmp); g.worldToLocal(watchTmp);
+  vrWatch.pivot.rotation.z = Math.atan2(watchTmp.y, watchTmp.x) - Math.PI / 2;
+  // 字の 向き：指が 見て 右に あれば そのまま、左に あれば さかさに（ゆれないよう 少し あそびを もたせる）
+  g.getWorldQuaternion(watchQ); watchTmp2.set(0, 0, -1).applyQuaternion(watchQ);
+  camera.getWorldQuaternion(watchQ); const dot = watchTmp2.dot(watchTmp.set(1, 0, 0).applyQuaternion(watchQ));
+  if (dot < -0.15) vrWatch.flip = true; else if (dot > 0.15) vrWatch.flip = false;
+  vrWatch.face.rotation.z = vrWatch.flip ? Math.PI : 0;
+  vrWatch.pivot.updateMatrixWorld(true);
+  // 反対の 手の 先で さわる
+  let hover = null; let touch = false;
+  for (let i = 0; i < 2; i++) {
+    const c = renderer.xr.getController(i); if (!c.visible || !c.userData.hand || c.userData.hand === g.userData.hand) continue;
+    c.getWorldPosition(watchTmp); vrWatch.face.worldToLocal(watchTmp);
+    if (Math.abs(watchTmp.z) > 0.06) continue;
+    const k = watchHalf(watchTmp); if (!k) continue;
+    hover = k; if (watchTmp.z < 0.018) touch = true;
+    if (touch && vrWatch.armed) { vrWatch.armed = false; vrWatchPress(k); }
+  }
+  if (!hover) vrWatch.armed = true; // 文字ばんから はなれたら もう 一度 おせる
+  vrWatch.hover = hover;
+  drawVrWatch();
+}
+
+// ===========================================================================
 // ループ
 // ===========================================================================
 function onResize() {
@@ -12928,6 +13022,7 @@ renderer.setAnimationLoop((now) => {
   if (!reduceMotion) windRotors.forEach((r) => { r.rotation.z = -(now / 1000) * 1.4 - r.userData.phase; });
   stepAnims(now);
   stepVrMenu(dt, now);
+  stepVrWatch();
   stepVrPick();
   stepVrCare(dt);
   stepVrCup();
@@ -12953,7 +13048,7 @@ $('btn-season').addEventListener('click', () => setSeason(season === 'winter' ? 
 // 動作確認用（テストから 作業を 進めるため）
 $('btn-home').addEventListener('click', () => goHome());
 $('btn-settings').addEventListener('click', openSettings);
-window.hopeTown = { scene, camera,
+window.hopeTown = { scene, camera, vrWatch, vrWatchPress, drawVrWatch,
   CASINO, CASINO_SITE, casinoRefill, casinoCount, CASINO_REST_EVERY, bacPlay, bacPayout, bacTotal, bacDeal, pkEval, pkHandName, pkEquity, pkNew, pkAct,
   RL_CELLS, rlPick, rlHit, IBA, IBA_SITE, openIba, ibaSit, ibaStand, ibaClickables, ibaData, sgLegal, sgPlay, sgThink, igoThink, igoScore, mjShanten, mjComplete, mjYaku, mjCounts, ISLE, BOATS, boardBoat, boatTrip, openCasino, casSit, casStand, CAS, slSpin, slStop, rlSpin, bjDeal, bjHit, bjStand, rideFerris, FERRIS, goBoatPier, KC, openKeiba, kcWindow, kcSeat, kcPaddock, keibaBuy, keibaStart, keibaNew, kcClickables, walkable, kcOutside, shogiTap, igoTap, mjTap, mjRon,
   state, goBooth, pickVariant, startSession, openRehab, startRehab, rehabPress, rehabSwipeThrow, rehabVolleyPress, REHAB, get rehabOpt() { return rehabOpt; }, set rehabOpt(v) { rehabOpt = v; }, select: onSelectItem, playSfx, sfxKind, SFX, nextTargetKey, setSeason, startWalk, exitToWalk, walkKeys, rig, look, walkable, booths, goHome, exitHome, goPlaza,
