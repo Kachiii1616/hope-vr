@@ -3854,7 +3854,10 @@ function itemKey(spec) { return spec.id || spec.label; }
 // 移動
 // ===========================================================================
 let tween = null;
+// VR：お店で 動いた あとに、作業台に 手が とどく ところまで 前へ 出るか 見なおす（stepVrReach）
+const vrReach = { pending: false };
 function moveRig(pos, yaw, pitch, dur) {
+  vrReach.pending = true;
   const from = { p: rig.position.clone(), yaw: rig.rotation.y };
   const to = { p: pos.clone(), yaw };
   // 回転は近い向きへ
@@ -8507,19 +8510,122 @@ for (let i = 0; i < 2; i++) {
   const c = renderer.xr.getController(i);
   const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, -4)]), new THREE.LineBasicMaterial({ color: '#ffd23f' }));
   c.add(line);
-  c.addEventListener('selectstart', () => { const r = state.round; if (r && r.cover && r.cover.kind === 'wipe') r.cover.ctrl = c; c.userData.pickUsed = vrPickGrab(c) || vrTrayGrab(c) || vrCupGrab(c); });
-  c.addEventListener('selectend', () => { const r = state.round; if (r && r.cover && r.cover.ctrl === c) r.cover.ctrl = null; vrPickRelease(c); vrTrayRelease(c); vrCupRelease(c); });
+  c.addEventListener('selectstart', () => { const r = state.round; if (r && r.cover && r.cover.kind === 'wipe') r.cover.ctrl = c; c.userData.pickUsed = vrPickGrab(c) || vrTrayGrab(c) || vrCupGrab(c); c.userData.trigHold = vrHolding(c) && !c.userData.sqHold; });
+  c.addEventListener('selectend', () => { const r = state.round; if (r && r.cover && r.cover.ctrl === c) r.cover.ctrl = null; c.userData.trigHold = false; if (c.userData.sqHold) return; /* にぎる ボタンで 持って いる */ vrPickRelease(c); vrTrayRelease(c); vrCupRelease(c); });
   c.addEventListener('select', () => {
     if (c.userData.pickUsed) { c.userData.pickUsed = false; return; } // 品物を にぎる・はなす 操作だった（はなした ときに もう 一度 えらばない）
+    const t = vrTouchOf(c); if (t !== null) { vrTouchSelect(c, t); return; } // 手で さわって いる 品物を えらぶ
     tempMatrix.identity().extractRotation(c.matrixWorld);
     raycaster.camera = camera; // 札の ボタン（スプライト）を えらぶ ときに いる
     raycaster.ray.origin.setFromMatrixPosition(c.matrixWorld);
     raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
     if (vrWatchRay(raycaster)) return; // 左手首の 腕時計
-    if (vrMenuRay(raycaster)) return; // VR の メニュー板を ゆびさして いる とき
+    if (vrMenuRay(raycaster)) { vrBuzz(c, 0.3, 20); return; } // VR の メニュー板を ゆびさして いる とき
+    const hit = raycaster.intersectObjects(currentClickables(), false).length > 0; const before = vrDefects();
     handleRay(raycaster);
+    if (hit) vrAfterSelect(c, before);
   });
+  // にぎる ボタン（中指）でも、トリガーと 同じく にぎる・はなす・さわった 品物を えらぶ
+  c.addEventListener('squeezestart', () => { c.userData.sqUsed = vrPickGrab(c) || vrTrayGrab(c) || vrCupGrab(c); c.userData.sqHold = vrHolding(c) && !c.userData.trigHold; });
+  c.addEventListener('squeezeend', () => { if (c.userData.sqHold) { c.userData.sqHold = false; vrPickRelease(c); vrTrayRelease(c); vrCupRelease(c); c.userData.sqHold = vrHolding(c); } });
+  c.addEventListener('squeeze', () => { if (c.userData.sqUsed) { c.userData.sqUsed = false; return; } const t = vrTouchOf(c); if (t !== null) vrTouchSelect(c, t); });
   rig.add(c);
+}
+
+// ---- VR の 手：コントローラーの ところに 手を 見せる・品物に 手で さわって えらぶ・ぶるっと 手ごたえ。
+//   手（ゆび先）を 品物に 近づけると 黄色い わくで かこまれて ぶるっと する。そこで トリガー か にぎる ボタンで えらべる。
+//   遠くの 物は いままで どおり レーザーで ゆびさす。レーザーは 当たった ところで 止まり、えらべる 物に 当たると 水色に なる。
+//   えらんだ ときは 短く、ミスの ときは 長く ぶるぶる。
+const VR_TIP = new THREE.Vector3(0, -0.02, -0.05); // ゆび先（コントローラーの 先から 少し 手前・下）
+const VR_TOUCH_PAD = 0.04; // 品物の まわり これだけ 近づけば さわった ことに
+const vrTipTmp = new THREE.Vector3(); const vrCtrTmp = new THREE.Vector3();
+const vrHands = [0, 1].map((i) => {
+  const c = renderer.xr.getController(i);
+  const hand = handMesh('#e8c4a8'); hand.position.set(0, -0.03, 0.06); hand.visible = false; c.add(hand);
+  const dot = new THREE.Mesh(new THREE.SphereGeometry(0.012, 10, 8), new THREE.MeshBasicMaterial({ color: '#4fc3f7', depthTest: false, fog: false }));
+  dot.renderOrder = 9980; dot.visible = false; c.add(dot);
+  const box = new THREE.Box3(); const outline = new THREE.Box3Helper(box, new THREE.Color('#ffd23f')); outline.visible = false; scene.add(outline);
+  c.addEventListener('connected', (e) => { c.userData.src = e.data; });
+  c.addEventListener('disconnected', () => { c.userData.src = null; });
+  return { c, line: c.children.find((o) => o.isLine), hand, dot, box, outline, touch: null, hover: null };
+});
+function vrBuzz(c, s, ms) {
+  const src = c.userData.src; const a = src && src.gamepad && src.gamepad.hapticActuators && src.gamepad.hapticActuators[0];
+  if (!a || !a.pulse) return;
+  try { const p = a.pulse(s, ms); if (p && p.catch) p.catch(() => {}); } catch (e) { /* 振動の ない コントローラー */ }
+}
+const vrDefects = () => (state.session ? state.session.defects : 0);
+function vrAfterSelect(c, before) { if (vrDefects() > before) vrBuzz(c, 0.9, 160); else vrBuzz(c, 0.45, 35); }
+const vrHolding = (c) => (!!vrHeld && vrHeld.ctrl === c) || (!!vrTray && vrTray.ctrl === c) || (!!vrCup && vrCup.ctrl === c);
+// 手で さわれる 品物（作業中の、まだ すんで いない 見えて いる 物）
+function vrTouchSlots() {
+  const r = state.round; if (!r || state.phase !== 'work' || state.where !== 'booth' || binocView || r.cover) return [];
+  return r.slots.map((s, i) => ({ s, i })).filter(({ s }) => !s.done && s.holder && s.holder.visible && s.mesh);
+}
+function vrSlotBox(s) { const b = new THREE.Box3(); [s.mesh, s.extra].forEach((g) => { if (g) b.expandByObject(g); }); return b; }
+function vrTouchOf(c) { const h = vrHands.find((o) => o.c === c); return h && renderer.xr.isPresenting ? h.touch : null; }
+function vrTouchSelect(c, i) {
+  const before = vrDefects(); onSelectItem(i); vrAfterSelect(c, before); renderHud();
+}
+function stepVrHands() {
+  const on = renderer.xr.isPresenting;
+  if (!on) { vrHands.forEach((h) => { h.hand.visible = false; h.outline.visible = false; h.dot.visible = false; h.touch = null; h.hover = null; }); return; }
+  const cand = vrTouchSlots().map((o) => { const b = vrSlotBox(o.s); b.expandByScalar(VR_TOUCH_PAD); return { i: o.i, b }; }).filter((o) => !o.b.isEmpty());
+  const clk = vrMenu.mesh.visible ? null : currentClickables();
+  vrHands.forEach((h) => {
+    const c = h.c; h.hand.visible = c.visible;
+    if (!c.visible) { h.outline.visible = false; h.dot.visible = false; return; }
+    // さわる（持って いる 手は さわらない）
+    let touch = null;
+    if (!vrHolding(c) && cand.length) {
+      const tip = c.localToWorld(vrTipTmp.copy(VR_TIP)); let bd = Infinity;
+      cand.forEach((o) => { if (!o.b.containsPoint(tip)) return; const d = o.b.getCenter(vrCtrTmp).distanceTo(tip); if (d < bd) { bd = d; touch = o; } });
+    }
+    const ti = touch ? touch.i : null;
+    if (ti !== h.touch) { h.touch = ti; if (touch) vrBuzz(c, 0.25, 20); }
+    h.outline.visible = !!touch; if (touch) h.box.copy(touch.b);
+    // レーザー：当たった ところで 止める
+    let dist = 4; let can = false; let key = null;
+    if (!touch) {
+      const ray = vrCtrlRay(c); const m = vrmHit(ray);
+      const wh = vrWatch.pivot.visible && vrWatch.grip && vrWatch.grip.userData.hand !== c.userData.hand ? ray.intersectObject(vrWatch.face, false)[0] : null; // 腕時計の 文字ばん
+      if (wh) { dist = wh.distance; can = true; key = 'w'; }
+      else if (m) { dist = m.dist; can = m.i >= 0; key = can ? 'm' + m.i : null; }
+      else if (clk && clk.length) { const hit = ray.intersectObjects(clk, false)[0]; if (hit) { dist = Math.min(hit.distance, 40); can = true; key = hit.object.userData.slotIndex !== undefined ? 's' + hit.object.userData.slotIndex : hit.object.uuid; } }
+    }
+    if (key !== h.hover) { h.hover = key; if (key) vrBuzz(c, 0.08, 10); }
+    if (h.line) { h.line.visible = !touch; h.line.scale.z = dist / 4; h.line.material.color.set(can ? '#4fc3f7' : '#ffd23f'); }
+    h.dot.visible = !touch && can; h.dot.position.set(0, 0, -dist);
+  });
+}
+
+// ---- VR の 距離：お店の 立ち位置は 画面で 台と モニターが 見える ように 少し はなれて いる（台の 品物まで 1.4 m ほど）。
+//   VR では 手が とどかないので、作業が はじまって 動きおわったら、目の 前の いちばん 近い 品物が 0.6 m に なる ところまで 前へ 出る。
+//   自分で 歩いて 動く 作業（モップ・配膳）や、自分で 立ち位置を きめて いる カフェは そのまま。
+const VR_REACH = { want: 0.6, min: 0.75, max: 2.2, cap: 1.1, side: 1.0 };
+const VR_REACH_SKIP = ['care', 'cafe', 'mop', 'snow', 'wipe'];
+function vrReachShift() {
+  const head = camera.getWorldPosition(new THREE.Vector3()); const fwd = camera.getWorldDirection(new THREE.Vector3()); fwd.y = 0;
+  if (fwd.lengthSq() < 1e-6) return null; fwd.normalize();
+  let dmin = Infinity;
+  vrTouchSlots().forEach(({ s }) => {
+    if (s.key === 'お客さま' || (s.spec && s.spec.shape === 'resident')) return;
+    const b = vrSlotBox(s); if (b.isEmpty()) return;
+    const v = b.clampPoint(head, new THREE.Vector3()).sub(head); v.y = 0;
+    const f = v.dot(fwd); const side = Math.abs(v.x * fwd.z - v.z * fwd.x);
+    if (f > 0.05 && f < VR_REACH.max && side < VR_REACH.side) dmin = Math.min(dmin, f);
+  });
+  if (dmin === Infinity || dmin < VR_REACH.min) return null;
+  return { fwd, d: Math.min(VR_REACH.cap, dmin - VR_REACH.want), near: dmin };
+}
+function stepVrReach() {
+  if (!vrReach.pending || tween) return;
+  if (!renderer.xr.isPresenting || state.where !== 'booth') { vrReach.pending = false; return; }
+  if (state.phase !== 'work') return; // はじめる 前は まつ
+  vrReach.pending = false;
+  const r = state.round; if (!r || r.cover || VR_REACH_SKIP.includes(r.def.layout)) return;
+  const sh = vrReachShift(); if (!sh) return;
+  moveRig(rig.position.clone().addScaledVector(sh.fwd, sh.d), rig.rotation.y, 0, 450);
 }
 
 const vrBtn = document.getElementById('btn-vr');
@@ -8534,7 +8640,7 @@ vrBtn.addEventListener('click', async () => {
     xrSession = s; vrBtn.textContent = 'VR を出る';
     renderer.xr.setReferenceSpaceType('local-floor');
     await renderer.xr.setSession(s);
-    camera.position.set(0, 0, 0);
+    camera.position.set(0, 0, 0); vrReach.pending = true; // 作業の とちゅうで 入ったら、台に 手が とどく ところへ
     setTimeout(() => toast('左手首の 腕時計に さわると メニュー・設定が 出ます（B か Y ボタンでも）'), 800);
     s.addEventListener('end', () => { xrSession = null; vrBtn.textContent = 'VR で入る'; camera.position.set(0, 1.6, 0); });
   } catch (e) { toast('VR を開けませんでした。ヘッドセットのブラウザで開いてください。'); }
@@ -13026,6 +13132,8 @@ renderer.setAnimationLoop((now) => {
   stepVrPick();
   stepVrCare(dt);
   stepVrCup();
+  stepVrHands();
+  stepVrReach();
   if (now - (drawMinimap.last || 0) > 100) { drawMinimap.last = now; drawMinimap(); } // 地図は 1 秒に 10 回で じゅうぶん
   kcRenderScreen(now); // 競馬場の 大型ビジョン
   renderer.render(scene, camera);
@@ -13052,7 +13160,7 @@ window.hopeTown = { scene, camera, vrWatch, vrWatchPress, drawVrWatch,
   CASINO, CASINO_SITE, casinoRefill, casinoCount, CASINO_REST_EVERY, bacPlay, bacPayout, bacTotal, bacDeal, pkEval, pkHandName, pkEquity, pkNew, pkAct,
   RL_CELLS, rlPick, rlHit, IBA, IBA_SITE, openIba, ibaSit, ibaStand, ibaClickables, ibaData, sgLegal, sgPlay, sgThink, igoThink, igoScore, mjShanten, mjComplete, mjYaku, mjCounts, ISLE, BOATS, boardBoat, boatTrip, openCasino, casSit, casStand, CAS, slSpin, slStop, rlSpin, bjDeal, bjHit, bjStand, rideFerris, FERRIS, goBoatPier, KC, openKeiba, kcWindow, kcSeat, kcPaddock, keibaBuy, keibaStart, keibaNew, kcClickables, walkable, kcOutside, shogiTap, igoTap, mjTap, mjRon,
   state, goBooth, pickVariant, startSession, openRehab, startRehab, rehabPress, rehabSwipeThrow, rehabVolleyPress, REHAB, get rehabOpt() { return rehabOpt; }, set rehabOpt(v) { rehabOpt = v; }, select: onSelectItem, playSfx, sfxKind, SFX, nextTargetKey, setSeason, startWalk, exitToWalk, walkKeys, rig, look, walkable, booths, goHome, exitHome, goPlaza,
-  get profile() { return profile; }, quitWork, openJobList, openCafeOrder, sitCafe, endPlay, CAFE_ORDER, doLeisure, LEISURE, home, HOME_LEVELS, upgradeHome, askUpgrade, homeLv, FURN, goFurniture, furnShop, pickFurn, exitFurniture, cheatCover() { const r = state.round; if (r && r.cover) { r.cover.surf.clearAll(); coverProgress(r, 1, performance.now()); } }, seasonal, LAKE, toWorld, nearbyActions, openShop, openBadgeBook, openSettings, openAreaPicker, openLookMaker, lookOf,
+  get profile() { return profile; }, quitWork, openJobList, openCafeOrder, sitCafe, endPlay, CAFE_ORDER, doLeisure, LEISURE, home, HOME_LEVELS, upgradeHome, askUpgrade, homeLv, FURN, goFurniture, furnShop, pickFurn, exitFurniture, vrReachShift, cheatCover() { const r = state.round; if (r && r.cover) { r.cover.surf.clearAll(); coverProgress(r, 1, performance.now()); } }, seasonal, LAKE, toWorld, nearbyActions, openShop, openBadgeBook, openSettings, openAreaPicker, openLookMaker, lookOf,
   // テスト用：オープニングを とばして 家を 用意する
   quickStart(homeKey, mode) { profile = { name: 'テスト', gender: 'n', mode: mode || 'money', home: homeKey || 'downtown', homeLv: 0, money: 0, badges: {}, owned: [], since: new Date().toISOString() }; saveProfile(); closeModal(); buildHome(); renderWallet(); goPlaza(); },
 };
