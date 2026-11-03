@@ -11415,7 +11415,7 @@ function seatedCrowd(parent, seats, S, seatH) {
 // ===========================================================================
 const isW = (x, z) => new THREE.Vector3(ISLE.c.x + x, 0, ISLE.c.z + z); // 島の 中心からの ずれ（m）→ world
 const casOutside = () => ibaOutside('casino'); // HOPE アミューズメントの 入口の 前（建物に 背中を 向ける）
-const FERRIS = { at: isW(17, -35), r: 9, hub: 10.6, wheel: null, ang: 0, speed: 0.09 }; // speed：1 秒に まわる 角度（1 周 約 70 秒）
+const FERRIS = { at: isW(19.5, -35), r: 9, hub: 10.6, wheel: null, ang: 0, speed: 0.09 }; // speed：1 秒に まわる 角度（1 周 約 70 秒）
 const FERRIS_PRICE = 300;
 const ferrisExit = () => ({ pos: FERRIS.at.clone().add(new THREE.Vector3(0, 0, 5.2)), yaw: 0 }); // 小屋の 前（観覧車の 方を 向く）
 const isleNow = () => insideIsle(rig.position.x, rig.position.z) || rig.position.x < -100;
