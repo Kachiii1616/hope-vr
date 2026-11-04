@@ -1175,7 +1175,9 @@ scene.background = new THREE.Color('#bfe0ec');
 scene.fog = new THREE.Fog('#bfe0ec', 160, 420);
 
 const rig = new THREE.Group();
-scene.add(rig);
+// VR の 目の 高さ合わせ：rig の 上に 1 つ 親を はさんで、上下だけ 動かす（すわって 使っても 立った 目の 高さに なる。stepVrEye）
+const vrLift = new THREE.Group();
+scene.add(vrLift); vrLift.add(rig);
 const camera = new THREE.PerspectiveCamera(70, stage.clientWidth / stage.clientHeight, 0.05, 600);
 camera.position.set(0, 1.6, 0);
 camera.rotation.order = 'YXZ';
@@ -3856,10 +3858,19 @@ function itemKey(spec) { return spec.id || spec.label; }
 let tween = null;
 // VR：お店で 動いた あとに、作業台に 手が とどく ところまで 前へ 出るか 見なおす（stepVrReach）
 const vrReach = { pending: false };
-function moveRig(pos, yaw, pitch, dur) {
+// VR：pos・yaw は「頭（目）」を おく ところと 向き。部屋の 中で 立って いる ところが まん中から ずれて いても、頭が pos に 来る ように rig を ずらす。
+//   opt.arrive（ほかの 場所へ 来た とき）は、からだが 大きく（45 度より）横を 向いて いたら、その 向きの 正面に お店が 来る ように まわす。
+//   opt.raw は ずらさない（rig を そのまま 動かす：stepVrReach）
+function moveRig(pos, yaw, pitch, dur, opt) {
   vrReach.pending = true;
   const from = { p: rig.position.clone(), yaw: rig.rotation.y };
   const to = { p: pos.clone(), yaw };
+  if (renderer.xr.isPresenting && !(opt && opt.raw)) {
+    const hy = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ').y; // 頭の 向き（rig の 中で）
+    if (opt && opt.arrive && Math.abs(hy) > Math.PI / 4) to.yaw = yaw - hy;
+    const off = new THREE.Vector3(camera.position.x, 0, camera.position.z).applyAxisAngle(new THREE.Vector3(0, 1, 0), to.yaw);
+    if (off.lengthSq() < 4) to.p.sub(off); // 2 m より 大きい ずれは おかしいので すてる
+  }
   // 回転は近い向きへ
   let d = to.yaw - from.yaw; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; to.yaw = from.yaw + d;
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -3901,7 +3912,7 @@ function goHome(instant) {
   overviewOnly.forEach((m) => { m.visible = false; });
   refreshHome();
   const p = homeStand();
-  if (instant) { tween = null; rig.position.copy(p); rig.rotation.y = home.yaw; look.yaw = 0; look.pitch = 0.05; } else moveRig(p, home.yaw, 0.05);
+  if (instant) { tween = null; rig.position.copy(p); rig.rotation.y = home.yaw; look.yaw = 0; look.pitch = 0.05; } else moveRig(p, home.yaw, 0.05, undefined, { arrive: true });
   renderHud();
 }
 function exitHome() { startWalk(home.group.position.clone().addScaledVector(home.front, home.HD / 2 + 3.2), home.yaw + Math.PI); }
@@ -3915,7 +3926,7 @@ function goFurniture() {
   overviewOnly.forEach((m) => { m.visible = false; });
   Object.keys(walkKeys).forEach((k) => { walkKeys[k] = false; }); syncPad();
   furnShop.selected = null; paintFurnTags();
-  moveRig(FURN.group.localToWorld(new THREE.Vector3(0, 0, FURN.W / 2 - 0.8)), FURN.yaw, 0.12);
+  moveRig(FURN.group.localToWorld(new THREE.Vector3(0, 0, FURN.W / 2 - 0.8)), FURN.yaw, 0.12, undefined, { arrive: true });
   renderHud();
   toast('家具屋へ ようこそ。家具の 上に 値段が 出ています');
 }
@@ -3955,7 +3966,7 @@ function goPlaza() {
   if (state.booth) Object.values(state.booth.btns).forEach((m) => { m.visible = false; });
   state.cameFromWalk = false;
   state.where = 'plaza'; state.booth = null; state.phase = 'choose'; state.session = null; state.round = null;
-  moveRig(OVERVIEW.pos, OVERVIEW.yaw, OVERVIEW.pitch);
+  moveRig(OVERVIEW.pos, OVERVIEW.yaw, OVERVIEW.pitch, undefined, { arrive: true });
   overviewOnly.forEach((m) => { m.visible = true; });
   renderHud();
 }
@@ -3968,7 +3979,7 @@ function goBooth(i) {
   state.variantChosen = false; state.lastResult = null;
   state.where = 'booth'; state.booth = b; state.phase = 'choose'; state.session = null; state.round = null; state.feedback = { text: '', kind: '' };
   const stand = b.group.localToWorld(new THREE.Vector3(0, 0, STAFF_Z));
-  moveRig(stand, b.yaw + Math.PI, 0.12); // 店員の 立ち位置。少し 下を 向いて、台の 上と 指示モニターが 両方 見えるように
+  moveRig(stand, b.yaw + Math.PI, 0.12, undefined, { arrive: true }); // 店員の 立ち位置。少し 下を 向いて、台の 上と 指示モニターが 両方 見えるように
   overviewOnly.forEach((m) => { m.visible = false; });
   showChoose();
   renderHud();
@@ -3982,7 +3993,7 @@ function startWalk(pos, yaw) {
   if (state.booth) Object.values(state.booth.btns).forEach((m) => { m.visible = false; });
   state.where = 'walk'; state.booth = null; state.phase = 'choose'; state.session = null; state.round = null; state.cameFromWalk = false;
   overviewOnly.forEach((m) => { m.visible = false; });
-  moveRig(pos || toWorld(...WALK_START.at), yaw === undefined ? WALK_START.yaw : yaw, 0);
+  moveRig(pos || toWorld(...WALK_START.at), yaw === undefined ? WALK_START.yaw : yaw, 0, undefined, { arrive: true });
   renderHud();
 }
 // お店から 外へ（入口の 前に 出て、お店に 背中を 向ける）
@@ -4037,7 +4048,7 @@ function walkStep(dt) {
   if (state.skating) { state.skating = false; skateV.set(0, 0, 0); renderHud(); }
   if (!fwd && !strafe) return;
   camera.getWorldDirection(tmpDir); tmpDir.y = 0; if (tmpDir.lengthSq() < 1e-6) return; tmpDir.normalize();
-  const speed = (walkKeys.run ? 5 : 2.6) * dt;
+  const speed = (renderer.xr.isPresenting ? (walkKeys.run ? 3.5 : 1.8) : (walkKeys.run ? 5 : 2.6)) * dt; // VR は 酔いにくい よう ゆっくり
   const dx = (tmpDir.x * fwd - tmpDir.z * strafe) * speed; const dz = (tmpDir.z * fwd + tmpDir.x * strafe) * speed;
   const p = rig.position;
   if (walkable(p.x + dx, p.z + dz)) { p.x += dx; p.z += dz; } else if (walkable(p.x + dx, p.z)) p.x += dx; else if (walkable(p.x, p.z + dz)) p.z += dz; // 壁ぞいに すべる
@@ -4270,7 +4281,7 @@ function clearWork() {
 // 外の 作業：指示モニター（ボタンつき）を 畑へ 持って いき、自分も その 場所へ 行く
 function goField(b, f, stand, pitch, panelAt, yaw) {
   f.g.add(b.panel); b.panel.position.set(panelAt[0], 0, panelAt[1]); b.panel.rotation.y = panelAt[2]; b.panelOut = true; b.inField = true;
-  moveRig(f.g.localToWorld(stand.clone()), f.yaw + (yaw || 0), pitch, b.fieldArrived ? 700 : undefined); b.fieldArrived = true;
+  moveRig(f.g.localToWorld(stand.clone()), f.yaw + (yaw || 0), pitch, b.fieldArrived ? 700 : undefined, b.fieldArrived ? undefined : { arrive: true }); b.fieldArrived = true;
 }
 // 田んぼの 苗植え
 function seedlingMesh(wilt) {
@@ -8737,7 +8748,34 @@ function stepVrReach() {
   vrReach.pending = false;
   const r = state.round; if (!r || r.cover || VR_REACH_SKIP.includes(r.def.layout)) return;
   const sh = vrReachShift(); if (!sh) return;
-  moveRig(rig.position.clone().addScaledVector(sh.fwd, sh.d), rig.rotation.y, 0, 450);
+  moveRig(rig.position.clone().addScaledVector(sh.fwd, sh.d), rig.rotation.y, 0, 450, { raw: true });
+}
+
+// ---- VR の 目の 高さ：お店・席・乗り物は 目の 高さ 1.6 m（立った 大人）で 作って いる。
+//   auto：VR に 入った ときに 頭が 1.3 m より 低ければ（すわって いる）、1.6 m に なる ように からだごと 上げる。立って いれば 身長の まま
+//   stand：設定で「保存」を おした ときの 頭の 高さを 1.6 m に する（すわって 使う・背の ひくい 人）
+//   real：上げ下げ しない（自分の 身長の まま）
+const VR_EYE = 1.6; const VR_EYE_KEY = 'hope-vr-eye';
+const vrEye = { mode: 'auto', lift: 0, measure: 0, say: false };
+try { const j = JSON.parse(localStorage.getItem(VR_EYE_KEY) || 'null'); if (j && ['auto', 'stand', 'real'].includes(j.mode)) { vrEye.mode = j.mode; vrEye.lift = Math.max(-0.4, Math.min(0.9, +j.lift || 0)); } } catch (e) { /* noop */ }
+function saveVrEye() { try { localStorage.setItem(VR_EYE_KEY, JSON.stringify({ mode: vrEye.mode, lift: vrEye.lift })); } catch (e) { /* noop */ } }
+function setVrEye(mode) {
+  const again = mode === 'stand' || mode !== vrEye.mode; vrEye.mode = mode;
+  if (mode === 'real') vrEye.lift = 0; else if (again) { vrEye.measure = 1; vrEye.say = renderer.xr.isPresenting; }
+  saveVrEye();
+}
+function stepVrEye() {
+  if (!renderer.xr.isPresenting) { vrLift.position.y = 0; return; }
+  const h = camera.position.y; // 床からの 頭の 高さ（local-floor）
+  if (vrEye.measure && h > 0.3 && ++vrEye.measure > 20) { // 頭の 位置が とれて から 少し まって はかる
+    vrEye.measure = 0;
+    if (vrEye.mode === 'stand') vrEye.lift = Math.max(-0.4, Math.min(0.9, VR_EYE - h));
+    else if (vrEye.mode === 'auto') vrEye.lift = h < 1.3 ? Math.min(0.9, VR_EYE - h) : 0;
+    saveVrEye();
+    if (vrEye.say || vrEye.lift > 0.05) toast(vrEye.lift > 0.05 ? '目の 高さを 立った 高さ（' + VR_EYE + ' m）に あわせました。かえる ときは 設定の「VR の 目の 高さ」' : '目の 高さは 身長の ままに しました');
+    vrEye.say = false;
+  }
+  vrLift.position.y = vrEye.mode === 'real' ? 0 : vrEye.lift;
 }
 
 const vrBtn = document.getElementById('btn-vr');
@@ -8752,7 +8790,7 @@ vrBtn.addEventListener('click', async () => {
     xrSession = s; vrBtn.textContent = 'VR を出る';
     renderer.xr.setReferenceSpaceType('local-floor');
     await renderer.xr.setSession(s);
-    camera.position.set(0, 0, 0); vrReach.pending = true; // 作業の とちゅうで 入ったら、台に 手が とどく ところへ
+    camera.position.set(0, 0, 0); vrReach.pending = true; if (vrEye.mode === 'auto') vrEye.measure = 1; // 作業の とちゅうで 入ったら、台に 手が とどく ところへ
     setTimeout(() => toast('左手首の 腕時計に さわると メニュー・設定が 出ます（B か Y ボタンでも）'), 800);
     s.addEventListener('end', () => { xrSession = null; vrBtn.textContent = 'VR で入る'; camera.position.set(0, 1.6, 0); });
   } catch (e) { toast('VR を開けませんでした。ヘッドセットのブラウザで開いてください。'); }
@@ -10928,7 +10966,7 @@ function kcPaddock() {
 function kcSeat() {
   const pl = kcNow(); if (!pl) return; pl.at = 'seat';
   const y = kcRowY(KC_SEAT.row); const p = kcW(KC_SEAT.x, 0, kcRowZ(KC_SEAT.row) + 0.55);
-  rig.position.set(p.x, y + (renderer.xr.isPresenting ? 0 : -0.35), p.z); rig.rotation.y = Math.PI; look.yaw = 0; look.pitch = 0.12;
+  rig.position.set(p.x, y - 0.35, p.z); rig.rotation.y = Math.PI; look.yaw = 0; look.pitch = 0.12; // VR も 同じ 高さ（すわって いても stepVrEye で 目の 高さが そろう）
   KC.win.pg.visible = false; KC.pad.pg.visible = false; KC.seatSt.pg.visible = renderer.xr.isPresenting;
   const K = KC.K; if (K.phase === 'bet') { K.phase = 'post'; K.postAt = performance.now() + 6000; playSfx('fanfare'); KC.horses.forEach((h) => { h.userData.body.rotation.set(0, 0, 0); h.userData.body.position.y = 0; h.userData.legs.forEach((L) => { L.rotation.x = 0; }); }); kbPlace(); } // 馬は パドックから ゲートへ
   keibaShow(); renderHud();
@@ -12026,7 +12064,7 @@ function rideFerris() {
 const ferrisTmp = new THREE.Vector3();
 function ferrisRide(pl, now) { // ゴンドラの おくの ベンチに すわって 南（島と 競馬場の 方）を 見る
   FERRIS.wheel.updateMatrixWorld(true); pl.car.localToWorld(ferrisTmp.set(0, 0, -0.36)); // 輪から 計算しなおす（ゴンドラだけだと 輪の 回転が 1 フレーム おくれて ガクガク する）
-  rig.position.set(ferrisTmp.x, ferrisTmp.y - (renderer.xr.isPresenting ? 1.6 : 2.03), ferrisTmp.z); rig.rotation.y = Math.PI;
+  rig.position.set(ferrisTmp.x, ferrisTmp.y - 2.03, ferrisTmp.z); rig.rotation.y = Math.PI;
   const turned = FERRIS.ang - pl.a0;
   if (!pl.half && turned > Math.PI) { pl.half = true; toast('てっぺんを すぎました。島が ぜんぶ 見えます'); }
   if (turned >= TAU) { toast('1 周 しました。おつかれさまでした'); endPlay(); }
@@ -12735,6 +12773,7 @@ function openSettings() {
     '<div class="field">あそびかた</div>' + radio('st-m', MODE_HTML, profile.mode) +
     '<div class="field">効果音（物に さわった ときの 音）</div>' + radio('st-sfx', { on: '鳴らす', off: '鳴らさない' }, sfxOn ? 'on' : 'off') +
     '<div class="field">BGM（場所に 合わせた 曲）</div>' + radio('st-bgm', { on: '流す', off: '流さない' }, bgmOn ? 'on' : 'off') +
+    '<div class="field">VR の 目の 高さ</div>' + radio('st-eye', { auto: '自動（すわって いたら 立った 高さに）', stand: '保存を おした ときの 高さを 立った 高さに する', real: '自分の 身長の まま' }, vrEye.mode) +
     '<p>あそびかたを かえても、いままでの バッジ・お金・家具は のこります。</p>' +
     '<div class="row"><button type="button" class="primary" id="st-save">保存</button><button type="button" id="st-move">引っ越し</button><button type="button" id="st-close">とじる</button></div>' +
     '<div class="field">スプレッドシートに 保存（デモ）</div><p>gas/Code.gs の ウェブアプリの URL と、利用者ID（本名ではなく 番号など）を 入れると、ほかの 端末でも つづきから あそべます。</p>' +
@@ -12746,7 +12785,7 @@ function openSettings() {
   () => {
     $('st-save').onclick = () => {
       profile.name = $('st-name').value.trim() || profile.name; profile.gender = pickVal('st-g') || profile.gender; profile.mode = pickVal('st-m') || profile.mode;
-      setSfx(pickVal('st-sfx') !== 'off'); setBgm(pickVal('st-bgm') !== 'off');
+      setSfx(pickVal('st-sfx') !== 'off'); setBgm(pickVal('st-bgm') !== 'off'); setVrEye(pickVal('st-eye') || vrEye.mode);
       saveProfile(); buildHome(); renderWallet(); closeModal(); renderHud(); toast('保存しました');
     };
     $('st-move').onclick = () => openAreaPicker(false);
@@ -13220,6 +13259,7 @@ renderer.setAnimationLoop((now) => {
   else if (whiteout.visible) whiteout.visible = false;
   const WF = FIELDS.wind; if (WF && WF.pendingHide && (!tween || (tween.fade && tween.snapped))) { WF.pendingHide = false; WF.g.visible = false; hillMills.forEach((m) => { m.visible = true; }); }
   const SF = FIELDS.snow; if (SF && SF.pendingHide && (!tween || (tween.fade && tween.snapped))) { SF.pendingHide = false; SF.g.visible = false; }
+  stepVrEye();
   stepBinoc(now);
   if (!renderer.xr.isPresenting) { camera.rotation.y = look.yaw; camera.rotation.x = -look.pitch; }
   walkStep(dt);
