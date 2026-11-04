@@ -8195,6 +8195,118 @@ function playSfx(kind) {
   if (!sfxOn || !SFX[kind] || !sfxCtx()) return;
   try { SFX[kind](); } catch (e) { /* 音なしで 続ける */ }
 }
+// ===========================================================================
+// BGM：いる 場所に 合わせた 曲を Web Audio で その場で つくって 流す（音の ファイルは 使わない）
+//   仕事場（Work Island）… 明るく 一定の テンポ。マリンバと 軽い リズムで 手が うごく 感じ
+//   あそびの島（連絡船・競馬場・アミューズメント・観覧車も）… はずむ スチールパンと 裏拍の ギター。おまつり気分
+//   リハビリステーション … ゆっくり。やわらかい 和音と ときどき 鳴る ベルだけ（ドラムなし。動きに 集中 できるように）
+//   場所が かわったら すこし 待って（行き来の とちゅうで ころころ かわらないよう）、ゆっくり 入れかえる。
+//   声の 読みあげ中は 音を 小さく。設定で 消せる（効果音とは べつ）。
+// ===========================================================================
+const BGM_KEY = 'hope-vr-bgm';
+let bgmOn = (() => { try { return localStorage.getItem(BGM_KEY) !== 'off'; } catch (e) { return true; } })();
+function setBgm(on) { bgmOn = !!on; try { localStorage.setItem(BGM_KEY, bgmOn ? 'on' : 'off'); } catch (e) { /* noop */ } bgmTick(); }
+const BGM_VOL = 0.32;
+const midiHz = (n) => 440 * Math.pow(2, (n - 69) / 12);
+// 音の 部品（BGM 用。bus に つなぐ）。o.h は 倍音（[倍率, 大きさ]の ならび）
+function bnote(bus, n, t, dur, o) {
+  o = o || {}; const f = midiHz(n); const vol = o.vol || 0.1; const att = o.attack || 0.006;
+  const g = actx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol, t + att);
+  g.gain.setTargetAtTime(0.0001, t + Math.max(att, dur * (o.hold || 0.1)), dur * (o.decay || 0.3));
+  g.connect(bus);
+  [[1, 1]].concat(o.h || []).forEach(([m, v]) => {
+    const osc = actx.createOscillator(); osc.type = m === 1 ? (o.type || 'sine') : 'sine'; osc.frequency.setValueAtTime(f * m, t);
+    if (o.detune) osc.detune.setValueAtTime(o.detune, t);
+    if (v === 1) { osc.connect(g); } else { const gv = actx.createGain(); gv.gain.value = v; osc.connect(gv).connect(g); }
+    osc.start(t); osc.stop(t + dur * 2.5 + 0.1);
+  });
+}
+function bnoise(bus, t, dur, o) {
+  o = o || {}; const src = actx.createBufferSource(); const flt = actx.createBiquadFilter(); const g = actx.createGain();
+  src.buffer = noiseBuf; flt.type = o.filter || 'highpass'; flt.frequency.value = o.f || 7000; flt.Q.value = o.q || 0.7;
+  g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(o.vol || 0.03, t + 0.004); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  src.connect(flt).connect(g).connect(bus); src.start(t, Math.random() * 0.5); src.stop(t + dur + 0.02);
+}
+// 和音：[ベースの 音（MIDI）, 和音の 音の ならび（根音からの 半音）]
+const BGM_CH = { C: [48, [0, 4, 7]], G: [43, [0, 4, 7]], Am: [45, [0, 3, 7]], F: [41, [0, 4, 7]], Dm: [38, [0, 3, 7]], Em: [40, [0, 3, 7]], Gm: [43, [0, 3, 7]], Bb: [46, [0, 4, 7]],
+  Dmaj7: [38, [0, 4, 7, 11]], Bm7: [47, [0, 3, 7, 10]], Gmaj7: [43, [0, 4, 7, 11]], Asus: [45, [0, 5, 7, 9]], Em7: [40, [0, 3, 7, 10]] };
+// 和音の 音を 高さ base の あたりに ならべる（arp[i] が メロディの 候補。和音の 音だけ なので はずれない）
+function chordArp(ch, base) {
+  const [root, iv] = BGM_CH[ch]; let r = root; while (r < base - 6) r += 12; while (r > base + 6) r -= 12;
+  return iv.map((v) => r + v).concat(iv.map((v) => r + v + 12));
+}
+const BGM_TRACKS = {
+  work: { bpm: 100, steps: 8, prog: ['C', 'G', 'Am', 'F', 'Dm', 'G', 'C', 'G'],
+    mel: [[0, null, 1, 2, null, 1, 3, null], [2, null, 1, null, 0, 1, 2, null], [3, 2, null, 1, 2, null, 0, null], [0, 1, 2, 4, null, 2, 1, null]],
+    play(st, bar, t, sp, ch, bus) {
+      const [root, iv] = BGM_CH[ch]; const b = root < 40 ? root : root - 12;
+      if (st === 0 || st === 4) bnote(bus, b, t, sp * 1.6, { type: 'triangle', vol: 0.15, decay: 0.5 });
+      if (st === 6) bnote(bus, b + 7, t, sp * 0.8, { type: 'triangle', vol: 0.1 });
+      if (st === 0) chordArp(ch, 62).slice(0, iv.length).forEach((n) => bnote(bus, n, t, sp * 7, { vol: 0.028, attack: 0.05, hold: 0.5, decay: 0.5, h: [[2, 0.2]] }));
+      const m = this.mel[bar % 4][st]; if (m !== null) bnote(bus, chordArp(ch, 74)[m], t, 0.5, { vol: 0.07, hold: 0.02, decay: 0.18, h: [[4, 0.12], [10, 0.03]] }); // マリンバ
+      if (st % 2 === 1) bnoise(bus, t, 0.04, { vol: 0.018 }); // チッ（かるい ハイハット）
+      if (st === 4) bnoise(bus, t, 0.09, { filter: 'bandpass', f: 1800, q: 1, vol: 0.03 }); // タッ（2・4拍め）
+    } },
+  isle: { bpm: 122, steps: 8, prog: ['F', 'Dm', 'Gm', 'C', 'F', 'Bb', 'C', 'F'],
+    mel: [[0, null, 2, null, 1, 3, null, 2], [4, null, 3, 2, null, 1, 2, null], [1, 2, null, 3, null, 2, 0, null], [2, null, 4, null, 3, null, 2, 1]],
+    play(st, bar, t, sp, ch, bus) {
+      const [root] = BGM_CH[ch]; const b = root < 40 ? root : root - 12;
+      const bl = { 0: b, 3: b + 7, 4: b + 12, 6: b + 7 }; if (bl[st] !== undefined) bnote(bus, bl[st], t, sp * 0.9, { type: 'triangle', vol: 0.15, decay: 0.35 }); // ブン・チャ
+      if (st === 2 || st === 6) chordArp(ch, 64).slice(0, 3).forEach((n) => bnote(bus, n, t, sp * 0.5, { type: 'triangle', vol: 0.03, hold: 0.05, decay: 0.2 })); // 裏拍の ギター
+      const m = this.mel[bar % 4][st]; if (m !== null) bnote(bus, chordArp(ch, 77)[m], t, 0.6, { vol: 0.065, hold: 0.03, decay: 0.25, h: [[2, 0.35], [3, 0.12]] }); // スチールパン
+      bnoise(bus, t, st % 2 ? 0.05 : 0.03, { f: 5500, vol: st % 2 ? 0.022 : 0.012 }); // シャカ（シェイカー）
+      if (st === 3 || st === 7) bnote(bus, st === 3 ? 57 : 52, t, 0.18, { vol: 0.07, decay: 0.15 }); // ポコ（コンガ）
+    } },
+  rehab: { bpm: 64, steps: 8, prog: ['Dmaj7', 'Bm7', 'Gmaj7', 'Asus', 'Dmaj7', 'Em7', 'Gmaj7', 'Asus'],
+    bell: [[0, null, null, 2, null, null, 4, null], [null, null, 3, null, null, null, 1, null], [2, null, null, null, 4, null, null, null], [null, null, 1, null, null, 3, null, null]],
+    play(st, bar, t, sp, ch, bus) {
+      const [root, iv] = BGM_CH[ch];
+      if (st === 0) {
+        bnote(bus, root < 42 ? root : root - 12, t, sp * 8, { vol: 0.08, attack: 0.4, hold: 0.6, decay: 0.4 }); // ひくい 音
+        chordArp(ch, 62).slice(0, iv.length).forEach((n, i) => { // やわらかい 和音（すこし ずらした 2 本で ゆらぎを）
+          bnote(bus, n, t + i * 0.05, sp * 8, { vol: 0.022, attack: 1.4, hold: 0.7, decay: 0.45 });
+          bnote(bus, n, t + i * 0.05, sp * 8, { vol: 0.016, attack: 1.6, hold: 0.7, decay: 0.45, detune: 7 });
+        });
+      }
+      const m = this.bell[bar % 4][st]; if (m !== null) bnote(bus, chordArp(ch, 79)[m], t, 2.4, { vol: 0.04, attack: 0.01, hold: 0.01, decay: 0.45, h: [[3, 0.08], [5.4, 0.02]] }); // ベル
+    } },
+};
+const BGM = { zone: null, want: null, wantAt: 0, swapAt: 0, next: 0, step: 0, bar: 0, bus: null, target: -1 };
+function bgmZone() {
+  if (state.where === 'opening' && !profile) return null; // はじめの 名前入力の あいだは 鳴らさない
+  if (rehabNow()) return 'rehab';
+  const pl = state.where === 'play' ? state.play : null;
+  if (pl && (['keiba', 'casino', 'ferris', 'boat'].includes(pl.kind) || (pl.kind === 'iba' && pl.room === 'casino'))) return 'isle';
+  if (pl && pl.kind === 'iba') return 'work'; // 居場所の 部屋は Work Island あつかい
+  if (state.where !== 'plaza' && isleNow()) return 'isle';
+  return 'work';
+}
+function bgmGain(v, tc) {
+  if (Math.abs(v - BGM.target) < 0.001) return; BGM.target = v;
+  BGM.bus.gain.cancelScheduledValues(actx.currentTime); BGM.bus.gain.setTargetAtTime(v, actx.currentTime, tc || 0.4);
+}
+function bgmTick() {
+  if (!bgmOn) { if (BGM.bus) bgmGain(0, 0.3); BGM.zone = null; return; }
+  if (!sfxCtx()) return;
+  if (!BGM.bus) { BGM.bus = actx.createGain(); BGM.bus.gain.value = 0; BGM.bus.connect(actx.destination); }
+  const now = actx.currentTime; const z = bgmZone();
+  if (z !== BGM.want) { BGM.want = z; BGM.wantAt = now; }
+  if (BGM.want !== BGM.zone && !BGM.swapAt && now - BGM.wantAt > 0.8) { BGM.swapAt = now + (BGM.zone ? 1.4 : 0); } // 場所が おちついたら 入れかえ（いまの 曲を 1.4 秒で 小さく）
+  if (BGM.swapAt) {
+    if (now < BGM.swapAt) { bgmGain(0, 0.35); return; }
+    BGM.swapAt = 0; BGM.zone = BGM.want; BGM.step = 0; BGM.bar = 0; BGM.next = now + 0.1; BGM.target = -1;
+  }
+  const tr = BGM_TRACKS[BGM.zone]; if (!tr) { bgmGain(0, 0.3); return; }
+  let speaking = false; try { speaking = !!(window.speechSynthesis && window.speechSynthesis.speaking); } catch (e) { /* noop */ }
+  bgmGain(document.hidden ? 0 : BGM_VOL * (speaking ? 0.45 : 1), BGM.target < 0.01 ? 1.2 : 0.25); // 鳴りはじめは ゆっくり 大きく
+  const sp = 60 / tr.bpm / 2; // 8分音符 1 つぶん
+  if (BGM.next < now - 0.2) BGM.next = now + 0.05; // 画面を はなれて いた とき などは 今から
+  while (BGM.next < now + 0.45) {
+    try { tr.play(BGM.step, BGM.bar, BGM.next, sp, tr.prog[BGM.bar % tr.prog.length], BGM.bus); } catch (e) { /* 音なしで 続ける */ }
+    BGM.next += sp; if (++BGM.step >= tr.steps) { BGM.step = 0; BGM.bar = (BGM.bar + 1) % tr.prog.length; }
+  }
+}
+setInterval(bgmTick, 120);
 // 名前（ラベル）から 素材を 決める。上から 順に 見る（「かき氷の カップ」は 氷より 先に カップ など）
 const SFX_WORDS = [
   [/お客さま|さん$/, 'person'], [/おつり|円/, 'coin'], [/レジ袋|紙袋/, 'bag'], [/紙コップ|かき氷の カップ/, 'paper'], [/氷器/, 'shave'],
@@ -12622,6 +12734,7 @@ function openSettings() {
     '<div class="field">自分の 姿</div><div class="row" style="margin-top:0"><button type="button" id="st-look">キャラメイク</button></div>' +
     '<div class="field">あそびかた</div>' + radio('st-m', MODE_HTML, profile.mode) +
     '<div class="field">効果音（物に さわった ときの 音）</div>' + radio('st-sfx', { on: '鳴らす', off: '鳴らさない' }, sfxOn ? 'on' : 'off') +
+    '<div class="field">BGM（場所に 合わせた 曲）</div>' + radio('st-bgm', { on: '流す', off: '流さない' }, bgmOn ? 'on' : 'off') +
     '<p>あそびかたを かえても、いままでの バッジ・お金・家具は のこります。</p>' +
     '<div class="row"><button type="button" class="primary" id="st-save">保存</button><button type="button" id="st-move">引っ越し</button><button type="button" id="st-close">とじる</button></div>' +
     '<div class="field">スプレッドシートに 保存（デモ）</div><p>gas/Code.gs の ウェブアプリの URL と、利用者ID（本名ではなく 番号など）を 入れると、ほかの 端末でも つづきから あそべます。</p>' +
@@ -12633,7 +12746,7 @@ function openSettings() {
   () => {
     $('st-save').onclick = () => {
       profile.name = $('st-name').value.trim() || profile.name; profile.gender = pickVal('st-g') || profile.gender; profile.mode = pickVal('st-m') || profile.mode;
-      setSfx(pickVal('st-sfx') !== 'off');
+      setSfx(pickVal('st-sfx') !== 'off'); setBgm(pickVal('st-bgm') !== 'off');
       saveProfile(); buildHome(); renderWallet(); closeModal(); renderHud(); toast('保存しました');
     };
     $('st-move').onclick = () => openAreaPicker(false);
@@ -13156,7 +13269,7 @@ $('btn-season').addEventListener('click', () => setSeason(season === 'winter' ? 
 // 動作確認用（テストから 作業を 進めるため）
 $('btn-home').addEventListener('click', () => goHome());
 $('btn-settings').addEventListener('click', openSettings);
-window.hopeTown = { scene, camera, vrWatch, vrWatchPress, drawVrWatch,
+window.hopeTown = { scene, camera, BGM, bgmZone, vrWatch, vrWatchPress, drawVrWatch,
   CASINO, CASINO_SITE, casinoRefill, casinoCount, CASINO_REST_EVERY, bacPlay, bacPayout, bacTotal, bacDeal, pkEval, pkHandName, pkEquity, pkNew, pkAct,
   RL_CELLS, rlPick, rlHit, IBA, IBA_SITE, openIba, ibaSit, ibaStand, ibaClickables, ibaData, sgLegal, sgPlay, sgThink, igoThink, igoScore, mjShanten, mjComplete, mjYaku, mjCounts, ISLE, BOATS, boardBoat, boatTrip, openCasino, casSit, casStand, CAS, slSpin, slStop, rlSpin, bjDeal, bjHit, bjStand, rideFerris, FERRIS, goBoatPier, KC, openKeiba, kcWindow, kcSeat, kcPaddock, keibaBuy, keibaStart, keibaNew, kcClickables, walkable, kcOutside, shogiTap, igoTap, mjTap, mjRon,
   state, goBooth, pickVariant, startSession, openRehab, startRehab, rehabPress, rehabSwipeThrow, rehabVolleyPress, REHAB, get rehabOpt() { return rehabOpt; }, set rehabOpt(v) { rehabOpt = v; }, select: onSelectItem, playSfx, sfxKind, SFX, nextTargetKey, setSeason, startWalk, exitToWalk, walkKeys, rig, look, walkable, booths, goHome, exitHome, goPlaza,
