@@ -10918,7 +10918,7 @@ function buildRaceCourse() {
   // スタンドの 名前・売り場の 看板を えらぶと 中へ（歩いて いる とき）
   [nm, ticket].forEach((m) => { m.userData.kcEnter = true; plazaClickables.push(m); });
   KC.win = kcPanel('馬券売り場', 1.3, 0.78); KC.win.pg.position.set(KC_BUY.x, 1.62, AZ + 0.55); g.add(KC.win.pg); // まどの 前（買う 人の 方を 向く）
-  KC.seatSt = kcPanel('観客席', 1.0, 0.6); const sy = kcRowY(KC_SEAT.row); KC.seatSt.pg.position.set(KC_SEAT.x - 0.6, sy + 0.8, kcRowZ(KC_SEAT.row) - 0.45); KC.seatSt.pg.rotation.set(-0.4, Math.atan2(0.6, 1.0), 0, 'YXZ'); g.add(KC.seatSt.pg); // 席の 左前の 下（コースに かからない）。VR の ときだけ 出す（画面では カードに 同じ ボタン）
+  KC.seatSt = kcPanel('観客席', 1.0, 0.6); const sy = kcRowY(KC_SEAT.row); KC.seatSt.pg.position.set(KC_SEAT.x - 0.35, sy + 0.5, kcRowZ(KC_SEAT.row) + 0.05); KC.seatSt.pg.rotation.set(-0.95, Math.atan2(0.35, 0.5), 0, 'YXZ'); g.add(KC.seatSt.pg); // ひざの 前に 机の ように ねかせる（上の はしでも 目から 約 40° 下。前を 見れば コースに かからない。読む ときは 下を 見る）。VR の ときだけ 出す（画面では カードに 同じ ボタン）
   KC.seatSt.pg.visible = false;
   KC.pad = kcPanel('パドック', 1.3, 0.8); KC.pad.pg.position.set(KC_PAD.x - 0.7, KC_PAD.deckH + 1.1, KC_PAD.deck - 0.15); KC.pad.pg.rotation.set(-0.5, Math.atan2(0.7, 1.0), 0, 'YXZ'); g.add(KC.pad.pg); KC.pad.pg.visible = false; // 台の 左前（VR の ときだけ）。手すり（deck - 0.75・高さ deckH + 0.95）より 手前に おさめて、さくに めりこまない
   g.updateMatrixWorld(true);
@@ -12110,6 +12110,7 @@ const CAS_NOTE = { slot: '3 つ そろえば メダル', roulette: '赤・黒・
 Object.assign(IBA_COLOR, { slot: '#b8860b', roulette: '#8b1e2d', bj: '#1f5f3a' });
 const CAS_AT = { slot: [-5.2, -2.6], roulette: [0.4, -2.3], bj: [5.4, -2.2] }; // 台の 位置（席は 台の 手前 +z で 奥を 向く）
 const CAS_SEAT = { slot: 1.0, roulette: 1.0, bj: 0.85 };
+const CAS_EYE_UP = { roulette: [0.3, 0.15] }; // 目線を 上げる [画面, VR]（ルーレットは 台が 広いので 上から 見おろす。画面の 目の 高さ 1.25 → 1.55 m・VR は 1.6 → 1.75 m）
 const CAS_PANEL = { slot: [-0.68, 1.3, 0.3], roulette: [0.25, 1.42, -0.95], bj: [-0.95, 1.3, 0.3] }; // 札の 位置（席から 見て、台や 人に かからない ところ）
 const casNow = () => (state.where === 'play' && state.play && state.play.kind === 'casino' ? state.play : null);
 function casClickables() {
@@ -12178,8 +12179,8 @@ function casStand() {
 function casSit(key) {
   if (!casNow()) toAmuseFloor();
   const pl = casNow(); if (!pl) return; const st = CAS.st[key]; pl.at = key;
-  const seat = new THREE.Vector3(st.x, renderer.xr.isPresenting ? 0 : -0.35 + (key === 'slot' ? 0.12 : 0), st.z + CAS_SEAT[key]);
-  rig.position.copy(CAS.g.localToWorld(seat)); rig.position.y = seat.y; rig.rotation.y = 0; look.yaw = 0; look.pitch = key === 'roulette' ? 0.3 : 0.22;
+  const up = CAS_EYE_UP[key] || [0, 0]; const seat = new THREE.Vector3(st.x, renderer.xr.isPresenting ? up[1] : -0.35 + (key === 'slot' ? 0.12 : 0) + up[0], st.z + CAS_SEAT[key]);
+  rig.position.copy(CAS.g.localToWorld(seat)); rig.position.y = seat.y; rig.rotation.y = 0; look.yaw = 0; look.pitch = key === 'roulette' ? 0.5 : 0.22;
   ({ slot: slShow, roulette: rlShow, bj: bjShow })[key](st);
   renderHud();
 }
@@ -12191,7 +12192,7 @@ function stepCasino(pl, dt, now) { stepSlot(CAS.st.slot, now); stepRoulette(CAS.
 // ルール説明書（HOPE アミューズメントの 5 つの あそび）。いま すわって いる 台の ところを ひらいて 出す
 const amuseRules = () => ({ // SL_PAY などは この あとで 決まるので、ひらく ときに つくる
   slot: ['スロット', ['BET（1 か 3 まい）を えらんで、レバーか スピン ボタンで まわす。STOP ボタンで リールを 1 つずつ 止める',
-    '3 つ そろうと かけた まい数の 7＝' + SL_PAY[0] + '倍・BAR＝' + SL_PAY[1] + '倍・ベル＝' + SL_PAY[2] + '倍・スイカ＝' + SL_PAY[3] + '倍・チェリー＝' + SL_PAY[4] + '倍',
+    '3 つ そろうと かけた まい数の 7＝' + SL_PAY[0] + '倍・イチゴ＝' + SL_PAY[1] + '倍・ベル＝' + SL_PAY[2] + '倍・スイカ＝' + SL_PAY[3] + '倍・チェリー＝' + SL_PAY[4] + '倍',
     'チェリーは そろわなくても OK：左から 2 つ ならぶと 2 倍、左はしに 1 つで 1 倍（かけた 分が もどる）']],
   roulette: ['ルーレット', ['0〜36 の 37 こ（ヨーロッパ式）。かけ表の 絵の マス（台の 上・札・画面の カード）を えらび、まい数（1・5・10）を えらんで まわす',
     '赤・黒・奇数・偶数・1〜18・19〜36 → あたると 2 倍（0 は どれにも 入らない）',
@@ -12242,7 +12243,41 @@ function renderCasinoHud(el) {
 }
 
 // ---- スロット ---------------------------------------------------------------
-const SL_SYM = [['7', '#d0392b'], ['BAR', '#1f2a33'], ['ベル', '#c99a12'], ['スイカ', '#2f8a3a'], ['チェリー', '#c0392b']];
+const SL_SYM = [['7', '#d0392b'], ['イチゴ', '#e0304a'], ['ベル', '#c99a12'], ['スイカ', '#2f8a3a'], ['チェリー', '#c0392b']];
+// リールの 絵（字ではなく イラスト）。(cx, cy) が まん中、s が 絵の 大きさ（px）
+function slDrawSym(ctx, i, cx, cy, s) {
+  const r = s / 2; ctx.save(); ctx.translate(cx, cy); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  const leaf = (x, y, rx, ry, a, col) => { ctx.save(); ctx.translate(x, y); ctx.rotate(a); ctx.beginPath(); ctx.ellipse(0, 0, rx, ry, 0, 0, TAU); ctx.fillStyle = col; ctx.fill(); ctx.restore(); };
+  if (i === 0) { // 7（金の ふちどりの 赤い 7）
+    ctx.font = '900 ' + Math.round(s * 1.05) + 'px ' + FONT_BODY; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.lineWidth = s * 0.14; ctx.strokeStyle = '#e3b23c'; ctx.strokeText('7', 0, s * 0.04); ctx.lineWidth = s * 0.05; ctx.strokeStyle = '#7a1a12'; ctx.strokeText('7', 0, s * 0.04);
+    ctx.fillStyle = '#d0392b'; ctx.fillText('7', 0, s * 0.04);
+  } else if (i === 1) { // イチゴ（赤い 実・黄色い つぶ・緑の へた）
+    ctx.beginPath(); ctx.moveTo(0, r * 0.95); ctx.bezierCurveTo(-r * 0.95, r * 0.35, -r * 0.95, -r * 0.6, -r * 0.35, -r * 0.6); ctx.quadraticCurveTo(0, -r * 0.7, r * 0.35, -r * 0.6); ctx.bezierCurveTo(r * 0.95, -r * 0.6, r * 0.95, r * 0.35, 0, r * 0.95); ctx.closePath();
+    const g = ctx.createRadialGradient(-r * 0.3, -r * 0.2, r * 0.1, 0, 0, r); g.addColorStop(0, '#ff6b7a'); g.addColorStop(1, '#c81e36'); ctx.fillStyle = g; ctx.fill();
+    ctx.fillStyle = '#ffe27a'; [[-0.4, -0.25], [0, -0.3], [0.4, -0.25], [-0.5, 0.1], [-0.15, 0.05], [0.2, 0.08], [0.5, 0.1], [-0.3, 0.4], [0.05, 0.42], [0.3, 0.38], [-0.05, 0.7]].forEach(([x, y]) => { ctx.beginPath(); ctx.ellipse(x * r, y * r, r * 0.05, r * 0.08, 0, 0, TAU); ctx.fill(); });
+    [-1.1, -0.45, 0.2, 0.85].forEach((a, k) => leaf(Math.sin(a) * r * 0.3, -r * 0.62, r * 0.3, r * 0.1, a + (k % 2 ? 0.2 : -0.2), '#3f9a3a'));
+    ctx.fillStyle = '#2f7d2f'; ctx.fillRect(-r * 0.05, -r * 0.95, r * 0.1, r * 0.3);
+  } else if (i === 2) { // ベル（金色の かね・たま）
+    ctx.beginPath(); ctx.moveTo(-r * 0.8, r * 0.55); ctx.quadraticCurveTo(-r * 0.6, r * 0.35, -r * 0.55, -r * 0.1); ctx.bezierCurveTo(-r * 0.5, -r * 0.85, r * 0.5, -r * 0.85, r * 0.55, -r * 0.1); ctx.quadraticCurveTo(r * 0.6, r * 0.35, r * 0.8, r * 0.55); ctx.closePath();
+    const g = ctx.createLinearGradient(-r, 0, r, 0); g.addColorStop(0, '#b8860b'); g.addColorStop(0.35, '#ffe07a'); g.addColorStop(1, '#c99a12'); ctx.fillStyle = g; ctx.fill(); ctx.lineWidth = s * 0.03; ctx.strokeStyle = '#8a6508'; ctx.stroke();
+    ctx.fillStyle = '#8a6508'; ctx.fillRect(-r * 0.82, r * 0.5, r * 1.64, r * 0.12);
+    ctx.beginPath(); ctx.arc(0, r * 0.72, r * 0.15, 0, TAU); ctx.fillStyle = '#c99a12'; ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, -r * 0.78, r * 0.1, 0, TAU); ctx.fill(); ctx.stroke();
+  } else if (i === 3) { // スイカ（切った 1 きれ：緑の 皮・赤い 実・黒い たね）
+    ctx.beginPath(); ctx.moveTo(-r * 0.95, -r * 0.25); ctx.arc(0, -r * 0.25, r * 0.95, 0, Math.PI); ctx.closePath(); ctx.fillStyle = '#2f8a3a'; ctx.fill();
+    ctx.beginPath(); ctx.moveTo(-r * 0.85, -r * 0.25); ctx.arc(0, -r * 0.25, r * 0.85, 0, Math.PI); ctx.closePath(); ctx.fillStyle = '#e8f2c8'; ctx.fill();
+    ctx.beginPath(); ctx.moveTo(-r * 0.76, -r * 0.25); ctx.arc(0, -r * 0.25, r * 0.76, 0, Math.PI); ctx.closePath(); ctx.fillStyle = '#e8394a'; ctx.fill();
+    ctx.fillStyle = '#1f2a33'; [[-0.4, -0.05], [0, 0.05], [0.4, -0.05], [-0.2, 0.25], [0.2, 0.25], [0, 0.42]].forEach(([x, y]) => { ctx.beginPath(); ctx.ellipse(x * r, y * r, r * 0.05, r * 0.09, x * 0.8, 0, TAU); ctx.fill(); });
+  } else { // チェリー（2 つの 実・じく・葉）
+    ctx.strokeStyle = '#5a7a2a'; ctx.lineWidth = s * 0.05;
+    ctx.beginPath(); ctx.moveTo(-r * 0.4, r * 0.25); ctx.quadraticCurveTo(-r * 0.2, -r * 0.4, r * 0.15, -r * 0.8); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(r * 0.45, r * 0.35); ctx.quadraticCurveTo(r * 0.35, -r * 0.3, r * 0.15, -r * 0.8); ctx.stroke();
+    leaf(r * 0.42, -r * 0.72, r * 0.32, r * 0.13, -0.5, '#3f9a3a');
+    [[-0.42, 0.45], [0.45, 0.55]].forEach(([x, y]) => { const g = ctx.createRadialGradient((x - 0.12) * r, (y - 0.12) * r, r * 0.04, x * r, y * r, r * 0.34); g.addColorStop(0, '#ff7a6e'); g.addColorStop(1, '#a8161e'); ctx.beginPath(); ctx.arc(x * r, y * r, r * 0.34, 0, TAU); ctx.fillStyle = g; ctx.fill(); });
+  }
+  ctx.restore();
+}
 const SL_STRIP = [4, 2, 0, 4, 3, 1, 4, 2, 3, 4, 1, 2]; // 12 こまの リール（数字は SL_SYM）
 const SL_PAY = [30, 15, 10, 6, 4]; // 3 つ そろった とき（かけた まい数の 何倍）
 function slotCabinet(parent, x, color) {
@@ -12257,7 +12292,7 @@ function buildSlot(st) {
   const cols = ['#5a2a7a', '#2a4a7a', '#7a2a3a', '#2a6a4a'];
   [0, 1.0, 2.0, 3.0].forEach((x, k) => {
     const c = slotCabinet(st.g, x, cols[k]);
-    const reels = new Board(0.5, 0.24, 600); reels.mesh.position.set(0, 1.2, 0.28); c.add(reels.mesh);
+    const reels = new Board(0.5, 0.24, 1200); reels.mesh.position.set(0, 1.2, 0.28); c.add(reels.mesh);
     if (x === 0) { st.reels = reels; st.cab = c; slControls(st, c); } else { slDrawReels(reels, [k * 3, k * 5 + 1, k * 7 + 2]); seatedPerson(st.g, ['#e3b23c', '#2f6fc4', '#e07fa4', '#4f9a45'][k], '#3d4a54', x, CAS_SEAT.slot + 0.12, Math.PI, { stool: true, chair: '#8b1e2d', h: 0.6 }); }
   });
   st.S = { bet: 1, pos: [0, 4, 8], spin: null, last: '' }; slDrawReels(st.reels, st.S.pos);
@@ -12269,7 +12304,7 @@ function slDrawReels(b, pos) {
       const x0 = W * (0.03 + r * 0.325); const w = W * 0.29; ctx.save(); ctx.beginPath(); ctx.rect(x0, H * 0.06, w, H * 0.88); ctx.clip();
       ctx.fillStyle = '#fffdf8'; ctx.fillRect(x0, 0, w, H);
       const p = pos[r]; const base = Math.floor(p); const f = p - base;
-      for (let k = -1; k <= 1; k++) { const sym = SL_SYM[SL_STRIP[(((base + k) % 12) + 12) % 12]]; const y = H / 2 + (k - f) * H * 0.62 * -1; ctx.fillStyle = sym[1]; ctx.font = '700 ' + Math.round(H * (sym[0].length > 2 ? 0.22 : 0.34)) + 'px ' + FONT_BODY; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(sym[0], x0 + w / 2, y); }
+      for (let k = -1; k <= 1; k++) { const sym = SL_SYM[SL_STRIP[(((base + k) % 12) + 12) % 12]]; const y = H / 2 + (k - f) * H * 0.62 * -1; slDrawSym(ctx, SL_SYM.indexOf(sym), x0 + w / 2, y, Math.min(w * 0.8, H * 0.5)); }
       ctx.restore();
     }
   });
@@ -12291,7 +12326,7 @@ function slControls(st, c) {
 function slPress(st, btn) { if (btn) btn.userData.pressT = performance.now(); playSfx('plastic'); }
 function slShow(st) {
   const S = st.S; const md = ibaData().medals; const P = S.spin;
-  const msg = [P ? 'STOP ボタンを 押して リールを 止めよう' : S.last || 'BET を えらんで、レバーか SPIN ボタンで スタート', 'メダル ' + md + 'まい　｜　BET ' + S.bet + 'まい', '7=' + SL_PAY[0] + '倍・BAR=' + SL_PAY[1] + '・ベル=' + SL_PAY[2] + '・スイカ=' + SL_PAY[3] + '・チェリー=' + SL_PAY[4] + '（左から 2 つ=2倍・1 つ=1倍）'];
+  const msg = [P ? 'STOP ボタンを 押して リールを 止めよう' : S.last || 'BET を えらんで、レバーか SPIN ボタンで スタート', 'メダル ' + md + 'まい　｜　BET ' + S.bet + 'まい', '7=' + SL_PAY[0] + '倍・イチゴ=' + SL_PAY[1] + '・ベル=' + SL_PAY[2] + '・スイカ=' + SL_PAY[3] + '・チェリー=' + SL_PAY[4] + '（左から 2 つ=2倍・1 つ=1倍）'];
   const defs = P ? [0, 1, 2].filter((r) => P.tgt[r] === null).map((r) => ({ label: 'STOP ' + (r + 1), act: () => slStop(st, r), w: 0.24, color: '#c0392b' }))
     : [{ label: 'BET 1', act: () => { S.bet = 1; slShow(st); }, on: S.bet === 1, w: 0.26 }, { label: 'BET 3', act: () => { S.bet = 3; slShow(st); }, on: S.bet === 3, w: 0.26 },
       md < 1 ? casMedalBtn(st, slShow, 0) : { label: 'スピン', act: () => slSpin(st), w: 0.3, color: '#2f9e5a' }];
