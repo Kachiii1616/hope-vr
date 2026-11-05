@@ -10920,7 +10920,7 @@ function buildRaceCourse() {
   KC.win = kcPanel('馬券売り場', 1.3, 0.78); KC.win.pg.position.set(KC_BUY.x, 1.62, AZ + 0.55); g.add(KC.win.pg); // まどの 前（買う 人の 方を 向く）
   KC.seatSt = kcPanel('観客席', 1.0, 0.6); const sy = kcRowY(KC_SEAT.row); KC.seatSt.pg.position.set(KC_SEAT.x - 0.6, sy + 0.8, kcRowZ(KC_SEAT.row) - 0.45); KC.seatSt.pg.rotation.set(-0.4, Math.atan2(0.6, 1.0), 0, 'YXZ'); g.add(KC.seatSt.pg); // 席の 左前の 下（コースに かからない）。VR の ときだけ 出す（画面では カードに 同じ ボタン）
   KC.seatSt.pg.visible = false;
-  KC.pad = kcPanel('パドック', 1.3, 0.8); KC.pad.pg.position.set(KC_PAD.x - 0.7, KC_PAD.deckH + 0.85, KC_PAD.deck - 0.5); KC.pad.pg.rotation.set(-0.4, Math.atan2(0.7, 1.0), 0, 'YXZ'); g.add(KC.pad.pg); KC.pad.pg.visible = false; // 台の 左前の 下（VR の ときだけ）
+  KC.pad = kcPanel('パドック', 1.3, 0.8); KC.pad.pg.position.set(KC_PAD.x - 0.7, KC_PAD.deckH + 1.1, KC_PAD.deck - 0.15); KC.pad.pg.rotation.set(-0.5, Math.atan2(0.7, 1.0), 0, 'YXZ'); g.add(KC.pad.pg); KC.pad.pg.visible = false; // 台の 左前（VR の ときだけ）。手すり（deck - 0.75・高さ deckH + 0.95）より 手前に おさめて、さくに めりこまない
   g.updateMatrixWorld(true);
   keibaNew();
 }
