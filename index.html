@@ -1332,7 +1332,7 @@ const ROADS = [
   [[400, 505], [400, 560], [392, 640], [330, 686]],
   [[640, 520], [707, 652], [820, 690]],
   [[742, 425], [800, 470], [860, 560]],
-  [[244, 455], [202, 468], [166, 464]], // 首都 → フェリー乗り場（港の 広場まで）
+  [[244, 455], [202, 468], [186, 474], [160, 478]], // 首都 → フェリー乗り場（ターミナルの 南を 通って 港の 広場まで。ターミナルに つきあたらない）
   [[503, 541], [503, 735]],                                   // IT街の 通り（目抜き通り → 南の 海）
   [[160, 688], [238, 693], [330, 688]],                       // カフェ → スーパー（南の 海ぞい）
   [[575, 470], [595, 520], [585, 600], [604, 700], [625, 779]], // 川ぞいの 道（山の ふもと → 南の 海まで）
@@ -1892,8 +1892,13 @@ function tree(x, z, kind) {
     // バス停と タクシー（広場の 東の 出口）
     const bs = w(176, 490); addCyl(bs.x, 1.1, bs.z, 0.04, 0.04, 2.2, '#3d4a54', 8); addCyl(bs.x, 2.2, bs.z, 0.28, 0.28, 0.05, '#2f7d4f', 20).rotation.x = Math.PI / 2;
     addBox(bs.x + 1.2, 1.2, bs.z + 0.6, 2.2, 0.06, 1.0, '#2f7d4f'); addBox(bs.x + 1.2, 0.42, bs.z + 0.5, 1.6, 0.06, 0.4, '#a0784a');
-    const tx = w(178, 476); addBox(tx.x, 0.45, tx.z, 1.6, 0.5, 3.2, '#f2c230'); addBox(tx.x, 0.95, tx.z - 0.2, 1.4, 0.5, 1.8, '#f2c230'); addBox(tx.x, 0.98, tx.z - 0.2, 1.42, 0.3, 1.6, '#3d4a54');
-    [-1, 1].forEach((sx) => [-1, 1].forEach((sz) => addCyl(tx.x + sx * 0.75, 0.3, tx.z + sz * 1.0, 0.3, 0.3, 0.2, '#2b2f33', 12).rotation.z = Math.PI / 2)); block(tx.x, tx.z, 1.7);
+    // タクシー：首都への 道の わきに、道に そって とめる（広場の 出口や ターミナルに かからない）
+    { const tx = w(206, 450); const a = w(202, 468); const b2 = w(244, 455); const cg = new THREE.Group(); cg.position.set(tx.x, 0, tx.z); cg.rotation.y = Math.atan2(b2.x - a.x, b2.z - a.z); scene.add(cg);
+      const cp = (geo, col, x, y, z) => { const m = new THREE.Mesh(geo, cmat(col)); m.position.set(x, y, z); cg.add(m); return m; };
+      const B = (bw, bh, bd) => new THREE.BoxGeometry(bw, bh, bd); // box()・cyl() は この あとで きまるので ここでは 直接 つくる
+      cp(B(1.6, 0.5, 3.2), '#f2c230', 0, 0.45, 0); cp(B(1.4, 0.5, 1.8), '#f2c230', 0, 0.95, -0.2); cp(B(1.42, 0.3, 1.6), '#3d4a54', 0, 0.98, -0.2);
+      [-1, 1].forEach((sx) => [-1, 1].forEach((sz) => { cp(new THREE.CylinderGeometry(0.3, 0.3, 0.2, 12), '#2b2f33', sx * 0.75, 0.3, sz * 1.0).rotation.z = Math.PI / 2; }));
+      block(tx.x, tx.z, 1.7); }
   })();
   // 風の丘：北西の季節風がいちばん強く当たる丘に、風車
   const hill = toWorld(150, 368); const HR = 3.6; const HH = 1.6;
@@ -11803,7 +11808,7 @@ function boatKiosk(at, yaw, side) {
   const t = kcPlate(side === 'main' ? '連絡船のりば　あそびの島 行き' : '連絡船のりば　Work Island 行き', 2.6, 0.36, '#ff8fab', '#ffffff'); t.position.set(0, 2.15, 0.62); g.add(t);
   // 係の 人（マリンの 制服と 帽子）：小屋の よこで お客さんを むかえる
   const L = side === 'main' ? 1 : -1; // あそびの島は 小屋の 右に アーチの 柱が あるので、看板も 係の 人も 左に（ボタンには かからない）
-  const crew = ferrisCrew('#2f6fa8'); if (L > 0) { crew.position.set(-1.6, 0.02, 0.75); crew.rotation.y = 0.35; } else { crew.position.set(-1.0, 0.02, 1.05); crew.rotation.y = 0.2; } g.add(crew);
+  const crew = ferrisCrew('#2f6fa8'); if (L > 0) { crew.position.set(-1.35, 0.02, 0.6); crew.rotation.y = 0.35; } else { crew.position.set(-1.0, 0.02, 1.05); crew.rotation.y = 0.2; } g.add(crew); // Work Island は 小屋の 南の よこ（岸の ふちより 内がわ。海に 出ない）
   // 立て看板（係の 人の 反対がわ。パステルの ピンクと ミント）
   const sb = new Board(0.9, 1.1, 260); const toIsle = side === 'main';
   sb.draw((ctx, W, H) => {
@@ -11940,7 +11945,7 @@ function initBoats() {
   const mk = (name, side) => { const g = buildBoat(name); const B = BOATS.berth[side]; g.position.copy(B.pos); g.rotation.y = B.yaw; return { g, at: side, trip: null }; };
   BOATS.list = [mk('連絡船 うみかぜ', 'main'), mk('連絡船 しおさい', 'isle')]; // いつも それぞれの のりばに 1 そう
   BOATS.land = { isle: { pos: isW(47.4, -21.75), yaw: Math.PI / 2 }, main: { pos: toWorld(128, 500), yaw: -Math.PI / 2 } }; // おりる ところ（着いた 側）と 向き（島の 方）
-  boatKiosk(toWorld(110.5, 495), Math.PI / 2, 'main'); // 岸壁の 西の はし（東を 向く）
+  boatKiosk(toWorld(110.5, 490), Math.PI / 2, 'main'); // 岸壁の 西の はし（東を 向く）。南の 岸に よせすぎない（係の 人が 海に 出ない）
   buildBuoys();
 }
 function bez3(a, b, c, d, t, out) { const u = 1 - t; const k0 = u * u * u; const k1 = 3 * u * u * t; const k2 = 3 * u * t * t; const k3 = t * t * t; return out.set(k0 * a.x + k1 * b.x + k2 * c.x + k3 * d.x, a.y, k0 * a.z + k1 * b.z + k2 * c.z + k3 * d.z); }
