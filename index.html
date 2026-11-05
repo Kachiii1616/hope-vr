@@ -4030,10 +4030,7 @@ function moveInput(dt) {
     for (const src of xr.inputSources) {
       const gp = src.gamepad; if (!gp || gp.axes.length < 4) continue;
       const ax = gp.axes[2]; const ay = gp.axes[3];
-      if (src.handedness === 'left') { if (Math.hypot(ax, ay) > 0.2) { fwd = -ay; strafe = ax; } } else if (src.handedness === 'right') {
-        if (Math.abs(ax) > 0.7 && snapReady && !vrMenu.mesh.visible) { snapTurn(ax > 0 ? -Math.PI / 6 : Math.PI / 6); snapReady = false; } // メニュー板が 出て いる あいだは 右スティック 左右で タブを かえる（stepVrMenu）
-        if (Math.abs(ax) < 0.3) snapReady = true;
-      }
+      if (src.handedness === 'left') { if (Math.hypot(ax, ay) > 0.2) { fwd = -ay; strafe = ax; } } // 右スティックの 向きかえは stepVrTurn（どこに いても きく）
     }
     turn = 0;
   }
@@ -4060,6 +4057,17 @@ function walkStep(dt) {
   if (Math.hypot(IBA_SITE.door.x - p.x, IBA_SITE.door.z - p.z) < 1.3) { Object.keys(walkKeys).forEach((k) => { walkKeys[k] = false; }); syncPad(); openIba(ibaOutside()); } // みんなの 居場所の 入口
   const kb = kcW(KC_BUY.x, 0, KC_BUY.z); if (Math.hypot(kb.x - p.x, kb.z - p.z) < 1.3) { Object.keys(walkKeys).forEach((k) => { walkKeys[k] = false; }); syncPad(); openKeiba(kcOutside()); } // 競馬場の 馬券売り場の まどの 前
   if (Math.hypot(CASINO_SITE.door.x - p.x, CASINO_SITE.door.z - p.z) < 1.3) { Object.keys(walkKeys).forEach((k) => { walkKeys[k] = false; }); syncPad(); openCasino(casOutside()); } // HOPE アミューズメントの 入口
+}
+// VR：右スティック 左右で 30 度ずつ 向きを かえる。島を 歩く ときだけでなく、お店の 中・すわった 席・あそびの 場所でも きく
+//   メニュー板が 出て いる あいだは 右スティック 左右で タブを かえる（stepVrMenu）ので 回さない。移動の とちゅう（tween）も 回さない
+function stepVrTurn() {
+  const xr = renderer.xr.isPresenting && renderer.xr.getSession(); if (!xr) return;
+  for (const src of xr.inputSources) {
+    const gp = src.gamepad; if (!gp || src.handedness !== 'right' || gp.axes.length < 4) continue;
+    const ax = gp.axes[2];
+    if (Math.abs(ax) > 0.7 && snapReady && !tween && !vrMenu.mesh.visible) { snapTurn(ax > 0 ? -Math.PI / 6 : Math.PI / 6); snapReady = false; }
+    if (Math.abs(ax) < 0.3) snapReady = true;
+  }
 }
 function snapTurn(a) {
   camera.getWorldPosition(tmpHead); const before = tmpHead.clone();
@@ -12111,7 +12119,7 @@ Object.assign(IBA_COLOR, { slot: '#b8860b', roulette: '#8b1e2d', bj: '#1f5f3a' }
 const CAS_AT = { slot: [-5.2, -2.6], roulette: [0.4, -2.3], bj: [5.4, -2.2] }; // 台の 位置（席は 台の 手前 +z で 奥を 向く）
 const CAS_SEAT = { slot: 1.0, roulette: 1.0, bj: 0.85 };
 const CAS_EYE_UP = { roulette: [0.3, 0.15] }; // 目線を 上げる [画面, VR]（ルーレットは 台が 広いので 上から 見おろす。画面の 目の 高さ 1.25 → 1.55 m・VR は 1.6 → 1.75 m）
-const CAS_PANEL = { slot: [-0.68, 1.3, 0.3], roulette: [0.25, 1.42, -0.95], bj: [-0.95, 1.3, 0.3] }; // 札の 位置（席から 見て、台や 人に かからない ところ）
+const CAS_PANEL = { slot: [-0.68, 1.3, 0.3], roulette: [0.25, 1.42, -0.95], bj: [0.62, 1.75, -1.15] }; // 札の 位置（席から 見て、台や 人に かからない ところ）。ブラックジャックは 正面の ディーラーの 右うしろ（頭や カードに かからない）
 const casNow = () => (state.where === 'play' && state.play && state.play.kind === 'casino' ? state.play : null);
 function casClickables() {
   const out = CAS.signs.concat([CAS.exitBtn, CAS.link].filter(Boolean), IBA.signs); // 奥の カジノ フロアの 台の 札も えらべる（見えて いる もの）
@@ -12180,7 +12188,7 @@ function casSit(key) {
   if (!casNow()) toAmuseFloor();
   const pl = casNow(); if (!pl) return; const st = CAS.st[key]; pl.at = key;
   const up = CAS_EYE_UP[key] || [0, 0]; const seat = new THREE.Vector3(st.x, renderer.xr.isPresenting ? up[1] : -0.35 + (key === 'slot' ? 0.12 : 0) + up[0], st.z + CAS_SEAT[key]);
-  rig.position.copy(CAS.g.localToWorld(seat)); rig.position.y = seat.y; rig.rotation.y = 0; look.yaw = 0; look.pitch = key === 'roulette' ? 0.5 : 0.22;
+  rig.position.copy(CAS.g.localToWorld(seat)); rig.position.y = seat.y; rig.rotation.y = 0; look.yaw = 0; look.pitch = key === 'roulette' ? 0.5 : key === 'bj' ? 0.12 : 0.22;
   ({ slot: slShow, roulette: rlShow, bj: bjShow })[key](st);
   renderHud();
 }
@@ -13295,6 +13303,7 @@ renderer.setAnimationLoop((now) => {
   const WF = FIELDS.wind; if (WF && WF.pendingHide && (!tween || (tween.fade && tween.snapped))) { WF.pendingHide = false; WF.g.visible = false; hillMills.forEach((m) => { m.visible = true; }); }
   const SF = FIELDS.snow; if (SF && SF.pendingHide && (!tween || (tween.fade && tween.snapped))) { SF.pendingHide = false; SF.g.visible = false; }
   stepVrEye();
+  stepVrTurn();
   stepBinoc(now);
   if (!renderer.xr.isPresenting) { camera.rotation.y = look.yaw; camera.rotation.x = -look.pitch; }
   walkStep(dt);
