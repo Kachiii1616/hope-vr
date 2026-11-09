@@ -5283,7 +5283,7 @@ function startCafe(b, def) {
           for (let i = anims.length - 1; i >= 0; i--) if (anims[i].obj === ch) anims.splice(i, 1);
           ch.position.set(0, 0.9, COUNTER_Z - 0.28);
           const vr = renderer.xr.isPresenting; r.cupReady = true; // VR：ここから カップを 手で 持って わたせる（vrCupGrab）
-          moveRig(b.group.localToWorld(new THREE.Vector3(0, 0, vr ? CAFE_HAND.stand : STAFF_Z)), b.yaw + Math.PI, 0.12, 900); // VR は 台に 手が 届く ところまで 前へ
+          moveRig(b.group.localToWorld(new THREE.Vector3(0, 0, CAFE_HAND.stand)), b.yaw + Math.PI, 0.12, 900); // 前の 台に 手が 届く ところ（画面も VR も 同じ。STAFF_Z（0.8）は うしろの 台の 氷の 箱（z 0.6〜0.94）に かさなる）
           state.feedback = { text: vr ? 'できあがり！ カップを トリガーで 持って、お客さまの 前で はなして わたそう' : 'できあがり！ ふりかえって わたそう', kind: 'ok' }; drawWorkBoard();
         }, k === 'コーヒーマシン' ? 1500 : 800);
       }
@@ -9256,7 +9256,7 @@ function sitCafe(spot, order) {
   if (spot === 'out') { seat = new THREE.Vector3(T.x - 0.6, 0, T.z); yaw = b.yaw - Math.PI / 2; const d = cafeDrink(order[2]); d.position.set(T.x - 0.18, 0.9, T.z - 0.05); g.add(d); } // テラス：外を 向いて すわる
   else { seat = new THREE.Vector3(CAFE_SEAT.in.x, 0, CAFE_SEAT.in.table + 0.48); yaw = b.yaw; const d = cafeDrink(order[2]); d.position.set(CAFE_SEAT.in.x - 0.05, 0.74, CAFE_SEAT.in.table + 0.08); g.add(d); } // 中：カウンターの 方を 向いて すわる
   state.where = 'play'; state.play = { kind: spot === 'out' ? 'terrace' : 'cafe', t: 0, said: 0, order: order[0], door: b.door.clone(), back: b.yaw };
-  const w = b.group.localToWorld(seat); rig.position.set(w.x, -0.42, w.z); rig.rotation.y = yaw; look.yaw = 0; look.pitch = 0.3; // すわった 目の 高さ。テーブルの 上が 見える
+  const w = b.group.localToWorld(seat); rig.position.set(w.x, spot === 'out' ? -0.18 : -0.42, w.z); rig.rotation.y = yaw; look.yaw = 0; look.pitch = 0.3; // すわった 目の 高さ。テーブルの 上が 見える（テラスは 高い いす（座面 0.6 m）と 高い テーブル（0.9 m）なので 目は 1.42 m。中は 1.18 m）
   toast(order[0] + 'が きました。ごゆっくり どうぞ');
   renderHud();
 }
