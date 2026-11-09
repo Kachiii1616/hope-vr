@@ -55,6 +55,9 @@ body {
 .brand small { font-family: var(--font-body); font-weight: 400; font-size: 12px; color: var(--ink-soft); margin-left: 8px; letter-spacing: 0; }
 .place { font-size: 13px; color: var(--ink-soft); background: var(--card); border-radius: 999px; padding: 4px 12px; border: 1px solid var(--line); }
 .spacer { flex: 1; }
+/* 設定は メニュー（作業一覧〜きろく）と 分けて いちばん 右に。左に 区切り線 */
+#btn-settings { position: relative; margin-left: 13px; }
+#btn-settings::before { content: ''; position: absolute; left: -13px; top: 15%; bottom: 15%; width: 2px; border-radius: 1px; background: var(--line); }
 button {
   font: inherit; font-weight: 700; color: var(--ink); background: var(--card);
   border: 1px solid var(--line); border-radius: 10px; padding: 7px 14px; cursor: pointer;
@@ -243,8 +246,8 @@ button.primary { background: var(--accent); color: var(--accent-ink); border-col
   <button id="btn-walk" type="button">島を歩く</button>
   <button id="btn-season" type="button">季節：夏</button>
   <button id="btn-log" type="button">きろく</button>
-  <button id="btn-settings" type="button">設定</button>
   <button id="btn-vr" type="button" class="primary" hidden>VR で入る</button>
+  <button id="btn-settings" type="button" aria-label="設定"><span aria-hidden="true">⚙</span> 設定</button>
 </header>
 
 <section class="instr" id="instr" aria-live="polite"></section>
@@ -12970,7 +12973,7 @@ const vrMenu = (() => {
   mesh.renderOrder = 9990; mesh.visible = false; mesh.frustumCulled = false; rig.add(mesh);
   return { c, ctx: c.getContext('2d'), tex, mesh, tab: 'now', scroll: 0, maxScroll: 0, regions: [], hover: -1, dirty: true, drawnAt: 0, wasModal: false, btnPrev: {} };
 })();
-const VRM_TABS = [['now', 'いま'], ['go', 'MAP'], ['menu', 'メニュー']];
+const VRM_TABS = [['now', 'いま'], ['go', 'MAP'], ['menu', 'メニュー'], ['settings', '設定']]; // 設定は メニューと 分ける（えらぶと 設定の カードが ひらく）
 const vrmVisible = (el) => !el.closest('[hidden]') && getComputedStyle(el).display !== 'none' && getComputedStyle(el).visibility !== 'hidden';
 const vrmText = (s) => String(s || '').replace(/\s+/g, ' ').trim();
 // 画面の 一部（DOM）を、板に 描く 部品の 列に する
@@ -13006,7 +13009,7 @@ function vrmItems() {
   const modalOpen = !modal.hidden;
   if (modalOpen) return vrmCollect(modalCard, []);
   if (vrMenu.tab === 'go') return vrmCollect(chipsEl, [{ t: 'head', text: 'MAP（行き先を えらぶ）' }]);
-  if (vrMenu.tab === 'menu') return vrmCollect(document.querySelector('header.hud.top'), [{ t: 'head', text: 'メニュー' }]);
+  if (vrMenu.tab === 'menu') return vrmCollect(document.querySelector('header.hud.top'), [{ t: 'head', text: 'メニュー' }]).filter((it) => !(it.el && it.el.id === 'btn-settings'));
   const out = [];
   if (!$('log').hidden) vrmCollect($('log'), out);
   vrmCollect($('instr'), out);
@@ -13038,7 +13041,7 @@ function drawVrMenu() {
   // 上：タブ（カードが 出て いる ときは カードの 名前）と「とじる」
   ctx.font = '700 40px ' + FONT_BODY; ctx.textAlign = 'center';
   if (modalOpen) { ctx.fillStyle = '#1f2a33'; ctx.textAlign = 'left'; ctx.fillText('カード（トリガーで えらぶ）', pad, 62); ctx.textAlign = 'center'; }
-  else VRM_TABS.forEach(([k, name], i) => { const x = pad + i * 230; btnBox(x, 22, 216, 80, { act: 'tab', data: k, on: vrMenu.tab === k }); ctx.fillStyle = '#1f2a33'; ctx.fillText(name, x + 108, 64); });
+  else VRM_TABS.forEach(([k, name], i) => { const x = pad + i * 184; btnBox(x, 22, 174, 80, { act: 'tab', data: k, on: vrMenu.tab === k }); ctx.fillStyle = '#1f2a33'; ctx.fillText(name, x + 87, 64); });
   btnBox(W - pad - 200, 22, 200, 80, { act: 'close' }); ctx.fillStyle = '#1f2a33'; ctx.fillText('× とじる', W - pad - 100, 64);
   // なかみ
   const items = vrmItems(); const top = VRM_TOP + 10; const bottom = H - VRM_FOOT;
@@ -13143,6 +13146,7 @@ function vrMenuRay(ray) {
   const hit = vrmHit(ray); if (!hit) return false;
   const r = vrMenu.regions[hit.i]; if (!r) return true;
   if (r.act === 'close') { playSfx('pop'); closeVrMenu(); return true; }
+  if (r.act === 'tab' && r.data === 'settings') { playSfx('pop'); $('btn-settings').click(); vrMenu.tab = 'now'; vrMenu.scroll = 0; vrMenu.dirty = true; return true; } // 設定の カードを ひらく（カードは 板に 出る）
   if (r.act === 'tab') { playSfx('pop'); vrMenu.tab = r.data; vrMenu.scroll = 0; drawVrMenu(); return true; }
   if (r.act === 'scroll') { vrMenu.scroll = Math.max(0, Math.min(vrMenu.maxScroll, vrMenu.scroll + (r.data === 'up' ? -600 : 600))); drawVrMenu(); return true; }
   const it = r.data; if (!it || it.off || !it.el.isConnected) return true;
@@ -13187,8 +13191,9 @@ function stepVrMenu(dt, now) {
     // 右スティック 左右：タブを となりへ（いま ⇄ MAP ⇄ メニュー）。カードの ときは タブが ないので うごかない
     const ax = gp.axes[2];
     if (Math.abs(ax) > 0.7 && vrMenu.tabReady !== false && modal.hidden) {
-      const i = VRM_TABS.findIndex(([k]) => k === vrMenu.tab); const j = Math.max(0, Math.min(VRM_TABS.length - 1, i + (ax > 0 ? 1 : -1)));
-      if (j !== i) { vrMenu.tab = VRM_TABS[j][0]; vrMenu.scroll = 0; vrMenu.dirty = true; playSfx('pop'); }
+      const T = VRM_TABS.filter(([k]) => k !== 'settings'); // 設定は カードを ひらく タブなので スティックでは 行かない
+      const i = T.findIndex(([k]) => k === vrMenu.tab); const j = Math.max(0, Math.min(T.length - 1, i + (ax > 0 ? 1 : -1)));
+      if (j !== i) { vrMenu.tab = T[j][0]; vrMenu.scroll = 0; vrMenu.dirty = true; playSfx('pop'); }
       vrMenu.tabReady = false;
     } else if (Math.abs(ax) < 0.3) vrMenu.tabReady = true;
     if (Math.abs(gp.axes[3]) > 0.3 && vrMenu.maxScroll > 0) { vrMenu.scroll = Math.max(0, Math.min(vrMenu.maxScroll, vrMenu.scroll + gp.axes[3] * 900 * dt)); vrMenu.dirty = true; }
