@@ -8807,7 +8807,7 @@ vrBtn.addEventListener('click', async () => {
     renderer.xr.setReferenceSpaceType('local-floor');
     await renderer.xr.setSession(s);
     camera.position.set(0, 0, 0); vrReach.pending = true; if (vrEye.mode === 'auto') vrEye.measure = 1; // 作業の とちゅうで 入ったら、台に 手が とどく ところへ
-    setTimeout(() => toast('左手首の 腕時計に さわると、手首の 上に メニュー・設定が 出ます（B か Y ボタンでも）'), 800);
+    setTimeout(() => toast('左手首の 腕時計に さわると、手首の 上に メニュー・MAP が 出ます（B か Y ボタンでも）'), 800);
     s.addEventListener('end', () => { xrSession = null; vrBtn.textContent = 'VR で入る'; camera.position.set(0, 1.6, 0); });
   } catch (e) { toast('VR を開けませんでした。ヘッドセットのブラウザで開いてください。'); }
 });
@@ -13240,20 +13240,20 @@ const vrWatch = (() => {
   face.position.z = 0.0002; holder.add(face);
   return { c, ctx: c.getContext('2d'), tex, pivot, face, grip: null, hover: null, armed: true, flip: false, minute: -1, drawn: '' };
 })();
-const WATCH_HALF = { menu: 'メニュー', settings: '設定' };
+const WATCH_HALF = { menu: 'メニュー', map: 'MAP' }; // 設定は メニュー板の「設定」タブから
 function drawVrWatch() {
   const { ctx } = vrWatch; const d = new Date(); const hm = d.getHours() + ':' + String(d.getMinutes()).padStart(2, '0');
   const open = vrMenu.mesh.visible;
   const key = hm + '|' + vrWatch.hover + '|' + open; if (key === vrWatch.drawn) return; vrWatch.drawn = key;
   ctx.clearRect(0, 0, 512, 512);
   ctx.save(); ctx.beginPath(); ctx.arc(256, 256, 250, 0, Math.PI * 2); ctx.clip();
-  [['menu', 0, '#fff4d6', '#ffd56b'], ['settings', 256, '#e4f1f7', '#9fd3ea']].forEach(([k, y, bg, on]) => { ctx.fillStyle = vrWatch.hover === k ? on : bg; ctx.fillRect(0, y, 512, 256); });
+  [['menu', 0, '#fff4d6', '#ffd56b'], ['map', 256, '#e4f1f7', '#9fd3ea']].forEach(([k, y, bg, on]) => { ctx.fillStyle = vrWatch.hover === k ? on : bg; ctx.fillRect(0, y, 512, 256); });
   ctx.restore();
   ctx.strokeStyle = '#1f2a33'; ctx.lineWidth = 10; ctx.beginPath(); ctx.arc(256, 256, 248, 0, Math.PI * 2); ctx.stroke();
   ctx.lineWidth = 8; ctx.beginPath(); ctx.moveTo(14, 256); ctx.lineTo(498, 256); ctx.stroke(); // まん中の 線（うでに そって）
   ctx.fillStyle = '#1f2a33'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.font = '700 40px ' + FONT_BODY; ctx.fillText(hm, 256, 66);
-  ctx.font = '700 92px ' + FONT_BODY; ctx.fillText(open ? 'とじる' : 'メニュー', 256, 168); ctx.fillText('設定', 256, 360);
+  ctx.font = '700 92px ' + FONT_BODY; ctx.fillText(open ? 'とじる' : 'メニュー', 256, 168); ctx.fillText('MAP', 256, 360);
   ctx.font = '700 32px ' + FONT_BODY; ctx.fillText(open ? '画面は 手首の 上' : 'さわって ひらく', 256, 452);
   vrWatch.tex.needsUpdate = true;
 }
@@ -13262,10 +13262,10 @@ function vrWatchPress(k) {
   const s = renderer.xr.getSession(); const other = vrWatch.grip && vrWatch.grip.userData.hand === 'left' ? 'right' : 'left';
   if (s) for (const src of s.inputSources) { const h = src.gamepad && src.gamepad.hapticActuators && src.gamepad.hapticActuators[0]; if (h && src.handedness === other && h.pulse) try { h.pulse(0.5, 40); } catch (e) { /* ぶるっと しない 機種 */ } }
   if (k === 'menu') { if (vrMenu.mesh.visible) closeVrMenu(); else openVrMenu('menu'); return; }
-  $('btn-settings').click(); openVrMenu('now'); // 設定の カードは メニュー板の「いま」に 出る
+  if (vrMenu.mesh.visible && vrMenu.tab === 'go' && modal.hidden) closeVrMenu(); else if (!modal.hidden && modal.dataset.closable !== '1') toast('さきに カードを すすめて ください'); else { if (!modal.hidden) closeModal(); openVrMenu('go'); } // MAP（行き先）の タブを ひらく（オープニングなど とじられない カードは そのまま）
 }
-// 文字ばんの どこ（上＝メニュー・下＝設定）か。p は 文字ばんの 中の 位置
-const watchHalf = (p) => Math.hypot(p.x, p.y) <= WATCH_S / 2 ? (p.y >= 0 ? 'menu' : 'settings') : null;
+// 文字ばんの どこ（上＝メニュー・下＝MAP）か。p は 文字ばんの 中の 位置
+const watchHalf = (p) => Math.hypot(p.x, p.y) <= WATCH_S / 2 ? (p.y >= 0 ? 'menu' : 'map') : null;
 // ゆびさして トリガー：腕時計に あたって いれば おす
 function vrWatchRay(ray) {
   if (!vrWatch.pivot.visible) return false;
