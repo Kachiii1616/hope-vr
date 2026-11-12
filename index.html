@@ -3854,7 +3854,7 @@ function stepOpening(now) {
   if (!opening.t0) return;
   const t = Math.min(1, (now - opening.t0) / opening.dur); const e = 1 - Math.pow(1 - t, 3);
   opening.ferry.position.lerpVectors(opening.from, opening.to, e);
-  const f = opening.ferry; const rock = reduceMotion || vrCalm() ? 0 : 1; // VR 酔い対策中は 波で ゆらさない f.rotation.order = 'YXZ';
+  const f = opening.ferry; const rock = reduceMotion || vrCalm() ? 0 : 1; f.rotation.order = 'YXZ'; // VR 酔い対策中は 波で ゆらさない
   f.rotation.x = Math.sin(now / 1100) * 0.025 * rock; f.rotation.z = Math.sin(now / 1500 + 1) * 0.015 * rock; f.position.y = Math.sin(now / 900) * 0.05 * rock; // 波で ゆれる
   stepWake(f, t < 0.93, now, 1 - t);
   f.updateMatrixWorld(true); const deck = f.localToWorld(boatTmp.set(3.4, 0.5, 0));
