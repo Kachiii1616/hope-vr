@@ -1171,6 +1171,7 @@ const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(stage.clientWidth, stage.clientHeight);
 renderer.xr.enabled = true;
+if (renderer.xr.setFoveation) renderer.xr.setFoveation(1); // VR：視界の はしを 軽く 描いて フレームを 落とさない（カクつきも 酔いの もと）
 stage.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
@@ -1189,6 +1190,46 @@ rig.add(camera);
 const whiteout = new THREE.Mesh(new THREE.SphereGeometry(0.2, 16, 12), new THREE.MeshBasicMaterial({ color: '#ffffff', side: THREE.BackSide, transparent: true, opacity: 0, depthTest: false, depthWrite: false, fog: false }));
 whiteout.renderOrder = 9999; whiteout.visible = false; whiteout.frustumCulled = false;
 camera.add(whiteout);
+// ---- VR 酔い対策（設定の「VR 酔い対策」。VR の 中だけ きく。パソコン・スマホの 見えかたは かわらない）
+//   strong（はじめは これ）：スティックを たおすと ワープで すすむ・連絡船は 暗く なって いる あいだに 着く・視界の まわりを つよめに 暗く する
+//   normal：スティックで 歩く（動いて いる あいだ 視界の まわりを 暗く）・連絡船に 乗って 海を わたる
+//   light：まわりを 暗く しない・乗りものの ゆれも ある（なれた 人むけ）
+//   strong・normal では どちらも：場所の 移動は すべて 暗転（すーっと すべる 移動を しない）・船や 海の ゆれ／上下動を 止める・
+//   スキーは 体の 向きを 坂の 下に 固定して おそめ・山の ぼり道は 向きを 45 度ずつ かえる・冬の 湖は すべらず ふつうに 歩く
+const VR_COMFORT_KEY = 'hope-vr-comfort';
+const VR_COMFORT = { strong: 'つよい（ワープで すすむ。はじめての 人・酔いやすい 人）', normal: 'ふつう（スティックで 歩く。動く とき まわりを 暗く）', light: 'よわい（まわりを 暗く しない。なれた 人むけ）' };
+let vrComfort = 'strong';
+try { const v = localStorage.getItem(VR_COMFORT_KEY); if (v && v in VR_COMFORT) vrComfort = v; } catch (e) { /* noop */ }
+function setVrComfort(v) { if (!(v in VR_COMFORT)) return; vrComfort = v; try { localStorage.setItem(VR_COMFORT_KEY, v); } catch (e) { /* noop */ } }
+const vrCalm = () => renderer.xr.isPresenting && vrComfort !== 'light'; // ゆれ・自動の 回転・すべる 移動を やめる
+const vrWarp = () => renderer.xr.isPresenting && vrComfort === 'strong'; // 歩く かわりに ワープ
+const VR_BLINK_MS = 420; // 近くへの 移動の 暗転（暗く なる → 着く → もどる）
+const BLINK_DARK = new THREE.Color('#101a22'); const BLINK_WHITE = new THREE.Color('#ffffff'); // VR は まぶしく ない 暗い 色で 暗転
+// 視界の まわりを 暗く する（コンフォート・ビネット）。自分で 歩かずに 景色が 動く（スティック・乗りもの・自動の 移動）あいだだけ 出る。
+//   それぞれの 目の 正面から の 角度で 暗く するので、左右の 目で ずれない（近くに 見えて 寄り目に ならない）
+const comfortVig = new THREE.Mesh(new THREE.SphereGeometry(0.3, 32, 16), new THREE.ShaderMaterial({
+  uniforms: { amt: { value: 0 }, inner: { value: 0.5 }, tint: { value: new THREE.Color('#0b1218') } },
+  vertexShader: 'varying vec3 vV; void main() { vec4 mv = modelViewMatrix * vec4(position, 1.0); vV = mv.xyz; gl_Position = projectionMatrix * mv; }',
+  fragmentShader: 'uniform float amt; uniform float inner; uniform vec3 tint; varying vec3 vV; void main() { float a = acos(clamp(-normalize(vV).z, -1.0, 1.0)); float r0 = inner + 0.3 * (1.0 - amt); gl_FragColor = vec4(tint, smoothstep(r0, r0 + 0.32, a) * amt); }',
+  transparent: true, depthTest: false, depthWrite: false, side: THREE.BackSide,
+}));
+comfortVig.renderOrder = 9997; comfortVig.visible = false; comfortVig.frustumCulled = false;
+camera.add(comfortVig);
+const comfort = { prev: new THREE.Vector3(), prevYaw: 0, has: false, amt: 0, tmp: new THREE.Vector3(), q: new THREE.Quaternion(), e: new THREE.Euler() };
+function stepComfort(dt) {
+  if (!renderer.xr.isPresenting || vrComfort === 'light' || dt <= 0) { comfortVig.visible = false; comfort.has = false; comfort.amt = 0; return; }
+  // 頭を 自分で 動かした 分は 入れない：rig（からだ）の 動きだけ 見る
+  rig.updateMatrixWorld(); rig.getWorldPosition(comfort.tmp); rig.getWorldQuaternion(comfort.q); const yaw = comfort.e.setFromQuaternion(comfort.q, 'YXZ').y;
+  let want = 0;
+  if (comfort.has) {
+    const v = comfort.tmp.distanceTo(comfort.prev) / dt; let dy = yaw - comfort.prevYaw; dy = Math.abs(Math.atan2(Math.sin(dy), Math.cos(dy))) / dt;
+    if (v < 12 && dy < 4) want = Math.min(1, Math.max((v - 0.05) / 1.2, (dy - 0.05) / 0.5, 0)); // ワープ・向きの 切りかえ（一瞬）は かぞえない
+  }
+  comfort.prev.copy(comfort.tmp); comfort.prevYaw = yaw; comfort.has = true;
+  comfort.amt += (want - comfort.amt) * Math.min(1, dt * (want > comfort.amt ? 8 : 2.5)); // すぐ 暗く して、ゆっくり もどす
+  comfortVig.material.uniforms.amt.value = comfort.amt; comfortVig.material.uniforms.inner.value = vrComfort === 'strong' ? 0.42 : 0.6;
+  comfortVig.visible = comfort.amt > 0.01;
+}
 // 双眼鏡を のぞいた ときの 視界（2 つの 丸い 穴の ほかは 黒い 板。カメラの 目の 前に つけるので VR でも 見える）
 const binocMask = (() => {
   const cv = document.createElement('canvas'); const tex = new THREE.CanvasTexture(cv);
@@ -3813,7 +3854,7 @@ function stepOpening(now) {
   if (!opening.t0) return;
   const t = Math.min(1, (now - opening.t0) / opening.dur); const e = 1 - Math.pow(1 - t, 3);
   opening.ferry.position.lerpVectors(opening.from, opening.to, e);
-  const f = opening.ferry; const rock = reduceMotion ? 0 : 1; f.rotation.order = 'YXZ';
+  const f = opening.ferry; const rock = reduceMotion || vrCalm() ? 0 : 1; // VR 酔い対策中は 波で ゆらさない f.rotation.order = 'YXZ';
   f.rotation.x = Math.sin(now / 1100) * 0.025 * rock; f.rotation.z = Math.sin(now / 1500 + 1) * 0.015 * rock; f.position.y = Math.sin(now / 900) * 0.05 * rock; // 波で ゆれる
   stepWake(f, t < 0.93, now, 1 - t);
   f.updateMatrixWorld(true); const deck = f.localToWorld(boatTmp.set(3.4, 0.5, 0));
@@ -3882,25 +3923,39 @@ function moveRig(pos, yaw, pitch, dur, opt) {
   // 回転は近い向きへ
   let d = to.yaw - from.yaw; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; to.yaw = from.yaw + d;
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const dist = from.p.distanceTo(to.p);
   // 島は広いので、遠いほど ゆっくり（それでも 2 秒まで）
-  const auto = Math.min(2000, 700 + from.p.distanceTo(to.p) * 14);
+  const auto = Math.min(2000, 700 + dist * 14);
+  const after = opt && opt.after;
+  // VR 酔い対策：VR では すべる ように 動かさず、暗転して その場へ（近くでも）。ほんの 少しなら そのまま
+  const blink = vrCalm();
+  if (blink && dist < 0.03 && Math.abs(d) < 0.02) {
+    tween = null; rig.position.copy(to.p); rig.rotation.y = to.yaw; look.yaw = 0; look.pitch = pitch || 0; if (after) after(); return;
+  }
   // 遠くへ 飛ぶ ときは 壁を つきぬけて 見えないよう、いったん 白く して から 着いた 先で はじめる
-  if (!dur && from.p.distanceTo(to.p) > WHITEOUT_DIST) {
-    tween = { fade: true, from, to, pitch: pitch || 0, t0: performance.now(), dur: reduce ? 300 : WHITEOUT_MS, snapped: false };
+  if ((!dur && dist > WHITEOUT_DIST) || blink) {
+    const ms = reduce ? 300 : !dur && dist > WHITEOUT_DIST ? WHITEOUT_MS : blink ? VR_BLINK_MS : WHITEOUT_MS;
+    const now = performance.now();
+    // 暗転の とちゅう（もう 暗い）で つぎの 移動が 来たら、暗い ところから つづける（一瞬 明るく ならない）
+    const dark = tween && tween.fade && tween.snapped && whiteout.material.opacity > 0.5;
+    whiteout.material.color.copy(renderer.xr.isPresenting ? BLINK_DARK : BLINK_WHITE);
+    tween = { fade: true, from, to, pitch: pitch || 0, t0: dark ? now - FADE_IN * ms : now, dur: ms, snapped: false, after };
     return;
   }
-  tween = { from, to, t0: performance.now(), dur: reduce ? 1 : (dur || auto) };
+  tween = { from, to, t0: performance.now(), dur: reduce ? 1 : (dur || auto), after };
   look.yaw = 0; look.pitch = pitch || 0;
 }
+const FADE_IN = 0.35; const FADE_HOLD = 0.5; // 暗転の 割合：暗く なる・暗い まま・もどる
 const WHITEOUT_DIST = 6; // これより 遠い 移動は ホワイトアウト
 const WHITEOUT_MS = 900; // 白く なる → 着く → もどる
 function stepTween(now) {
   const t = Math.min(1, (now - tween.t0) / tween.dur);
   if (tween.fade) {
-    const IN = 0.35; const HOLD = 0.5;
+    const IN = FADE_IN; const HOLD = FADE_HOLD;
     if (t >= IN && !tween.snapped) {
       tween.snapped = true;
-      rig.position.copy(tween.to.p); rig.rotation.y = tween.to.yaw; look.yaw = 0; look.pitch = tween.pitch;
+      if (!tween.keep) { rig.position.copy(tween.to.p); rig.rotation.y = tween.to.yaw; look.yaw = 0; look.pitch = tween.pitch; }
+      if (tween.onSnap) { const tw = tween; tw.onSnap(); if (tween !== tw) return; } // 暗い あいだに することが あれば（つぎの 移動に かわったら そちらへ）
     }
     whiteout.material.opacity = t < IN ? t / IN : t < HOLD ? 1 : 1 - (t - HOLD) / (1 - HOLD);
     whiteout.visible = t < 1;
@@ -3908,7 +3963,7 @@ function stepTween(now) {
     const e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
     rig.position.lerpVectors(tween.from.p, tween.to.p, e); rig.rotation.y = tween.from.yaw + (tween.to.yaw - tween.from.yaw) * e;
   }
-  if (t >= 1) tween = null;
+  if (t >= 1) { const after = tween.after; tween = null; if (after) after(); }
 }
 
 function goHome(instant) {
@@ -4049,7 +4104,8 @@ function walkStep(dt) {
   if (state.where !== 'walk' || tween) return;
   const { fwd, strafe } = moveInput(dt);
   if ((walkStep.acc = (walkStep.acc || 0) + dt) > 0.3) { walkStep.acc = 0; checkNearby(); }
-  if (onIce(rig.position.x, rig.position.z)) { skateStep(dt, fwd, strafe); return; } // 冬の 湖：すべる
+  if (vrWarp()) { if (state.skating) { state.skating = false; skateV.set(0, 0, 0); renderHud(); } warpStep(fwd, strafe); return; } // VR 酔い対策（つよい）：ワープで すすむ
+  if (onIce(rig.position.x, rig.position.z) && !vrCalm()) { skateStep(dt, fwd, strafe); return; } // 冬の 湖：すべる（VR の 酔い対策中は すべらない）
   if (state.skating) { state.skating = false; skateV.set(0, 0, 0); renderHud(); }
   if (!fwd && !strafe) return;
   camera.getWorldDirection(tmpDir); tmpDir.y = 0; if (tmpDir.lengthSq() < 1e-6) return; tmpDir.normalize();
@@ -4057,6 +4113,32 @@ function walkStep(dt) {
   const dx = (tmpDir.x * fwd - tmpDir.z * strafe) * speed; const dz = (tmpDir.z * fwd + tmpDir.x * strafe) * speed;
   const p = rig.position;
   if (walkable(p.x + dx, p.z + dz)) { p.x += dx; p.z += dz; } else if (walkable(p.x + dx, p.z)) p.x += dx; else if (walkable(p.x, p.z + dz)) p.z += dz; // 壁ぞいに すべる
+  walkArrive();
+}
+// VR 酔い対策（つよい）：左スティックを たおすと、たおした 向きへ 暗転して 1.8 m すすむ（たおした ままなら 0.6 秒ごとに つづけて すすむ）。
+//   景色が 流れないので 酔いにくい。壁や 海の 手前で 止まる
+const WARP_STEP = 1.8; const WARP_REPEAT_MS = 600;
+const warp = { ready: true, next: 0 };
+function warpStep(fwd, strafe) {
+  const m = Math.hypot(fwd, strafe); const now = performance.now();
+  if (m < 0.35) { warp.ready = true; return; }
+  if (m < 0.75 || (!warp.ready && now < warp.next)) return;
+  warp.ready = false; warp.next = now + WARP_REPEAT_MS;
+  camera.getWorldDirection(tmpDir); tmpDir.y = 0; if (tmpDir.lengthSq() < 1e-6) return; tmpDir.normalize();
+  const dx = (tmpDir.x * fwd - tmpDir.z * strafe) / m; const dz = (tmpDir.z * fwd + tmpDir.x * strafe) / m;
+  const p = rig.position; let s = 0;
+  for (let k = 0.2; k <= WARP_STEP + 1e-6; k += 0.2) { if (!walkable(p.x + dx * k, p.z + dz * k)) break; s = k; }
+  if (s < 0.2) { vrBuzzAll(0.3, 60); return; } // 進めない（壁・海）：手に 小さく 知らせる
+  moveRig(new THREE.Vector3(p.x + dx * s, p.y, p.z + dz * s), rig.rotation.y, 0, VR_BLINK_MS, { raw: true, after: () => { if (state.where === 'walk') walkArrive(); } });
+}
+// 両手の コントローラーを 小さく ふるわせる（対応して いる 機種だけ）
+function vrBuzzAll(v, ms) {
+  const xr = renderer.xr.isPresenting && renderer.xr.getSession(); if (!xr) return;
+  for (const src of xr.inputSources) { const h = src.gamepad && src.gamepad.hapticActuators && src.gamepad.hapticActuators[0]; if (h && h.pulse) try { h.pulse(v, ms); } catch (e) { /* noop */ } }
+}
+// 歩いて（ワープで）着いた ところが 入口なら 中へ
+function walkArrive() {
+  const p = rig.position;
   // お店の 入口に 来たら 中へ
   if (home.door && Math.hypot(home.door.x - p.x, home.door.z - p.z) < 1.3) { Object.keys(walkKeys).forEach((k) => { walkKeys[k] = false; }); syncPad(); goHome(); return; } // 自分の 家の 入口
   const near = booths.findIndex((b) => Math.hypot(b.door.x - p.x, b.door.z - p.z) < 1.3);
@@ -8807,6 +8889,7 @@ vrBtn.addEventListener('click', async () => {
     renderer.xr.setReferenceSpaceType('local-floor');
     await renderer.xr.setSession(s);
     camera.position.set(0, 0, 0); vrReach.pending = true; if (vrEye.mode === 'auto') vrEye.measure = 1; // 作業の とちゅうで 入ったら、台に 手が とどく ところへ
+    comfort.has = false; if (vrComfort === 'strong') toast('左スティックを たおすと ワープで すすみます。気分が わるく なったら すぐ ゴーグルを はずして 休みましょう'); // VR 酔い対策
     setTimeout(() => toast('左手首の 腕時計に さわると、手首の 上に メニュー・MAP が 出ます（B か Y ボタンでも）'), 800);
     s.addEventListener('end', () => { xrSession = null; vrBtn.textContent = 'VR で入る'; camera.position.set(0, 1.6, 0); });
   } catch (e) { toast('VR を開けませんでした。ヘッドセットのブラウザで開いてください。'); }
@@ -9124,7 +9207,7 @@ function renderHud() {
   if (state.where === 'walk') {
     el.innerHTML = '<span class="tag">島を歩く</span><h2>歩いて お店を さがす</h2>' +
       '<div>お店の 入口まで 歩くと、中に 入れます。お店を タップしても 入れます。</div>' +
-      '<div class="meta"><span>パソコン：W A S D・矢印キー（Shift で 走る）・ドラッグで 見回す</span><span>スマホ：右下の ボタン</span><span>VR：左スティックで 歩く・右スティックで 向きを かえる</span></div>' +
+      '<div class="meta"><span>パソコン：W A S D・矢印キー（Shift で 走る）・ドラッグで 見回す</span><span>スマホ：右下の ボタン</span><span>VR：左スティックで 歩く（酔い対策「つよい」は ワープ）・右スティックで 向きを かえる</span></div>' +
       (state.skating ? '<div class="feedback ok">スケート中：▲で すべり出し、手を はなすと ゆっくり 止まります</div>' : '') +
       '<div class="row">' + nearbyActions().map(([k, t]) => '<button type="button" class="primary" data-act="' + k + '">' + t + '</button>').join('') + '<button type="button" id="h-plaza">島ぜんたいへ</button></div>';
     $('h-plaza').onclick = goPlaza;
@@ -9332,25 +9415,26 @@ function stepPlay(dt, now) {
   if (pl.kind === 'iba') { stepIba(pl, dt, now); return; }
   if (pl.kind === 'keiba') { stepKeibaPlay(pl, dt, now); return; }
   if (pl.kind === 'casino') { stepCasino(pl, dt, now); return; }
-  if (pl.kind === 'boat') { boatRide(pl.boat, now); return; }
+  if (pl.kind === 'boat') { if (pl.warpAt && now >= pl.warpAt) { pl.warpAt = 0; boatWarp(); } boatRide(pl.boat, now); return; }
   if (pl.kind === 'ferris') { ferrisRide(pl, now); return; }
   const m = seasonal.mount; const xr = xrMove();
   const fwd = xr ? xr.fwd : (walkKeys.fwd ? 1 : 0) - (walkKeys.back ? 1 : 0);
   const side = xr ? xr.strafe : (walkKeys.right ? 1 : 0) - (walkKeys.left ? 1 : 0);
   if (pl.kind === 'ski') {
     const dir = m.runs[pl.run]; const sd = new THREE.Vector3(-dir.z, 0, dir.x); const W = m.widths[pl.run];
-    pl.v = Math.min(walkKeys.run ? 9 : 7, pl.v + (1.6 - (side ? 0.7 : 0)) * dt);
+    const vmax = !vrCalm() ? (walkKeys.run ? 9 : 7) : vrComfort === 'strong' ? 3.5 : 5; // VR 酔い対策中は おそく
+    pl.v = Math.min(vmax, pl.v + (1.6 - (side ? 0.7 : 0)) * dt);
     pl.lat = Math.max(-W * 0.45, Math.min(W * 0.45, pl.lat + side * 2.4 * dt));
     pl.r += pl.v * dt * 0.2; // 横に 進む はやさ（ななめに 長く すべる）
     const x = m.peak.x + dir.x * pl.r + sd.x * pl.lat; const z = m.peak.z + dir.z * pl.r + sd.z * pl.lat;
-    rig.position.set(x, m.heightAt(x, z) + 0.12, z); rig.rotation.y = Math.atan2(-dir.x, -dir.z) - side * 0.15; look.pitch = 0.32;
+    rig.position.set(x, m.heightAt(x, z) + 0.12, z); rig.rotation.y = Math.atan2(-dir.x, -dir.z) - (vrCalm() ? 0 : side * 0.15); look.pitch = 0.32; // VR 酔い対策中は 向きを 坂の 下に 固定（左右で 体を まわさない）
     if (pl.r > m.MR * 1.15) { toast('ゴール！ ' + Math.round((now - pl.t0) / 1000) + '秒で すべりました'); endPlay(); }
   } else if (pl.kind === 'climb') {
     pl.s = Math.max(0, Math.min(1, pl.s + fwd * dt / 55));
     const at = (s) => { const a = pl.a0 + s * Math.PI * 2.2; const r = m.MR * (1 - s) * 0.97 + 0.4 * s; return [m.peak.x + Math.cos(a) * r, m.peak.z + Math.sin(a) * r]; };
     const [x, z] = at(pl.s); const [x2, z2] = at(Math.min(1, pl.s + 0.01));
     rig.position.set(x, m.heightAt(x, z) + 0.15, z);
-    if (pl.s < 0.995) rig.rotation.y = Math.atan2(-(x2 - x), -(z2 - z));
+    if (pl.s < 0.995) { const want = Math.atan2(-(x2 - x), -(z2 - z)); if (!vrCalm() || Math.abs(angDiff(want, rig.rotation.y)) > Math.PI / 4) rig.rotation.y = want; } // VR 酔い対策中は じわじわ まわさず 45 度ずつ 切りかえる
     if (pl.s >= 0.99 && !pl.summit) { pl.summit = true; toast('山頂に とうちゃく！ 島が ぜんぶ 見わたせます'); look.pitch = 0.2; }
     if (pl.s <= 0 && fwd < 0) endPlay();
   } else if (pl.kind === 'swim') {
@@ -9359,7 +9443,7 @@ function stepPlay(dt, now) {
     const sf = xr ? xr.strafe : 0; const sp = 1.3 * dt;
     const nx = rig.position.x + (tmpDir.x * fwd - tmpDir.z * sf) * sp; const nz = rig.position.z + (tmpDir.z * fwd + tmpDir.x * sf) * sp;
     if (!insideIsland(...toMap(nx, nz)) && Math.hypot(nx - pl.land.x, nz - pl.land.z) < 30) { rig.position.x = nx; rig.position.z = nz; }
-    rig.position.y = -1.7 + Math.sin(pl.t * 2) * 0.06; // 波で ゆれる
+    rig.position.y = -1.7 + (vrCalm() ? 0 : Math.sin(pl.t * 2) * 0.06); // 波で ゆれる（VR 酔い対策中は ゆらさない）
   } else if (pl.kind === 'sun') {
     pl.t += dt;
     if (pl.t > 6 && !pl.said) { pl.said = true; toast('あたたかくて 気持ちいい…'); }
@@ -11977,7 +12061,7 @@ function boatTrip(side) {
   if (b.at !== side) boatDock(b, side); if (o && o.at !== other) boatDock(o, other);
   leaveForPlay();
   const t0 = performance.now() + 1200;
-  state.where = 'play'; state.play = { kind: 'boat', side, boat: b, t0 };
+  state.where = 'play'; state.play = { kind: 'boat', side, boat: b, t0, warpAt: vrWarp() ? t0 + 300 : 0 }; // VR 酔い対策（つよい）：出て すぐ 暗転して 向こうへ
   b.trip = boatPlan(side, other, t0, true); if (o) o.trip = boatPlan(other, side, t0 + 600, false); // 向こうの 船も 同時に こちらへ（のりばが いつも 1 そうずつ）
   playSfx('horn'); toast(side === 'main' ? 'あそびの島へ 出発します' : 'Work Island へ もどります');
   boatRide(b, performance.now()); renderHud();
@@ -11990,8 +12074,9 @@ function stepBoats(now) {
   islePierFun(now);
   if (FERRIS.wheel) { const dt = Math.min(0.1, (now - (FERRIS.last || now)) / 1000); FERRIS.last = now; if (!reduceMotion || (state.play && state.play.kind === 'ferris')) FERRIS.ang += dt * FERRIS.speed; FERRIS.wheel.rotation.z = FERRIS.ang; FERRIS.cars.forEach((c) => { c.rotation.z = -FERRIS.ang; }); if (FERRIS.crew) FERRIS.crew.guide.rotation.y = FERRIS.crew.y0 + Math.sin(now / 1800) * 0.45; }
   BOATS.list.forEach((b) => {
-    const T = b.trip; const ph = b.at === 'main' ? 0 : 2; const bob = Math.sin(now / 900 + ph) * 0.05;
-    const ms = T ? Math.max(0, now - T.t0) : 0; const run = T && ms < BOAT_TIME; const rock = reduceMotion ? 0 : run ? 1 : 0.35; // 走って いる ときは 大きく ゆれる
+    const calm = reduceMotion || vrCalm(); // VR 酔い対策中は 船を ゆらさない（乗って いる 自分も 上下に ゆれない）
+    const T = b.trip; const ph = b.at === 'main' ? 0 : 2; const bob = calm ? 0 : Math.sin(now / 900 + ph) * 0.05;
+    const ms = T ? Math.max(0, now - T.t0) : 0; const run = T && ms < BOAT_TIME; const rock = calm ? 0 : run ? 1 : 0.35; // 走って いる ときは 大きく ゆれる
     b.g.rotation.x = Math.sin(now / 1100 + ph) * 0.035 * rock; b.g.rotation.z = Math.sin(now / 1500 + ph + 1) * 0.02 * rock;
     stepWake(b.g, !!T && ms > 0 && ms < BOAT_TIME + BOAT_TURN, now, run ? Math.min(1, ms / 1500, (BOAT_TIME - ms) / 2000 + 0.25) : 0.15);
     if (!T) { b.g.position.y = -0.2 + bob; return; }
@@ -12092,6 +12177,13 @@ function goBoatPier() {
   startWalk(BOATS.board.main.clone(), Math.PI / 2); toast('連絡船のりばです。きっぷを 買って のってください');
 }
 const angDiff = (a, b) => { let d = a - b; while (d > Math.PI) d -= TAU; while (d < -Math.PI) d += TAU; return d; };
+// VR 酔い対策（つよい）：海を わたる あいだは 暗く して、暗い うちに 2 そうとも 向こうの 船着き場へ（着いたら boatArrive が 桟橋へ おろす）
+function boatWarp() {
+  whiteout.material.color.copy(BLINK_DARK); toast('海を わたって います…');
+  const here = { p: rig.position.clone(), yaw: rig.rotation.y };
+  tween = { fade: true, keep: true, from: here, to: here, pitch: 0, t0: performance.now(), dur: 2400, snapped: false,
+    onSnap: () => { const end = performance.now() - (BOAT_TIME + BOAT_TURN + BOAT_BACK) - 1; BOATS.list.forEach((x) => { if (x.trip) x.trip.t0 = Math.min(x.trip.t0, end); }); } };
+}
 function boatArrive(b) {
   state.play = null; const to = b.at; const L = BOATS.land[to];
   playSfx('horn'); toast(to === 'isle' ? 'あそびの島に 着きました' : 'Work Island に もどりました');
@@ -12824,6 +12916,7 @@ function openSettings() {
     '<div class="field">あそびかた</div>' + radio('st-m', MODE_HTML, profile.mode) +
     '<div class="field">効果音（物に さわった ときの 音）</div>' + radio('st-sfx', { on: '鳴らす', off: '鳴らさない' }, sfxOn ? 'on' : 'off') +
     '<div class="field">BGM（場所に 合わせた 曲）</div>' + radio('st-bgm', { on: '流す', off: '流さない' }, bgmOn ? 'on' : 'off') +
+    '<div class="field">VR 酔い対策</div>' + radio('st-comfort', VR_COMFORT, vrComfort) +
     '<div class="field">VR の 目の 高さ</div>' + radio('st-eye', { auto: '自動（すわって いたら 立った 高さに）', stand: '保存を おした ときの 高さを 立った 高さに する', real: '自分の 身長の まま' }, vrEye.mode) +
     '<p>あそびかたを かえても、いままでの バッジ・お金・家具は のこります。</p>' +
     '<div class="row"><button type="button" class="primary" id="st-save">保存</button><button type="button" id="st-move">引っ越し</button><button type="button" id="st-close">とじる</button></div>' +
@@ -12836,7 +12929,7 @@ function openSettings() {
   () => {
     $('st-save').onclick = () => {
       profile.name = $('st-name').value.trim() || profile.name; profile.gender = pickVal('st-g') || profile.gender; profile.mode = pickVal('st-m') || profile.mode;
-      setSfx(pickVal('st-sfx') !== 'off'); setBgm(pickVal('st-bgm') !== 'off'); setVrEye(pickVal('st-eye') || vrEye.mode);
+      setSfx(pickVal('st-sfx') !== 'off'); setBgm(pickVal('st-bgm') !== 'off'); setVrEye(pickVal('st-eye') || vrEye.mode); setVrComfort(pickVal('st-comfort') || vrComfort);
       saveProfile(); buildHome(); renderWallet(); closeModal(); renderHud(); toast('保存しました');
     };
     $('st-move').onclick = () => openAreaPicker(false);
@@ -13364,6 +13457,7 @@ renderer.setAnimationLoop((now) => {
   stepVrReach();
   if (now - (drawMinimap.last || 0) > 100) { drawMinimap.last = now; drawMinimap(); } // 地図は 1 秒に 10 回で じゅうぶん
   kcRenderScreen(now); // 競馬場の 大型ビジョン
+  stepComfort(dt); // VR 酔い対策：からだが 動いた あいだ 視界の まわりを 暗く（ぜんぶ 動かした あとで はかる）
   renderer.render(scene, camera);
 });
 
@@ -13387,6 +13481,7 @@ $('btn-settings').addEventListener('click', openSettings);
 window.hopeTown = { scene, camera, BGM, bgmZone, vrWatch, vrWatchPress, drawVrWatch, vrMenu, placeVrMenuOnWrist,
   CASINO, CASINO_SITE, casinoRefill, casinoCount, CASINO_REST_EVERY, bacPlay, bacPayout, bacTotal, bacDeal, pkEval, pkHandName, pkEquity, pkNew, pkAct,
   RL_CELLS, rlPick, rlHit, IBA, IBA_SITE, openIba, ibaSit, ibaStand, ibaClickables, ibaData, sgLegal, sgPlay, sgThink, igoThink, igoScore, mjShanten, mjComplete, mjYaku, mjCounts, ISLE, BOATS, boardBoat, boatTrip, openCasino, casSit, casStand, CAS, slSpin, slStop, rlSpin, bjDeal, bjHit, bjStand, rideFerris, FERRIS, goBoatPier, KC, openKeiba, kcWindow, kcSeat, kcPaddock, keibaBuy, keibaStart, keibaNew, kcClickables, walkable, kcOutside, shogiTap, igoTap, mjTap, mjRon,
+  renderer, setVrComfort, get vrComfort() { return vrComfort; }, warpStep, comfortVig, stepComfort, get tween() { return tween; }, boardBoat,
   state, goBooth, pickVariant, startSession, openRehab, startRehab, rehabPress, rehabSwipeThrow, rehabVolleyPress, REHAB, get rehabOpt() { return rehabOpt; }, set rehabOpt(v) { rehabOpt = v; }, select: onSelectItem, playSfx, sfxKind, SFX, nextTargetKey, setSeason, startWalk, exitToWalk, walkKeys, rig, look, walkable, booths, goHome, exitHome, goPlaza,
   get profile() { return profile; }, quitWork, openJobList, openCafeOrder, sitCafe, endPlay, CAFE_ORDER, doLeisure, LEISURE, home, HOME_LEVELS, upgradeHome, askUpgrade, homeLv, FURN, goFurniture, furnShop, pickFurn, exitFurniture, vrReachShift, cheatCover() { const r = state.round; if (r && r.cover) { r.cover.surf.clearAll(); coverProgress(r, 1, performance.now()); } }, seasonal, LAKE, toWorld, nearbyActions, openShop, openBadgeBook, openSettings, openAreaPicker, openLookMaker, lookOf,
   // テスト用：オープニングを とばして 家を 用意する
